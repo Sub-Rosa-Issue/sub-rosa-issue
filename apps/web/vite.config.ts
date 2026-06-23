@@ -36,6 +36,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    proxy: {
+      "/ipfs": {
+        target: "https://cloudflare-ipfs.com",
+        changeOrigin: true,
+        rewrite: (path: string) => path,
+      },
+    },
     fs: {
       allow: ["..", "../..", "../../..", "../../../.."],
     },

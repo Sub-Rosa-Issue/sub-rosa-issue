@@ -28,6 +28,7 @@ import { shortAddr } from "../lib/format";
 import { LOGO_SRC } from "../lib/chain";
 import { ConfettiBurst } from "../ui/Confetti";
 import { CountUp } from "../ui/CountUp";
+import { OptimizedImage } from "../components/OptimizedImage";
 
 type DemoMode = "live" | "evidence";
 
@@ -127,8 +128,6 @@ function PhaseGuide(props: {
 
   const working = status === "working";
   const commitSeconds = commitSecondsRemaining ?? 0;
-  // Use the selected duration (or a sensible fallback) so the progress bar
-  // scales with whatever window the operator picked at creation time.
   const commitPercent =
     commitSecondsRemaining == null
       ? 0
@@ -164,7 +163,6 @@ function PhaseGuide(props: {
     cta = () => createRound(duration);
     showJoin = true;
   } else if (roundId != null && !committed && !commitClosed) {
-    // Danger threshold scales with the window: ~25% of remaining time, min 4s, max 12s.
     const dangerThreshold = Math.max(4, Math.min(12, Math.round(duration * 0.25)));
     tone = commitSeconds <= dangerThreshold ? "danger" : "urgent";
     eyebrow = `Step 2 · ${useCase.actorRole} commit`;
@@ -570,7 +568,6 @@ function LivePanel({
     refresh,
   } = session;
 
-  // Celebrate when revealedCount transitions to >0 for the first time
   const lastRevealedRef = useRef(0);
   useEffect(() => {
     if (revealedCount > 0 && lastRevealedRef.current === 0) {
@@ -579,11 +576,6 @@ function LivePanel({
     lastRevealedRef.current = revealedCount;
   }, [revealedCount, onCelebrate]);
 
-  /**
-   * Real on-chain peers participating in this round, derived from the
-   * contract's bidder list. Excludes the user's own address; if there is at
-   * least one other bidder we'll show real peers instead of simulated ones.
-   */
   const realPeers = useMemo(() => {
     if (!live || !address) return [];
     return live.bidders
@@ -849,7 +841,7 @@ export function DemoPage({
       <section className="app-shell">
         <aside className="case-nav">
           <button type="button" className="brand-link" onClick={goHome}>
-            <img src={LOGO_SRC} alt="" />
+            <OptimizedImage src={LOGO_SRC} alt="" width={32} height={32} priority noPlaceholder />
             <span>Sub Rosa</span>
           </button>
 

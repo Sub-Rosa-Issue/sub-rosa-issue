@@ -3,6 +3,7 @@ import { DEMO_TRACE } from "../demo/trace";
 import { USE_CASES, type UseCaseId } from "../config/useCases";
 import { LOGO_SRC } from "../lib/chain";
 import { shortAddr } from "../lib/format";
+import { OptimizedImage } from "../components/OptimizedImage";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -41,7 +42,7 @@ export function LandingPage({
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
       >
         <button type="button" className="brand-link" onClick={onDemo}>
-          <img src={LOGO_SRC} alt="" />
+          <OptimizedImage src={LOGO_SRC} alt="" width={32} height={32} priority noPlaceholder />
           <span>Sub Rosa</span>
         </button>
         <div className="landing-nav-actions">
@@ -137,7 +138,7 @@ export function LandingPage({
             <span className="seal-pulse" />
             <span className="seal-pulse" />
             <div className="seal-orb">
-              <img src={LOGO_SRC} alt="" />
+              <OptimizedImage src={LOGO_SRC} alt="" width={48} height={48} noPlaceholder />
             </div>
             <span className="seal-chip commit">
               <i />
