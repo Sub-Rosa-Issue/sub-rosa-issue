@@ -1,10 +1,5 @@
 import { Buffer } from "buffer";
-import { useEffect, useState } from "react";
-import {
-  getNetworkDetails,
-  isConnected,
-  requestAccess,
-} from "@stellar/freighter-api";
+import { useEffect, useMemo, useState } from "react";
 import type { BidState, Round } from "@sub-rosa/sdk";
 import {
   fetchRoundSignature,
@@ -26,12 +21,11 @@ import {
   NETWORK,
   displayError,
   formatDemoAmount,
-  freighterError,
-  resolveFreighterAddress,
   sha256Bytes,
   toDemoEscrowAmount,
   useWalletContract,
 } from "../lib/chain";
+import { getWalletAdapter } from "../lib/wallet";
 import { DEMO_TRACE } from "../demo/trace";
 import { formatCountdown, useDrandCountdown } from "./useDrandCountdown";
 import { useToast } from "../ui/Toast";
@@ -81,6 +75,8 @@ export function useRoundSession(active: UseCase) {
   const toast = useToast();
   const [address, setAddress] = useState<string | null>(null);
   const [walletStatus, setWalletStatus] = useState("Connect a funded Stellar testnet wallet.");
+  const [walletName, setWalletName] = useState("Wallet");
+  const wallet = useMemo(() => getWalletAdapter(), []);
   const [entryValue, setEntryValue] = useState(active.defaultValue);
   const [sessions, setSessions] = useState<Record<UseCaseId, CaseSession>>(() =>
     initialSessions(),
@@ -139,28 +135,35 @@ export function useRoundSession(active: UseCase) {
   }
 
   async function connect() {
-    const workingId = toast.push("working", "Connecting Freighter…");
+    const workingId = toast.push("working", `Connecting ${wallet.name}…`);
     setStatus("working");
     try {
-      const connected = await isConnected();
-      if (!connected.isConnected) {
-        throw new Error("Freighter extension is not installed or not reachable");
+      await wallet.connect();
+      if (!wallet.address) {
+        throw new Error("Wallet connected without an address");
       }
-      const access = await requestAccess();
-      const error = freighterError(access);
-      if (error) throw new Error(error);
-      const addr = await resolveFreighterAddress(access);
-      setAddress(addr);
-      const net = await getNetworkDetails();
+      setAddress(wallet.address);
+      setWalletName(wallet.name);
+      const net = wallet.network;
+      if (!net) {
+        throw new Error("Wallet connected without network details");
+      }
       const netMsg =
         net.networkPassphrase === NETWORK
           ? `Connected on ${net.network}.`
-          : `Connected — switch Freighter to Testnet (current: ${net.network}).`;
-      setWalletStatus(netMsg);
-      push("Freighter connected.");
+          : `Connected — switch ${wallet.name} to Testnet (current: ${net.network}).`;
+      const missing = [] as string[];
+      if (!wallet.capabilities.signTransaction) missing.push("transaction signing");
+      if (!wallet.capabilities.signAuthEntry) missing.push("Soroban auth signing");
+      const capabilityMsg = missing.length
+        ? ` ${wallet.name} does not support ${missing.join(" and ")}.`
+        : "";
+      const finalMsg = `${netMsg}${capabilityMsg}`;
+      setWalletStatus(finalMsg);
+      push(`${wallet.name} connected.`);
       setStatus("ok");
       toast.dismiss(workingId);
-      toast.push("success", "Wallet connected", netMsg);
+      toast.push("success", "Wallet connected", finalMsg);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       setWalletStatus(msg);
@@ -180,7 +183,7 @@ export function useRoundSession(active: UseCase) {
     const workingId = toast.push(
       "working",
       "Creating sealed round…",
-      `Commit window: ${commitWindowSeconds}s · signing with Freighter`,
+      `Commit window: ${commitWindowSeconds}s · signing with ${walletName}`,
     );
     setStatus("working");
     try {
@@ -229,7 +232,7 @@ export function useRoundSession(active: UseCase) {
 
   async function joinRound(idStr: string) {
     if (!contract || !address) {
-      toast.push("error", "Wallet not ready", "Connect Freighter first");
+      toast.push("error", "Wallet not ready", "Connect a wallet first");
       return;
     }
     const id = active.id;

@@ -136,11 +136,11 @@ function PhaseGuide(props: {
 
   let tone = "idle";
   let eyebrow = "Next step";
-  let title = "Connect Freighter";
+  let title = "Connect wallet";
   let detail = "Use a funded Stellar testnet wallet to run a sealed round end-to-end.";
   let timerLabel = "Status";
   let timerValue = "ready";
-  let ctaLabel = "Connect Freighter";
+  let ctaLabel = "Connect wallet";
   let cta = connect;
   let ctaDisabled = working;
   let showInput = false;
@@ -624,7 +624,7 @@ function LivePanel({
           <p>{walletStatus}</p>
         </div>
         <button type="button" className="primary-action" onClick={() => void connect()}>
-          {address ? "Reconnect" : "Connect Freighter"}
+          {address ? "Reconnect wallet" : "Connect wallet"}
         </button>
       </section>
 

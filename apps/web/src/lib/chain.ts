@@ -1,11 +1,7 @@
 import { Buffer } from "buffer";
-import {
-  getAddress,
-  signAuthEntry,
-  signTransaction,
-} from "@stellar/freighter-api";
 import { RoundContract } from "@sub-rosa/sdk";
 import { useMemo } from "react";
+import { getWalletAdapter } from "./wallet";
 
 export const LOGO_SRC = "/sub-rosa-logo.png";
 export const RPC_URL = import.meta.env.VITE_RPC_URL ?? "https://soroban-testnet.stellar.org";
@@ -39,13 +35,6 @@ export const COMMIT_DURATION_PRESETS: Array<{ seconds: number; label: string; he
 ];
 
 export const DEFAULT_COMMIT_DURATION_SECONDS = 27;
-
-export function freighterError(result: { error?: unknown }) {
-  if (!result.error) return null;
-  return typeof result.error === "string"
-    ? result.error
-    : JSON.stringify(result.error);
-}
 
 export function displayError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -81,6 +70,8 @@ export function stellarExpertTxLink(hash: string): string {
   return `https://stellar.expert/explorer/${network}/tx/${hash}`;
 }
 
+const walletAdapter = getWalletAdapter();
+
 export function useWalletContract(address: string | null) {
   return useMemo(() => {
     if (!address || !CONTRACT_ID) return null;
@@ -90,41 +81,18 @@ export function useWalletContract(address: string | null) {
       rpcUrl: RPC_URL,
       publicKey: address,
       signTransaction: async (xdr: string, opts?: { networkPassphrase?: string; address?: string }) => {
-        const signed = await signTransaction(xdr, {
+        return walletAdapter.signTransaction(xdr, {
           networkPassphrase: opts?.networkPassphrase ?? NETWORK,
           address: opts?.address ?? address,
         });
-        const error = freighterError(signed);
-        if (error) throw new Error(error);
-        return {
-          signedTxXdr: signed.signedTxXdr,
-          signerAddress: signed.signerAddress,
-        };
       },
       signAuthEntry: async (entryXdr: string, opts?: { networkPassphrase?: string; address?: string }) => {
-        const signed = await signAuthEntry(entryXdr, {
+        return walletAdapter.signAuthEntry(entryXdr, {
           networkPassphrase: opts?.networkPassphrase ?? NETWORK,
           address: opts?.address ?? address,
         });
-        const error = freighterError(signed);
-        if (error) throw new Error(error);
-        if (!signed.signedAuthEntry) throw new Error("Freighter returned no signed auth entry");
-        return {
-          signedAuthEntry: signed.signedAuthEntry,
-          signerAddress: signed.signerAddress,
-        };
       },
     });
   }, [address]);
 }
 
-export async function resolveFreighterAddress(
-  access: { address?: string; publicKey?: string },
-): Promise<string> {
-  const addr = access.address ?? access.publicKey;
-  if (addr) return addr;
-  const current = await getAddress();
-  const currentError = freighterError(current);
-  if (currentError) throw new Error(currentError);
-  return current.address;
-}
