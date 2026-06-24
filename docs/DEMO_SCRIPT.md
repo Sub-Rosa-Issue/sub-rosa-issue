@@ -2,6 +2,24 @@
 
 Walkthrough for `pnpm web:dev` (default http://localhost:5173).
 
+## Canonical trace health check
+
+Before running or deploying the recorded evidence view, verify that its
+generated trace still contains every field required by the UI:
+
+```bash
+pnpm web:test
+```
+
+The check runs locally without network access. If it reports a missing field,
+regenerate `apps/web/src/demo/demo-trace.generated.ts` from the canonical agent
+flow, then run the check again:
+
+```bash
+pnpm agents:e2e
+pnpm web:test
+```
+
 ## Primary narrative: verifiable grant allocation
 
 Open the **Grant Allocation** case first. Frame the product as allocation

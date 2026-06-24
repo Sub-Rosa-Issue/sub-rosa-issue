@@ -36,6 +36,7 @@
     "agents:e2e": "bash services/agent/scripts/agents-e2e.sh",
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
+    "web:test": "pnpm --filter @sub-rosa/web test",
     "web:typecheck": "pnpm --filter @sub-rosa/web typecheck"
   }
 }
