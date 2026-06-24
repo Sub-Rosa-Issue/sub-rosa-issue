@@ -125,6 +125,15 @@ describe("SubRosaClientConfig validation", () => {
     );
   });
 
+  it("rejects non-finite confirmTimeout values", () => {
+    for (const confirmTimeout of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.throws(
+        () => new SubRosaClient({ ...BASE_CONFIG, confirmTimeout }),
+        SubRosaClientConfigError,
+      );
+    }
+  });
+
   it("accepts confirmTimeout = 1000", () => {
     assert.doesNotThrow(
       () => new SubRosaClient({ ...BASE_CONFIG, confirmTimeout: 1000 }),
@@ -136,6 +145,15 @@ describe("SubRosaClientConfig validation", () => {
       () => new SubRosaClient({ ...BASE_CONFIG, pollInterval: 99 }),
       SubRosaClientConfigError,
     );
+  });
+
+  it("rejects non-finite pollInterval values", () => {
+    for (const pollInterval of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      assert.throws(
+        () => new SubRosaClient({ ...BASE_CONFIG, pollInterval }),
+        SubRosaClientConfigError,
+      );
+    }
   });
 
   it("accepts pollInterval = 100", () => {
@@ -155,8 +173,11 @@ describe("SubRosaClientConfig validation", () => {
 // -------------------------------------------------------------------------
 
 describe("custom polling settings with injected sleep", () => {
-  it("accepts injected sleep and custom polling config", () => {
-    const fakeSleep = async (_ms: number) => {};
+  it("accepts injected sleep without invoking it during construction", () => {
+    let sleepCalls = 0;
+    const fakeSleep = async (_ms: number) => {
+      sleepCalls += 1;
+    };
 
     const client = new SubRosaClient({
       ...BASE_CONFIG,
@@ -165,6 +186,7 @@ describe("custom polling settings with injected sleep", () => {
       _sleep: fakeSleep,
     });
     assert.ok(client instanceof SubRosaClient);
+    assert.equal(sleepCalls, 0);
   });
 
   it("timeout error carries timing context that matches config", () => {
@@ -200,7 +222,6 @@ describe("custom polling settings with injected sleep", () => {
     assert.equal(missingErr instanceof SubRosaMissingReturnValueError, true);
     assert.equal(timeoutErr instanceof SubRosaTimeoutError, true);
 
-    // All are instances of Error
     assert.equal(configErr instanceof Error, true);
     assert.equal(submitErr instanceof Error, true);
     assert.equal(txErr instanceof Error, true);

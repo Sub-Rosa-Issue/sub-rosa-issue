@@ -124,6 +124,27 @@ export class SubRosaClient {
   readonly #pollInterval: number;
 
   constructor(config: SubRosaClientConfig) {
+    const allowHttp = config.allowHttp ?? false;
+    if (/^http:\/\//i.test(config.rpcUrl) && !allowHttp) {
+      throw new SubRosaClientConfigError(
+        "rpcUrl must use https unless allowHttp is explicitly enabled",
+      );
+    }
+
+    const confirmTimeout = config.confirmTimeout ?? 60_000;
+    if (!Number.isFinite(confirmTimeout) || confirmTimeout < 1_000) {
+      throw new SubRosaClientConfigError(
+        `confirmTimeout must be a finite number at least 1000ms, got ${confirmTimeout}`,
+      );
+    }
+
+    const pollInterval = config.pollInterval ?? 1_500;
+    if (!Number.isFinite(pollInterval) || pollInterval < 100) {
+      throw new SubRosaClientConfigError(
+        `pollInterval must be a finite number at least 100ms, got ${pollInterval}`,
+      );
+    }
+
     const keypair = config.secretKey
       ? Keypair.fromSecret(config.secretKey)
       : undefined;
@@ -136,26 +157,16 @@ export class SubRosaClient {
     this.networkPassphrase = config.networkPassphrase;
     this.#source = source;
     this.#rpcUrl = config.rpcUrl;
-    this.#allowHttp = config.allowHttp ?? false;
+    this.#allowHttp = allowHttp;
     this.#submitter = config.submitter;
-    this.#confirmTimeout = config.confirmTimeout ?? 60_000;
-    this.#pollInterval = config.pollInterval ?? 1_500;
-    if (this.#confirmTimeout < 1_000) {
-      throw new SubRosaClientConfigError(
-        `confirmTimeout must be at least 1000ms, got ${this.#confirmTimeout}`,
-      );
-    }
-    if (this.#pollInterval < 100) {
-      throw new SubRosaClientConfigError(
-        `pollInterval must be at least 100ms, got ${this.#pollInterval}`,
-      );
-    }
+    this.#confirmTimeout = confirmTimeout;
+    this.#pollInterval = pollInterval;
     if (config._sleep) this.#sleep = config._sleep;
     this.contract = new RoundContract({
       contractId: config.contractId,
       networkPassphrase: config.networkPassphrase,
       rpcUrl: config.rpcUrl,
-      allowHttp: config.allowHttp ?? false,
+      allowHttp,
       ...(source ? { publicKey: source } : {}),
       ...(signer ? { signTransaction: signer.signTransaction } : {}),
     });
