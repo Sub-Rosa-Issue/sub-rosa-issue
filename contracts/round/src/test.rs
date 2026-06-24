@@ -169,18 +169,6 @@ fn open_round(f: &Fixture, operator: &Address) -> u64 {
     )
 }
 
-fn open_round_lowest(f: &Fixture, operator: &Address) -> u64 {
-    f.client.create_round(
-        operator,
-        &b32(&f.env, 2),
-        &2_000,
-        &ClearingRule::LowestBid,
-        &1_500,
-        &2_500,
-        &Bytes::from_array(&f.env, b"auditor-pubkey"),
-    )
-}
-
 fn commitment(env: &Env, value: i128, nonce: &BytesN<32>) -> BytesN<32> {
     let mut pre = Bytes::new(env);
     pre.extend_from_array(&value.to_be_bytes());
