@@ -17,3 +17,13 @@ export {
   type KeeperLogger,
   type SkipRecord,
 } from "./keeper.js";
+export {
+  buildKeeperDryRunSummary,
+  decideKeeperDryRunAction,
+  parseKeeperRunConfig,
+  type KeeperDryRunDecision,
+  type KeeperDryRunPhase,
+  type KeeperDryRunReader,
+  type KeeperDryRunSummary,
+  type KeeperRunConfig,
+} from "./dry-run.js";

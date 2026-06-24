@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node --import tsx src/run.ts",
     "watch": "node --import tsx src/watch.ts",
-    "test": "node --import tsx --test src/keeper.test.ts src/watch.test.ts",
+    "test": "node --import tsx --test src/dry-run.test.ts src/keeper.test.ts src/watch.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

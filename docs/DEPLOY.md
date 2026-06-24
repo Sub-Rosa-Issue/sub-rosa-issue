@@ -92,6 +92,16 @@ Or one line:
 KEEPER_SECRET=S… ROUND_CONTRACT_ID=C… pnpm keeper:watch
 ```
 
+For a read-only preflight of one round, no signing secret is required:
+
+```bash
+KEEPER_DRY_RUN=true ROUND_CONTRACT_ID=C… ROUND_ID=1 pnpm --filter @sub-rosa/keeper start
+```
+
+The command prints a structured JSON summary with the round status, Drand
+round, bidder/revealed counts, current phase, and next action. It exits without
+submitting open, reveal, clear, settle, or void transactions.
+
 On Fly.io / Railway / GitHub Actions: put the same names in **Secrets**, not in the web build.
 
 See root `.env.example` for the full keeper variable list.
