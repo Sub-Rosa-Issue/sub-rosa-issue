@@ -11,10 +11,16 @@
 //   WATCH_ROUND_IDS     optional explicit list: "1,2,5" or "1-10"
 //   WATCH_FROM          first round id when auto-discovering (default 1)
 //   WATCH_MAX_ROUNDS    max rounds to probe (default 64)
+//
+//   Retry policy (transient Drand/Soroban operations):
+//   RETRY_MAX_ATTEMPTS  max retry attempts (default 5)
+//   RETRY_BASE_DELAY_MS base delay in ms (default 100)
+//   RETRY_MAX_DELAY_MS  max delay cap in ms (default 5000)
+//   RETRY_JITTER_FRACTION jitter as fraction [0, 1) (default 0.1)
 
 import { Keypair } from "@stellar/stellar-sdk";
 import { SubRosaClient } from "@sub-rosa/sdk";
-import { quicknet } from "@sub-rosa/tlock";
+import { quicknet, retryPolicyFromEnv } from "@sub-rosa/tlock";
 
 import {
   discoverRoundIds,
@@ -52,6 +58,7 @@ async function resolveRoundIds(reader: SubRosaClient): Promise<bigint[]> {
   return discoverRoundIds(reader, {
     from: BigInt(process.env.WATCH_FROM ?? "1"),
     maxProbe: Number(process.env.WATCH_MAX_ROUNDS ?? "64"),
+    retryPolicy: retryPolicyFromEnv(),
   });
 }
 

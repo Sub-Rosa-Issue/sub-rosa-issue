@@ -15,7 +15,14 @@
 // no mock — just the SDK over real RPC and the live Drand beacon.
 
 import type { SubRosaClient } from "@sub-rosa/sdk";
-import { openBid, fetchRoundSignature, type DrandClient } from "@sub-rosa/tlock";
+import {
+  openBid,
+  fetchRoundSignatureWithRetry,
+  type DrandClient,
+  withRetry,
+  retryPolicyFromEnv,
+  type RetryPolicy,
+} from "@sub-rosa/tlock";
 
 export type KeeperLogger = (msg: string) => void;
 
@@ -28,6 +35,8 @@ export interface KeeperDeps {
   maxWaitSeconds?: number;
   /** Poll cadence while waiting for R (ms). Default 3000. */
   pollMs?: number;
+  /** Optional retry policy for transient operations. Default: from environment or built-in defaults. */
+  retryPolicy?: RetryPolicy;
 }
 
 export interface SkipRecord {
@@ -67,6 +76,19 @@ export function errorMatches(e: unknown, names: string[]): boolean {
   return names.some((n) => blob.includes(n));
 }
 
+async function withSDKRetry<T>(
+  operation: string,
+  fn: () => Promise<T>,
+  deps: KeeperDeps,
+): Promise<T> {
+  const retryPolicy = deps.retryPolicy || retryPolicyFromEnv();
+  return withRetry(fn, {
+    operation,
+    policy: retryPolicy,
+    logger: (msg) => (deps.log || (() => {}))(`[SDK] ${msg}`),
+  });
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Wait until Drand round R should be published. Returns false if R is still in
@@ -104,7 +126,7 @@ export async function keepRound(
     skipped: [],
   };
 
-  let round = await sdk.getRound(rid);
+  let round = await withSDKRetry(`getRound(${rid})`, () => sdk.getRound(rid), deps);
   log(`round ${rid}: status=${round.status.tag} R=${round.reveal_round}`);
 
   // ── Phase A: open the reveal window with R's real Drand signature ──────
@@ -119,15 +141,17 @@ export async function keepRound(
 
     // R's wall-clock time has arrived, but an API replica may lag a beat before
     // it serves the beacon — retry briefly rather than bailing.
-    const pollMs = deps.pollMs ?? 3000;
     let signature: Uint8Array | undefined;
-    for (let attempt = 0; attempt < 5 && !signature; attempt++) {
-      try {
-        signature = await fetchRoundSignature(drand, R);
-      } catch (e) {
-        log(`Drand round ${R} not servable yet (try ${attempt + 1}/5): ${errorName(e)}`);
-        await sleep(pollMs);
-      }
+    try {
+      const retryPolicy = deps.retryPolicy || retryPolicyFromEnv();
+      signature = await fetchRoundSignatureWithRetry(drand, R, {
+        policy: retryPolicy,
+        logger: (msg) => log(`[Drand] ${msg}`),
+      });
+    } catch (e) {
+      log(`gave up fetching Drand round ${R} after retries: ${errorName(e)}`);
+      result.finalStatus = round.status.tag;
+      return result;
     }
     if (!signature) {
       log(`gave up fetching Drand round ${R} this pass`);
@@ -136,7 +160,7 @@ export async function keepRound(
     }
 
     try {
-      await sdk.openReveal(rid, signature);
+      await withSDKRetry(`openReveal(${rid})`, () => sdk.openReveal(rid, signature), deps);
       result.openedReveal = true;
       log(`open_reveal OK (round ${rid} via Drand R=${R})`);
     } catch (e) {
@@ -146,7 +170,7 @@ export async function keepRound(
         throw e;
       }
     }
-    round = await sdk.getRound(rid);
+    round = await withSDKRetry(`getRound(${rid}) after openReveal`, () => sdk.getRound(rid), deps);
   }
 
   // ── Phase B: decrypt every seal and reveal it ─────────────────────────
@@ -158,7 +182,11 @@ export async function keepRound(
     for (const bidder of bidders) {
       let state;
       try {
-        state = await sdk.getBidState(rid, bidder);
+        state = await withSDKRetry(
+          `getBidState(${rid}, ${bidder})`,
+          () => sdk.getBidState(rid, bidder),
+          deps,
+        );
       } catch (e) {
         result.skipped.push({ bidder, reason: `state read failed: ${errorName(e)}` });
         continue;
@@ -169,7 +197,17 @@ export async function keepRound(
         continue;
       }
 
-      const seal = await sdk.getSeal(rid, bidder);
+      let seal;
+      try {
+        seal = await withSDKRetry(
+          `getSeal(${rid}, ${bidder})`,
+          () => sdk.getSeal(rid, bidder),
+          deps,
+        );
+      } catch (e) {
+        result.skipped.push({ bidder, reason: `seal read failed: ${errorName(e)}` });
+        continue;
+      }
       if (!seal) {
         result.skipped.push({ bidder, reason: "seal expired/absent" });
         continue;
@@ -184,12 +222,17 @@ export async function keepRound(
       }
 
       try {
-        await sdk.reveal({
-          roundId: rid,
-          bidder,
-          value: opened.value,
-          nonce: opened.nonce,
-        });
+        await withSDKRetry(
+          `reveal(${rid}, ${bidder})`,
+          () =>
+            sdk.reveal({
+              roundId: rid,
+              bidder,
+              value: opened.value,
+              nonce: opened.nonce,
+            }),
+          deps,
+        );
         result.revealed.push(bidder);
         log(`revealed ${bidder} = ${opened.value}`);
       } catch (e) {
@@ -207,7 +250,7 @@ export async function keepRound(
         }
       }
     }
-    round = await sdk.getRound(rid);
+    round = await withSDKRetry(`getRound(${rid}) after reveals`, () => sdk.getRound(rid), deps);
   } else if (round.status.tag !== "Open") {
     log(`round ${rid} is ${round.status.tag}; nothing to reveal`);
   }
@@ -245,7 +288,7 @@ export async function closeRound(
     skipped: [],
   };
 
-  let round = await sdk.getRound(rid);
+  let round = await withSDKRetry(`getRound(${rid}) for close`, () => sdk.getRound(rid), deps);
   log(`round ${rid}: status=${round.status.tag} (close)`);
 
   // ── Phase C: clear once the reveal window has closed ──────────────────
@@ -257,7 +300,7 @@ export async function closeRound(
       return result;
     }
     try {
-      const winner = await sdk.clear(rid);
+      const winner = await withSDKRetry(`clear(${rid})`, () => sdk.clear(rid), deps);
       result.cleared = true;
       result.winner = winner;
       if (winner === undefined) {
@@ -273,13 +316,13 @@ export async function closeRound(
         throw e;
       }
     }
-    round = await sdk.getRound(rid);
+    round = await withSDKRetry(`getRound(${rid}) after clear`, () => sdk.getRound(rid), deps);
   }
 
   // ── Phase D: settle a cleared round (real SAC transfers) ──────────────
   if (round.status.tag === "Cleared") {
     try {
-      await sdk.settle(rid);
+      await withSDKRetry(`settle(${rid})`, () => sdk.settle(rid), deps);
       result.settled = true;
       log(`settled round ${rid}`);
     } catch (e) {
@@ -289,7 +332,7 @@ export async function closeRound(
         throw e;
       }
     }
-    round = await sdk.getRound(rid);
+    round = await withSDKRetry(`getRound(${rid}) after settle`, () => sdk.getRound(rid), deps);
   } else if (round.status.tag === "Settled") {
     result.skipped.push("already settled");
   } else if (round.status.tag === "Voided") {
@@ -327,7 +370,7 @@ export async function voidIfStale(
     finalStatus: "",
   };
 
-  let round = await sdk.getRound(rid);
+  let round = await withSDKRetry(`getRound(${rid})`, () => sdk.getRound(rid), deps);
   if (round.status.tag !== "Open") {
     result.skipped.push(`status ${round.status.tag}`);
     result.finalStatus = round.status.tag;
@@ -343,7 +386,7 @@ export async function voidIfStale(
   }
 
   try {
-    await sdk.void(rid);
+    await withSDKRetry(`void(${rid})`, () => sdk.void(rid), deps);
     result.voided = true;
     log(`voided round ${rid} (Drand liveness / grace elapsed)`);
   } catch (e) {
@@ -353,7 +396,7 @@ export async function voidIfStale(
       throw e;
     }
   }
-  round = await sdk.getRound(rid);
+  round = await withSDKRetry(`getRound(${rid})`, () => sdk.getRound(rid), deps);
   result.finalStatus = round.status.tag;
   return result;
 }
@@ -374,7 +417,7 @@ export function parseRoundIdSpec(spec: string): bigint[] {
 
 export async function discoverRoundIds(
   reader: Pick<SubRosaClient, "getRound">,
-  opts: { from?: bigint; maxProbe?: number } = {},
+  opts: { from?: bigint; maxProbe?: number; retryPolicy?: RetryPolicy } = {},
 ): Promise<bigint[]> {
   const from = opts.from ?? 1n;
   const maxProbe = opts.maxProbe ?? 64;
@@ -382,7 +425,18 @@ export async function discoverRoundIds(
   for (let i = 0n; i < BigInt(maxProbe); i++) {
     const id = from + i;
     try {
-      await reader.getRound(id);
+      if (opts.retryPolicy) {
+        await withRetry(
+          () => reader.getRound(id),
+          {
+            operation: `discoverRoundIds(${id})`,
+            policy: opts.retryPolicy,
+            logger: () => {},
+          },
+        );
+      } else {
+        await reader.getRound(id);
+      }
       ids.push(id);
     } catch (e) {
       if (errorMatches(e, ["RoundNotFound"])) break;
@@ -411,13 +465,13 @@ export async function watchRound(
   const voidRes = await voidIfStale(deps, rid);
   if (voidRes.voided) tick.void = voidRes;
 
-  let round = await deps.sdk.getRound(rid);
+  let round = await withSDKRetry(`getRound(${rid})`, () => deps.sdk.getRound(rid), deps);
   if (round.status.tag === "Open" || round.status.tag === "Revealing") {
     tick.keep = await keepRound(
       { ...deps, maxWaitSeconds: 0 },
       rid,
     );
-    round = await deps.sdk.getRound(rid);
+    round = await withSDKRetry(`getRound(${rid})`, () => deps.sdk.getRound(rid), deps);
   }
 
   if (
@@ -425,7 +479,7 @@ export async function watchRound(
     round.status.tag === "Cleared"
   ) {
     tick.close = await closeRound(deps, rid);
-    round = await deps.sdk.getRound(rid);
+    round = await withSDKRetry(`getRound(${rid})`, () => deps.sdk.getRound(rid), deps);
   }
 
   tick.finalStatus = round.status.tag;
