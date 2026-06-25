@@ -77,6 +77,8 @@ export function useRoundSession(active: UseCase) {
   const [walletStatus, setWalletStatus] = useState("Connect a funded Stellar testnet wallet.");
   const [walletName, setWalletName] = useState("Wallet");
   const wallet = useMemo(() => getWalletAdapter(), []);
+  const [wrongNetwork, setWrongNetwork] = useState(false);
+  const [missingCapabilities, setMissingCapabilities] = useState<string[]>([]);
   const [entryValue, setEntryValue] = useState(active.defaultValue);
   const [sessions, setSessions] = useState<Record<UseCaseId, CaseSession>>(() =>
     initialSessions(),
@@ -137,6 +139,8 @@ export function useRoundSession(active: UseCase) {
   async function connect() {
     const workingId = toast.push("working", `Connecting ${wallet.name}…`);
     setStatus("working");
+    setWrongNetwork(false);
+    setMissingCapabilities([]);
     try {
       await wallet.connect();
       if (!wallet.address) {
@@ -146,23 +150,36 @@ export function useRoundSession(active: UseCase) {
       if (!net) {
         throw new Error("Wallet connected without network details");
       }
-      if (net.networkPassphrase !== NETWORK) {
-        throw new Error(`Switch ${wallet.name} to Testnet (current: ${net.network}).`);
-      }
+      
+      const isWrongNetwork = net.networkPassphrase !== NETWORK;
+      setWrongNetwork(isWrongNetwork);
+
       setAddress(wallet.address);
       setWalletName(wallet.name);
+      
       const missing = [] as string[];
       if (!wallet.capabilities.signTransaction) missing.push("transaction signing");
       if (!wallet.capabilities.signAuthEntry) missing.push("Soroban auth signing");
+      setMissingCapabilities(missing);
+
       const capabilityMsg = missing.length
         ? ` ${wallet.name} does not support ${missing.join(" and ")}.`
         : "";
-      const finalMsg = `Connected on ${net.network}.${capabilityMsg}`;
+      
+      let finalMsg = `Connected on ${net.network}.${capabilityMsg}`;
+      if (isWrongNetwork) {
+        finalMsg = `Connected to ${net.network}. Switch to Testnet to continue.`;
+        toast.push("error", "Wrong Network", finalMsg);
+      } else if (missing.length) {
+        toast.push("error", "Unsupported Wallet Capabilities", capabilityMsg);
+      } else {
+        toast.push("success", "Wallet connected", finalMsg);
+      }
+      
       setWalletStatus(finalMsg);
       push(`${wallet.name} connected.`);
       setStatus("ok");
       toast.dismiss(workingId);
-      toast.push("success", "Wallet connected", finalMsg);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       setWalletStatus(msg);
@@ -179,6 +196,8 @@ export function useRoundSession(active: UseCase) {
     try {
       await wallet.disconnect();
       setAddress(null);
+      setWrongNetwork(false);
+      setMissingCapabilities([]);
       setWalletName("Wallet");
       setWalletStatus("Wallet disconnected.");
       setStatus("idle");
@@ -468,6 +487,8 @@ export function useRoundSession(active: UseCase) {
   return {
     address,
     walletStatus,
+    wrongNetwork,
+    missingCapabilities,
     entryValue,
     setEntryValue,
     session,

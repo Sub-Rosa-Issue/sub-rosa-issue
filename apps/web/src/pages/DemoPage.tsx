@@ -78,6 +78,8 @@ function FlowSteps({
 function PhaseGuide(props: {
   useCase: UseCase;
   address: string | null;
+  wrongNetwork: boolean;
+  missingCapabilities: string[];
   canUseContract: boolean;
   roundId: bigint | null;
   committed: boolean;
@@ -99,6 +101,8 @@ function PhaseGuide(props: {
   const {
     useCase,
     address,
+    wrongNetwork,
+    missingCapabilities,
     canUseContract,
     roundId,
     committed,
@@ -147,7 +151,23 @@ function PhaseGuide(props: {
   let showInput = false;
   let showJoin = false;
 
-  if (address && !canUseContract) {
+  if (address && wrongNetwork) {
+    tone = "danger";
+    eyebrow = "Setup";
+    title = "Wrong Network";
+    detail = "Switch your wallet to Testnet to continue.";
+    timerValue = "network";
+    ctaLabel = "Wrong network";
+    ctaDisabled = true;
+  } else if (address && missingCapabilities.length > 0) {
+    tone = "danger";
+    eyebrow = "Setup";
+    title = "Unsupported Wallet";
+    detail = `Your wallet is missing required capabilities: ${missingCapabilities.join(", ")}.`;
+    timerValue = "unsupported";
+    ctaLabel = "Unsupported";
+    ctaDisabled = true;
+  } else if (address && !canUseContract) {
     tone = "danger";
     eyebrow = "Setup";
     title = "Contract not configured";
@@ -547,6 +567,8 @@ function LivePanel({
   const {
     address,
     walletStatus,
+    wrongNetwork,
+    missingCapabilities,
     entryValue,
     setEntryValue,
     status,
@@ -648,6 +670,8 @@ function LivePanel({
       <PhaseGuide
         useCase={active}
         address={address}
+        wrongNetwork={wrongNetwork}
+        missingCapabilities={missingCapabilities}
         canUseContract={canUseContract}
         roundId={roundId}
         committed={committed}
