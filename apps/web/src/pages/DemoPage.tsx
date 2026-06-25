@@ -89,6 +89,7 @@ function PhaseGuide(props: {
   entryValue: number;
   onEntryChange: (v: number) => void;
   connect: () => void;
+  disconnect: () => void;
   createRound: (durationSeconds: number) => void;
   joinRound: (id: string) => void;
   commitEntry: () => void;
@@ -563,6 +564,7 @@ function LivePanel({
     log,
     revealProgress,
     connect,
+    disconnect,
     createRound,
     joinRound,
     commitEntry,
@@ -623,9 +625,16 @@ function LivePanel({
           <strong>{address ? shortAddr(address, 6) : "Not connected"}</strong>
           <p>{walletStatus}</p>
         </div>
-        <button type="button" className="primary-action" onClick={() => void connect()}>
-          {address ? "Reconnect wallet" : "Connect wallet"}
-        </button>
+        <div className="wallet-bar-actions">
+          <button type="button" className="primary-action" onClick={() => void connect()}>
+            {address ? "Reconnect wallet" : "Connect wallet"}
+          </button>
+          {address ? (
+            <button type="button" className="secondary-action" onClick={() => void disconnect()}>
+              Disconnect wallet
+            </button>
+          ) : null}
+        </div>
       </section>
 
       <FlowSteps
@@ -650,23 +659,13 @@ function LivePanel({
         entryValue={entryValue}
         onEntryChange={setEntryValue}
         connect={() => void connect()}
+        disconnect={() => void disconnect()}
         createRound={(duration) => void createRound(duration)}
         joinRound={(id) => void joinRound(id)}
         suggestedRoundId={DEFAULT_ROUND_ID}
         commitEntry={() => void commitEntry()}
         openAndReveal={() => void openAndReveal()}
       />
-
-      {revealProgress ? (
-        <motion.p
-          className="reveal-hint"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-        >
-          Revealing {revealProgress.current} / {revealProgress.total}…
-        </motion.p>
-      ) : null}
 
       <div className="proof-layout">
         {roundId == null ? (

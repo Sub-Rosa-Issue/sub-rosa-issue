@@ -85,9 +85,9 @@ export function PasskeyPanel() {
         publicKey:
           typeof created.publicKey === "string"
             ? created.publicKey
-            : Array.from(created.publicKey ?? [])
-                .map((b: number) => b.toString(16).padStart(2, "0"))
-                .join(""),
+            : Array.from(created.publicKey ?? []).map((b) =>
+                (b as number).toString(16).padStart(2, "0"),
+              ).join(""),
       });
       setStatus("ready");
       setMessage(

@@ -1,3 +1,6 @@
+import { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit/sdk";
+import { defaultModules } from "@creit.tech/stellar-wallets-kit/modules/utils";
+import { Networks } from "@creit.tech/stellar-wallets-kit/types";
 import {
   getAddress,
   getNetworkDetails,
@@ -10,20 +13,6 @@ import {
 export interface WalletNetworkDetails {
   network: string;
   networkPassphrase: string;
-}
-
-export interface FreighterApi {
-  isConnected: () => Promise<{ isConnected: boolean; error?: unknown }>;
-  requestAccess: () => Promise<{ address?: string; publicKey?: string; error?: unknown }>;
-  getNetworkDetails: () => Promise<{ network: string; networkPassphrase: string; error?: unknown }>;
-  signTransaction: (
-    xdr: string,
-    opts?: { networkPassphrase?: string; address?: string },
-  ) => Promise<{ signedTxXdr: string; signerAddress: string; error?: unknown }>;
-  signAuthEntry: (
-    entryXdr: string,
-    opts?: { networkPassphrase?: string; address?: string },
-  ) => Promise<{ signedAuthEntry: string | null; signerAddress: string; error?: unknown }>;
 }
 
 export interface WalletCapabilities {
@@ -167,94 +156,72 @@ export class FreighterWalletAdapter implements WalletAdapter {
   }
 }
 
-export interface WalletsKitProvider {
-  name?: string;
-  isConnected?: () => Promise<boolean | { isConnected: boolean }>;
-  requestAccess?: () => Promise<WalletConnectionResult>;
-  getAddress?: () => Promise<WalletConnectionResult>;
-  getNetworkDetails?: () => Promise<WalletNetworkDetails>;
-  signTransaction?: (
-    xdr: string,
-    opts?: { networkPassphrase?: string; address?: string },
-  ) => Promise<{ signedTxXdr: string; signerAddress: string }>;
-  signAuthEntry?: (
-    entryXdr: string,
-    opts?: { networkPassphrase?: string; address?: string },
-  ) => Promise<{ signedAuthEntry: string; signerAddress: string }>;
-  disconnect?: () => Promise<void>;
+const WALLET_KIT_NETWORK = Networks.TESTNET;
+let walletsKitInitialized = false;
+
+function initializeWalletsKit(): void {
+  if (walletsKitInitialized || typeof window === "undefined") return;
+  StellarWalletsKit.init({
+    modules: defaultModules(),
+    network: WALLET_KIT_NETWORK,
+  });
+  walletsKitInitialized = true;
 }
 
 export class WalletsKitAdapter implements WalletAdapter {
-  readonly name: string;
   readonly provider = "WalletsKit" as const;
+  name = "Stellar Wallets Kit";
   address: string | null = null;
   network: WalletNetworkDetails | null = null;
   capabilities: WalletCapabilities = {
-    signTransaction: false,
-    signAuthEntry: false,
+    signTransaction: true,
+    signAuthEntry: true,
   };
   connected = false;
   lastError: string | null = null;
 
-  constructor(private providerObject: WalletsKitProvider) {
-    this.name = providerObject.name ?? "Wallets Kit";
-    this.capabilities = {
-      signTransaction: typeof providerObject.signTransaction === "function",
-      signAuthEntry: typeof providerObject.signAuthEntry === "function",
-    };
-  }
-
-  private async providerIsConnected(): Promise<boolean> {
-    if (!this.providerObject.isConnected) return false;
-    const result = await this.providerObject.isConnected();
-    if (typeof result === "boolean") return result;
-    return Boolean(result?.isConnected);
-  }
-
   async connect(): Promise<void> {
     if (this.connected) return;
-
-    const connected = await this.providerIsConnected();
-    let access: WalletConnectionResult | undefined;
-    if (connected) {
-      if (this.providerObject.getAddress) {
-        access = await this.providerObject.getAddress();
-      }
-    } else if (this.providerObject.requestAccess) {
-      access = await this.providerObject.requestAccess();
+    if (typeof window === "undefined") {
+      throw new Error("Wallets Kit is only available in the browser");
     }
 
-    if (!access && this.providerObject.getAddress) {
-      access = await this.providerObject.getAddress();
+    initializeWalletsKit();
+
+    let address: string | undefined;
+    try {
+      const access = await StellarWalletsKit.authModal();
+      address = access.address;
+    } catch {
+      const fallback = await StellarWalletsKit.fetchAddress();
+      address = fallback.address;
     }
 
-    const address = normalizeAddress(access ?? {});
     if (!address) {
-      throw new Error("Wallets Kit provider did not return an address");
+      throw new Error("Wallets Kit did not return an address");
     }
 
-    if (!this.providerObject.getNetworkDetails) {
-      throw new Error("Wallets Kit provider does not expose network details");
-    }
-
-    const networkDetails = await this.providerObject.getNetworkDetails();
+    const networkDetails = await StellarWalletsKit.getNetwork();
     const network = normalizeNetwork(networkDetails);
     if (!network) {
-      throw new Error("Wallets Kit provider returned invalid network details");
+      throw new Error("Wallets Kit returned invalid network details");
     }
 
+    if (network.networkPassphrase !== WALLET_KIT_NETWORK) {
+      throw new Error(`Switch your wallet to Testnet (current: ${network.network}).`);
+    }
+
+    this.name = StellarWalletsKit.selectedModule?.productName ?? this.name;
     this.address = address;
     this.network = network;
-    this.capabilities = {
-      signTransaction: typeof this.providerObject.signTransaction === "function",
-      signAuthEntry: typeof this.providerObject.signAuthEntry === "function",
-    };
     this.connected = true;
     this.lastError = null;
   }
 
   async disconnect(): Promise<void> {
-    await this.providerObject.disconnect?.();
+    if (typeof window === "undefined") return;
+    initializeWalletsKit();
+    await StellarWalletsKit.disconnect();
     this.address = null;
     this.network = null;
     this.connected = false;
@@ -265,54 +232,44 @@ export class WalletsKitAdapter implements WalletAdapter {
     xdr: string,
     opts?: { networkPassphrase?: string; address?: string },
   ): Promise<{ signedTxXdr: string; signerAddress: string }> {
-    if (!this.capabilities.signTransaction || !this.providerObject.signTransaction) {
+    if (!this.capabilities.signTransaction) {
       throw new Error("Wallet does not support transaction signing");
     }
-    const signed = await this.providerObject.signTransaction(xdr, opts);
-    if (!signed.signedTxXdr || !signed.signerAddress) {
-      throw new Error("Wallets Kit provider returned an invalid signed transaction");
+    const signed = await StellarWalletsKit.signTransaction(xdr, opts);
+    if (!signed.signedTxXdr) {
+      throw new Error("Wallets Kit returned an invalid signed transaction");
     }
-    return signed;
+    return {
+      signedTxXdr: signed.signedTxXdr,
+      signerAddress:
+        signed.signerAddress ?? opts?.address ?? this.address ?? "",
+    };
   }
 
   async signAuthEntry(
     entryXdr: string,
     opts?: { networkPassphrase?: string; address?: string },
   ): Promise<{ signedAuthEntry: string; signerAddress: string }> {
-    if (!this.capabilities.signAuthEntry || !this.providerObject.signAuthEntry) {
+    if (!this.capabilities.signAuthEntry) {
       throw new Error("Wallet does not support Soroban auth entry signing");
     }
-    const signed = await this.providerObject.signAuthEntry(entryXdr, opts);
-    if (!signed.signedAuthEntry || !signed.signerAddress) {
-      throw new Error("Wallets Kit provider returned an invalid signed auth entry");
+    const signed = await StellarWalletsKit.signAuthEntry(entryXdr, opts);
+    if (!signed.signedAuthEntry) {
+      throw new Error("Wallets Kit returned an invalid signed auth entry");
     }
-    return signed;
+    return {
+      signedAuthEntry: signed.signedAuthEntry,
+      signerAddress:
+        signed.signerAddress ?? opts?.address ?? this.address ?? "",
+    };
   }
-}
-
-export function detectWalletsKitProvider(): WalletsKitProvider | undefined {
-  if (typeof window === "undefined") return undefined;
-  const globalAny = window as any;
-  return (
-    globalAny.Stellar?.walletsKit ??
-    globalAny.Stellar?.WalletsKit ??
-    globalAny.stellarWalletsKit ??
-    globalAny.walletsKit ??
-    undefined
-  );
 }
 
 let walletAdapterInstance: WalletAdapter | null = null;
 
 export function getWalletAdapter(): WalletAdapter {
-  const provider = detectWalletsKitProvider();
-  if (walletAdapterInstance) {
-    if (walletAdapterInstance.provider === "Freighter" && provider) {
-      walletAdapterInstance = new WalletsKitAdapter(provider);
-    }
-    return walletAdapterInstance;
-  }
-  walletAdapterInstance = provider ? new WalletsKitAdapter(provider) : new FreighterWalletAdapter();
+  if (walletAdapterInstance) return walletAdapterInstance;
+  walletAdapterInstance = new WalletsKitAdapter();
   return walletAdapterInstance;
 }
 

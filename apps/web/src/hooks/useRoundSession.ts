@@ -142,23 +142,22 @@ export function useRoundSession(active: UseCase) {
       if (!wallet.address) {
         throw new Error("Wallet connected without an address");
       }
-      setAddress(wallet.address);
-      setWalletName(wallet.name);
       const net = wallet.network;
       if (!net) {
         throw new Error("Wallet connected without network details");
       }
-      const netMsg =
-        net.networkPassphrase === NETWORK
-          ? `Connected on ${net.network}.`
-          : `Connected — switch ${wallet.name} to Testnet (current: ${net.network}).`;
+      if (net.networkPassphrase !== NETWORK) {
+        throw new Error(`Switch ${wallet.name} to Testnet (current: ${net.network}).`);
+      }
+      setAddress(wallet.address);
+      setWalletName(wallet.name);
       const missing = [] as string[];
       if (!wallet.capabilities.signTransaction) missing.push("transaction signing");
       if (!wallet.capabilities.signAuthEntry) missing.push("Soroban auth signing");
       const capabilityMsg = missing.length
         ? ` ${wallet.name} does not support ${missing.join(" and ")}.`
         : "";
-      const finalMsg = `${netMsg}${capabilityMsg}`;
+      const finalMsg = `Connected on ${net.network}.${capabilityMsg}`;
       setWalletStatus(finalMsg);
       push(`${wallet.name} connected.`);
       setStatus("ok");
@@ -170,6 +169,28 @@ export function useRoundSession(active: UseCase) {
       setStatus("error");
       toast.dismiss(workingId);
       toast.push("error", "Wallet connection failed", msg);
+    }
+  }
+
+  async function disconnect() {
+    if (!wallet.connected) return;
+    const workingId = toast.push("working", `Disconnecting ${wallet.name}…`);
+    setStatus("working");
+    try {
+      await wallet.disconnect();
+      setAddress(null);
+      setWalletName("Wallet");
+      setWalletStatus("Wallet disconnected.");
+      setStatus("idle");
+      push(`${wallet.name} disconnected.`);
+      toast.dismiss(workingId);
+      toast.push("success", "Wallet disconnected", "You can reconnect or switch wallets anytime.");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      setWalletStatus(msg);
+      setStatus("error");
+      toast.dismiss(workingId);
+      toast.push("error", "Disconnect failed", msg);
     }
   }
 
@@ -465,6 +486,7 @@ export function useRoundSession(active: UseCase) {
     log,
     revealProgress,
     connect,
+    disconnect,
     createRound,
     joinRound,
     commitEntry,
