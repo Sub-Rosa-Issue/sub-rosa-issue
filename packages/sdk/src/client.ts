@@ -71,6 +71,10 @@ export interface SubRosaClientConfig {
    * @internal Testing hook: override the poll-loop sleep function.
    */
   _sleep?: (ms: number) => Promise<void>;
+  /**
+   * @internal Testing hook: override the clock used by the polling loop.
+   */
+  _now?: () => number;
 }
 
 export type ClearingRuleTag = ClearingRule["tag"];
@@ -127,6 +131,7 @@ export class SubRosaClient {
   readonly #submitter?: TransactionSubmitter;
   readonly #confirmTimeout: number;
   readonly #pollInterval: number;
+  #now: () => number = () => Date.now();
 
   constructor(config: SubRosaClientConfig) {
     const allowHttp = config.allowHttp ?? false;
@@ -167,6 +172,7 @@ export class SubRosaClient {
     this.#confirmTimeout = confirmTimeout;
     this.#pollInterval = pollInterval;
     if (config._sleep) this.#sleep = config._sleep;
+    if (config._now) this.#now = config._now;
     this.contract = new RoundContract({
       contractId: this.contractId,
       networkPassphrase: config.networkPassphrase,
@@ -219,9 +225,9 @@ export class SubRosaClient {
       );
     }
     const server = new rpc.Server(this.#rpcUrl, { allowHttp: this.#allowHttp });
-    const deadline = Date.now() + this.#confirmTimeout;
+    const deadline = this.#now() + this.#confirmTimeout;
     let lastStatus = "NOT_FOUND";
-    while (Date.now() < deadline) {
+    while (this.#now() < deadline) {
       let res;
       try {
         res = await server.getTransaction(submitted.hash);

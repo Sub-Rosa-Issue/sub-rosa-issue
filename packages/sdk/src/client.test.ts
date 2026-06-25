@@ -230,6 +230,82 @@ describe("SubRosaClient (network-free behaviors)", () => {
     );
   });
 
+  it("createRound uses direct signAndSend success path", async () => {
+    const c = newClient({ publicKey: addr(1) });
+    c.contract.create_round = async () => ({
+      signAndSend: async () => ({ result: { unwrap: () => 88n } }),
+    } as any);
+
+    const out = await c.createRound({
+      itemRef: u8(32, 1),
+      revealRound: 1,
+      commitDeadline: 1,
+      revealDeadline: 2,
+      auditorPubkey: u8(96, 2),
+    });
+
+    assert.equal(out, 88n);
+  });
+
+  it("commit defaults to the configured bidder when one is not supplied", async () => {
+    const c = newClient({ publicKey: addr(2) });
+    let seenArgs: any;
+    c.contract.commit = async (args: any) => {
+      seenArgs = args;
+      return {
+        signAndSend: async () => ({ result: { unwrap: () => undefined } }),
+      } as any;
+    };
+
+    await c.commit({
+      roundId: 7,
+      sealed: { commitment: u8(32, 3), ciphertext: u8(1, 4), auditorBlob: u8(0, 0) } as any,
+      escrow: 5n,
+    });
+
+    assert.equal(seenArgs.bidder, addr(2));
+  });
+
+  it("state-changing helpers wire through the corresponding contract methods", async () => {
+    const c = newClient({ publicKey: addr(4) });
+    const calls: Array<[string, any]> = [];
+
+    c.contract.open_reveal = async (args: any) => {
+      calls.push(["open_reveal", args]);
+      return { signAndSend: async () => ({ result: { unwrap: () => undefined } }) } as any;
+    };
+    c.contract.reveal = async (args: any) => {
+      calls.push(["reveal", args]);
+      return { signAndSend: async () => ({ result: { unwrap: () => undefined } }) } as any;
+    };
+    c.contract.clear = async (args: any) => {
+      calls.push(["clear", args]);
+      return { signAndSend: async () => ({ result: { unwrap: () => "winner" } }) } as any;
+    };
+    c.contract.settle = async (args: any) => {
+      calls.push(["settle", args]);
+      return { signAndSend: async () => ({ result: { unwrap: () => undefined } }) } as any;
+    };
+    c.contract.void = async (args: any) => {
+      calls.push(["void", args]);
+      return { signAndSend: async () => ({ result: { unwrap: () => undefined } }) } as any;
+    };
+
+    await c.openReveal(9, u8(64, 5));
+    await c.reveal({ roundId: 9, bidder: addr(6), value: 123n, nonce: u8(32, 6) });
+    assert.equal(await c.clear(9), "winner");
+    await c.settle(9);
+    await c.void(9);
+
+    assert.deepEqual(calls.map(([name, args]) => [name, args.round_id?.toString?.() ?? args.round_id]), [
+      ["open_reveal", "9"],
+      ["reveal", "9"],
+      ["clear", "9"],
+      ["settle", "9"],
+      ["void", "9"],
+    ]);
+  });
+
   it("read-only views unwrap results and getSeal returns undefined when empty", async () => {
     const c = newClient();
     c.contract.get_round = async () =>
@@ -365,22 +441,17 @@ describe("SubRosaClient (network-free behaviors)", () => {
         SubRosaTransactionError,
       );
 
-      (submitter as any).submitSignedTransaction = async () => ({
-        hash: "notfound",
-      });
+      // timeout: the injected clock should drive the polling loop without real wall-clock waits
+      (submitter as any).submitSignedTransaction = async () => ({ hash: "notfound" });
       c.contract.create_round = async () => tx;
-      (Date as any).now = () => 1_000_000_000_000;
-      await assert.rejects(
-        () =>
-          c.createRound({
-            itemRef: u8(32, 1),
-            revealRound: 1,
-            commitDeadline: 1,
-            revealDeadline: 2,
-            auditorPubkey: u8(96, 2),
-          }),
-        SubRosaTimeoutError,
-      );
+      let now = 0;
+      (Date as any).now = () => {
+        throw new Error("Date.now should not be used when a deterministic clock is injected");
+      };
+      const c2 = newClient({ publicKey: addr(8), submitter, confirmTimeout: 1_000, pollInterval: 100, _sleep: async (ms: number) => { now += ms; }, _now: () => now } as any);
+      c2.contract.create_round = async () => tx;
+      await assert.rejects(() => c2.createRound({ itemRef: u8(32, 1), revealRound: 1, commitDeadline: 1, revealDeadline: 2, auditorPubkey: u8(96, 2) }), SubRosaTimeoutError);
+      assert.equal(now, 1_000);
     } finally {
       rpc.Server.prototype.getTransaction = realGetTx;
       (Date as any).now = Date.now;
