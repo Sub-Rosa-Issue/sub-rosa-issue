@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "contract": {
+    "crate": "sub-rosa-round",
+    "packageVersion": "0.1.0",
+    "sourcePath": "contracts/round/src",
+    "sourceHash": "5e4348bbd58b22b226dba1fab2209db0444cebb799afef1e3ba8351de1194960"
+  },
+  "build": {
+    "wasmFile": "artifacts/sub_rosa_round.wasm",
+    "wasmHash": "71d401d5562740424c92adefe07b26d4abbdaa1159d36061dd108530891f0a69",
+    "bindingsPath": "packages/round-bindings/src/index.ts",
+    "specHash": "d2a6673035c195d91bf3ed4c3755194f8b8b67769ca5ee337689c9763dd87449",
+    "generatedAt": "2026-06-27T22:26:42.404Z",
+    "sourceCommand": "pnpm bindings:generate",
+    "toolchain": {
+      "stellarCli": "stellar 27.0.0 (5a7c5fe76530bf4248477ac812fc757146b98cc4)"
+    }
+  },
+  "networks": {
+    "local": {
+      "networkPassphrase": "Standalone Network ; February 2017",
+      "rpcUrl": "http://localhost:8000/soroban/rpc",
+      "contractId": null,
+      "note": "Ephemeral contracts per e2e run; no pinned deployment."
+    },
+    "testnet": {
+      "networkPassphrase": "Test SDF Network ; September 2015",
+      "rpcUrl": "https://soroban-testnet.stellar.org",
+      "deployments": {
+        "agentsE2eProof": {
+          "contractId": "CAPTODBCDEVIK23ALBJBS2TXRTIK47ZA5MBTHYF4XLHG2BK7JPYUCU2Y",
+          "revealRound": 29176840,
+          "note": "Canonical jury demo trace from pnpm agents:e2e."
+        }
+      }
+    },
+    "mainnet": {
+      "networkPassphrase": "Public Global Stellar Network ; September 2015",
+      "rpcUrl": "https://rpc.ankr.com/stellar_soroban",
+      "deployments": {
+        "smokeRound1": {
+          "contractId": "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+          "wasmHash": "353915ad440965ea5f8d92fdb8d93cb2e309fb365e68e6762bca7fd6762b30c7",
+          "revealRound": 29174905,
+          "note": "Frozen mainnet smoke round; see packages/sdk/src/mainnet-artifacts.ts."
+        }
+      }
+    }
+  }
+}

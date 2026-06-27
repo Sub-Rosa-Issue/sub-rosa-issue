@@ -14,7 +14,8 @@
   "scripts": {
     "contract:build": "stellar contract build",
     "contract:test": "cargo test -p sub-rosa-round",
-    "bindings:generate": "stellar contract build --out-dir artifacts && rm -rf .tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir .tmp-bindings --overwrite && cp .tmp-bindings/src/index.ts packages/round-bindings/src/index.ts && rm -rf .tmp-bindings",
+    "bindings:generate": "node scripts/artifacts-generate.mjs",
+    "bindings:check": "node scripts/artifacts-check.mjs",
     "sdk:test": "pnpm --filter @sub-rosa/sdk test",
     "sdk:typecheck": "pnpm --filter @sub-rosa/sdk typecheck",
     "sdk:smoke": "bash packages/sdk/scripts/live-smoke.sh",

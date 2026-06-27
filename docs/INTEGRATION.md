@@ -79,3 +79,24 @@ Drand signature, reveal valid entries, clear the round, and settle escrow.
 Sub Rosa does not ask integrators to trust a reveal operator. Before Drand R,
 values are timelock-encrypted. After R, the Drand BLS signature is public and
 the Soroban contract verifies it before opening reveal.
+
+## Contract artifacts
+
+Integrators need a reproducible way to know which WASM, contract ID, bindings,
+and network metadata belong together. The repo ships a versioned manifest at
+`deployments/artifact-manifest.json` with:
+
+- WASM hash and ContractSpec hash for the current build
+- Generated bindings path and regeneration command
+- Network passphrases and RPC URLs for local, testnet, and mainnet
+- Known contract IDs for canonical proof deployments (when available)
+
+After changing `contracts/round/`, maintainers run:
+
+```bash
+pnpm bindings:generate   # rebuild WASM, regenerate bindings, refresh manifest
+pnpm bindings:check      # verify committed artifacts match the build
+```
+
+Commit the updated bindings and manifest together. CI fails with a clear message
+when contract source changes without regenerating artifacts.

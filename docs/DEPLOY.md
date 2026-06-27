@@ -187,6 +187,44 @@ Deploying new contract round?
   → OPERATOR_SECRET inline for mainnet:deploy / mainnet:settle
 ```
 
+## Contract artifact workflow
+
+After changing `contracts/round/` source, regenerate bindings and the artifact
+manifest in one step:
+
+```bash
+pnpm bindings:generate
+```
+
+This rebuilds WASM, regenerates `packages/round-bindings/src/index.ts`, and
+updates `deployments/artifact-manifest.json` with the WASM hash, ContractSpec
+hash, contract source hash, network passphrases, and known deployment IDs.
+
+Verify consistency locally (CI runs this on every PR):
+
+```bash
+pnpm bindings:check
+```
+
+If bindings or the manifest are stale, the check prints which hash mismatched
+and tells you to run `pnpm bindings:generate`, then commit:
+
+- `packages/round-bindings/src/index.ts`
+- `deployments/artifact-manifest.json`
+
+Recommended validation after contract changes:
+
+```bash
+pnpm contract:test
+pnpm bindings:check
+pnpm sdk:test
+pnpm sdk:typecheck
+```
+
+See `deployments/artifact-manifest.json` for local/testnet/mainnet metadata that
+integrators can use to confirm WASM, bindings, and network deployment IDs belong
+together.
+
 ## Mainnet scripts
 
 ```bash
