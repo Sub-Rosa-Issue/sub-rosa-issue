@@ -7,6 +7,16 @@ export {
   type ClearingRuleTag,
 } from "./client.js";
 export {
+  type PreflightOperation,
+  type PreflightResult,
+  type PreflightSuccess,
+  type PreflightFailureResult,
+  type PreflightFeeEstimate,
+  type PreflightResourceEstimate,
+  evaluatePreflight,
+  contractErrorCode,
+} from "./preflight.js";
+export {
   createOzChannelsSubmitter,
   createOzChannelsSubmitterFromEnv,
   type OzChannelsSubmitterConfig,
@@ -17,11 +27,16 @@ export {
 export {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
+  SubRosaPreflightError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
 } from "./errors.js";
-export type { TimeoutErrorParams } from "./errors.js";
+export type {
+  PreflightFailureKind,
+  SubRosaPreflightErrorParams,
+  TimeoutErrorParams,
+} from "./errors.js";
 export { MAINNET_ARTIFACTS, MAINNET_MICRO_MAX_ESCROW } from "./mainnet-artifacts.js";
 
 // Re-export the generated contract types so consumers get spec-accurate shapes
