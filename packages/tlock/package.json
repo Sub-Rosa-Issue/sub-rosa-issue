@@ -20,9 +20,10 @@
   },
   "main": "src/index.ts",
   "scripts": {
-    "test": "node --import tsx --test src/commitment.test.ts src/auditor.test.ts src/bls.test.ts src/seal.test.ts",
-    "test:unit": "node --import tsx --test src/commitment.test.ts src/auditor.test.ts src/bls.test.ts",
+    "test": "node --import tsx --test src/commitment.test.ts src/auditor.test.ts src/auditor-recovery-cli.test.ts src/bls.test.ts src/seal.test.ts",
+    "test:unit": "node --import tsx --test src/commitment.test.ts src/auditor.test.ts src/auditor-recovery-cli.test.ts src/bls.test.ts",
     "test:seal": "node --import tsx --test src/seal.test.ts",
+    "recover:identities": "node --import tsx src/recover-identities.cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

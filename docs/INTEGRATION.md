@@ -57,6 +57,34 @@ await client.commit({
 After Drand round `R` is published, any keeper or participant can submit the
 Drand signature, reveal valid entries, clear the round, and settle escrow.
 
+## Auditor identity recovery CLI
+
+For pilots that need machine-readable selective-disclosure evidence, recover
+bidder identities from auditor blobs with:
+
+```bash
+pnpm --filter @sub-rosa/tlock recover:identities -- \
+  --auditor-secret-hex <32-byte-hex> \
+  --input-json '{"auditor":{"blobs":{"agent-alpha":"<blob-hex>"}}}'
+```
+
+Hex-only input (single blob):
+
+```bash
+pnpm --filter @sub-rosa/tlock recover:identities -- \
+  --auditor-secret-hex <32-byte-hex> \
+  --blob-hex <blob-hex> \
+  --label agent-alpha
+```
+
+Canonical trace JSON is supported as well, including shapes like
+`{"trace":{"auditor":{"blobs":{...}}}}` and
+`{"auditor":{"blobs":{...}}}` exported from lifecycle/agent fixtures.
+
+Output is JSON and always includes per-blob rows with either recovered identity
+or an error. Invalid required inputs return `{ "ok": false, ... }` and exit
+non-zero.
+
 ## Allocation use cases
 
 - SCF-style grant allocation: judges cannot react to leaked scores
