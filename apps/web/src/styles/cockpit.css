@@ -2063,6 +2063,131 @@
   100% { background-position: -200% 0; }
 }
 
+/* Auction template panel */
+.auction-template-panel {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(91, 108, 255, 0.08), transparent 60%),
+    var(--surface-1);
+}
+
+.auction-template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+}
+
+.auction-template-header h2 {
+  margin: 0 0 8px;
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+}
+
+.auction-template-header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 72ch;
+}
+
+.auction-template-toggle {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--line-1);
+  border-radius: 999px;
+  background: var(--bg-1);
+}
+
+.auction-template-toggle button {
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.auction-template-toggle button.active {
+  color: var(--ink);
+  background: rgba(91, 108, 255, 0.16);
+}
+
+.auction-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.auction-template-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--line-1);
+  border-radius: 14px;
+  background: var(--bg-1);
+}
+
+.auction-template-card h3 {
+  margin: 0;
+  font-size: 1.06rem;
+}
+
+.auction-template-list,
+.auction-template-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.auction-template-steps {
+  padding-left: 20px;
+}
+
+.auction-template-receipt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.auction-template-receipt-grid > div {
+  padding: 12px 14px;
+  border: 1px solid var(--line-1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.auction-template-receipt-grid small {
+  display: block;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auction-template-receipt-grid strong {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--display);
+  font-size: 1rem;
+}
+
+.auction-template-muted {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.receipt-card {
+  gap: 12px;
+}
+
 /* Feedback panel — animated receipt */
 .feedback-panel {
   position: relative;
@@ -2346,6 +2471,20 @@
 
   .comparison-grid {
     grid-template-columns: 1fr;
+  }
+
+  .auction-template-header,
+  .auction-template-grid,
+  .auction-template-receipt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auction-template-header {
+    flex-direction: column;
+  }
+
+  .auction-template-receipt-grid {
+    display: grid;
   }
 
   .live-state {

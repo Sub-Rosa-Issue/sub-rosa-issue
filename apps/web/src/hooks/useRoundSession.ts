@@ -72,6 +72,7 @@ function initialSessions(): Record<UseCaseId, CaseSession> {
   return {
     dao: emptySession(),
     grants: emptySession(),
+    auction: emptySession(),
     bounty: emptySession(),
     allocation: emptySession(),
   };

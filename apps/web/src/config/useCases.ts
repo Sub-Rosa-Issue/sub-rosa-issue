@@ -1,4 +1,4 @@
-export type UseCaseId = "dao" | "grants" | "bounty" | "allocation";
+export type UseCaseId = "dao" | "grants" | "auction" | "bounty" | "allocation";
 
 /**
  * inputKind drives the commit form UI for each case while the underlying
@@ -170,6 +170,46 @@ const USE_CASE_DEFINITIONS: UseCase[] = [
     outcomeKind: "leaderboard",
   },
   {
+    id: "auction",
+    nav: "Auction",
+    tagline: "Sealed auctions",
+    title: "Run a sealed auction template.",
+    oneLine:
+      "Bidders register, lock escrow, reveal after Drand R, and the round settles the highest valid bid deterministically.",
+    inputKind: "amount",
+    inputLabel: "your bid",
+    defaultValue: 1200,
+    min: 100,
+    max: 10000,
+    step: 50,
+    presets: [250, 750, 1200, 2500],
+    unit: "USDC",
+    actorRole: "bidder",
+    commitCta: "Seal auction bid",
+    formatValue: formatUsdc,
+    examples: [
+      { name: "Bidder A", value: 1200, label: formatUsdc(1200) },
+      { name: "Bidder B", value: 1800, label: formatUsdc(1800) },
+      { name: "Bidder C", value: 900, label: formatUsdc(900) },
+    ],
+    comparison: {
+      leakyTitle: "Open bid book",
+      leakyBody:
+        "Early bidders can react to each visible offer and bid just above the leader.",
+      sealedTitle: "Sealed auction",
+      sealedTitleAfterCommit: "Bid sealed on-chain",
+      sealedBody:
+        "Bids are encrypted to Drand R and settled by the existing highest-bid clearing rule.",
+    },
+    cohort: [
+      { name: "Bidder A", value: 1200, delayMs: 1400 },
+      { name: "Bidder B", value: 1800, delayMs: 4700 },
+      { name: "Bidder C", value: 900, delayMs: 8300 },
+      { name: "Bidder D", value: 1500, delayMs: 12100 },
+    ],
+    outcomeKind: "highest",
+  },
+  {
     id: "bounty",
     nav: "Bounty Track",
     tagline: "Hackathons",
@@ -251,7 +291,7 @@ const USE_CASE_DEFINITIONS: UseCase[] = [
   },
 ];
 
-const USE_CASE_ORDER: UseCaseId[] = ["grants", "bounty", "allocation", "dao"];
+const USE_CASE_ORDER: UseCaseId[] = ["grants", "auction", "bounty", "allocation", "dao"];
 
 export const USE_CASES: UseCase[] = USE_CASE_ORDER.map((id) =>
   USE_CASE_DEFINITIONS.find((item) => item.id === id),

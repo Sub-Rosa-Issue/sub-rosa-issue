@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { AnimatePresence, motion } from "framer-motion";
 import { AgentActivity, KeeperPanel, X402Logs } from "../components/AgentPanels";
 import { AttackDemo } from "../components/AttackDemo";
+import { AuctionTemplatePanel } from "../components/AuctionTemplatePanel";
 import { AuditorView } from "../components/AuditorView";
 import { CohortPanel } from "../components/CohortPanel";
 import { DrandCountdownChip } from "../components/DrandCountdownChip";
@@ -666,6 +667,21 @@ function LivePanel({
         >
           Revealing {revealProgress.current} / {revealProgress.total}…
         </motion.p>
+      ) : null}
+
+      {active.id === "auction" ? (
+        <AuctionTemplatePanel
+          active={active}
+          address={address}
+          roundId={roundId}
+          commitValue={commitValue}
+          committed={committed}
+          revealedCount={revealedCount}
+          canUseContract={canUseContract}
+          commitClosed={commitClosed}
+          live={live}
+          status={status}
+        />
       ) : null}
 
       <div className="proof-layout">

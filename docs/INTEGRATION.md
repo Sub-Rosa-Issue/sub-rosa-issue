@@ -57,6 +57,27 @@ await client.commit({
 After Drand round `R` is published, any keeper or participant can submit the
 Drand signature, reveal valid entries, clear the round, and settle escrow.
 
+## Auction integration template
+
+The auction template in the demo app is deliberately split into two layers:
+
+- Protocol-level pieces are the shared contract + SDK + tlock path: round
+  creation, sealed bid commit, escrow handling, reveal opening, and
+  highest-bid clearing/settlement.
+- Template-specific UI is the auction experience around that protocol: bidder
+  registration, escrow validation guidance, failure case messaging, and the
+  receipt-style summary.
+
+The template is available in two modes:
+
+- Fixture review mode: no wallet or secrets required; it shows the full lifecycle
+  locally for design and review.
+- Testnet mode: uses the same on-chain flow and the same SDK/tlock helpers when
+  a wallet and contract id are configured.
+
+This keeps the protocol logic reusable and avoids duplicating the commitment,
+encoding, or reveal logic in the template layer.
+
 ## Allocation use cases
 
 - SCF-style grant allocation: judges cannot react to leaked scores
