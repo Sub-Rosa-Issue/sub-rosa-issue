@@ -195,6 +195,7 @@ impl SubRosaRound {
                 ciphertext,
                 auditor_blob,
             },
+            round.reveal_deadline,
         );
         set_round(&env, round_id, &round);
 
@@ -226,6 +227,7 @@ impl SubRosaRound {
         }
 
         round.status = Status::Revealing;
+        extend_round_seals(&env, round_id, &round.bidders, round.reveal_deadline);
         set_round(&env, round_id, &round);
 
         env.events()
@@ -459,10 +461,12 @@ impl SubRosaRound {
         })
     }
 
-    /// Observer view: the sealed ciphertext + auditor blob, while still in
-    /// Temporary storage. Visibly unreadable during the sealed phase.
+    /// Observer view: the sealed ciphertext + auditor blob while still in
+    /// Temporary storage. Returns `None` once the seal TTL has expired (by design
+    /// after the reveal window). Persistent bid state remains for settlement.
     pub fn get_seal(env: Env, round_id: u64, bidder: Address) -> Option<Seal> {
-        storage::get_seal(&env, round_id, &bidder)
+        let round = storage::get_round(&env, round_id).ok()?;
+        storage::get_seal(&env, round_id, &bidder, round.reveal_deadline)
     }
 
     pub fn get_config(env: Env) -> Result<GlobalConfig, Error> {

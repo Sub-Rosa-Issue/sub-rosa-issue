@@ -375,7 +375,9 @@ export class SubRosaClient {
   }
 
   /** The sealed payload while it is still in Temporary storage; undefined once
-   *  it has expired (the visible "sealed → gone" lifecycle). */
+   *  its TTL expires (by design shortly after the reveal window). Persistent
+   *  bid state from `getBidState` remains for settlement either way. Seal TTL
+   *  is extended on commit, when reveal opens, and on each observer read. */
   async getSeal(
     roundId: number | bigint,
     bidder: string,
