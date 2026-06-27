@@ -31,3 +31,7 @@ deployments/*.local.json
 
 # Stellar CLI local identities/config (smoke keys live here — never commit)
 .stellar
+
+# Keeper
+.keeper-store.json
+.keeper-store.json.corrupted.*
