@@ -64,10 +64,10 @@ During pilot operations, organizers must be able to prove that the designated au
 
 ```bash
 # Parse a generated trace and extract identities using the auditor secret
-npm run recover --workspace @sub-rosa/tlock -- --trace apps/web/src/demo/demo-trace.generated.ts --secret <64-char-hex-secret>
+pnpm --filter @sub-rosa/tlock run recover -- --trace ../../apps/web/src/demo/demo-trace.generated.ts --secret <64-char-hex-secret>
 
 # Or decode a single blob manually
-npm run recover --workspace @sub-rosa/tlock -- --blob <hex-blob> --secret <64-char-hex-secret>
+pnpm --filter @sub-rosa/tlock run recover -- --blob <hex-blob> --secret <64-char-hex-secret>
 ```
 
 This ensures pilot operators can independently and verifiably execute the identity recovery phase and output structured JSON data of the recovered bidders.
