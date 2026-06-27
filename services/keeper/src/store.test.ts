@@ -68,7 +68,7 @@ describe("KeeperStore", () => {
     const store = new KeeperStore(TEST_STORE_PATH);
     assert.deepEqual(store.listRounds(), []);
     store.addRound(99);
-    
+
     // Check if backup was created
     const files = fs.readdirSync(process.cwd());
     const backups = files.filter(f => f.startsWith(".test-keeper-store.json.corrupted."));
