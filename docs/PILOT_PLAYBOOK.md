@@ -58,6 +58,20 @@ The current live grant-scoring case demonstrates the sealed-score primitive.
 The next demo iteration should add the multi-project allocation view and a
 single organizer receipt that ties scoring, result, and settlement together.
 
+## Identity Recovery (Auditor CLI)
+
+During pilot operations, organizers must be able to prove that the designated auditor can securely recover participant identities from the public selective-disclosure trace without running complex UI scripts. We provide a dedicated CLI for this:
+
+```bash
+# Parse a generated trace and extract identities using the auditor secret
+npm run recover --workspace @sub-rosa/tlock -- --trace apps/web/src/demo/demo-trace.generated.ts --secret <64-char-hex-secret>
+
+# Or decode a single blob manually
+npm run recover --workspace @sub-rosa/tlock -- --blob <hex-blob> --secret <64-char-hex-secret>
+```
+
+This ensures pilot operators can independently and verifiably execute the identity recovery phase and output structured JSON data of the recovered bidders.
+
 ## Short social post
 
 Sub Rosa won 1st Place in the Hack Privacy Track at Build On Stellar. We are
