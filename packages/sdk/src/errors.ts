@@ -63,3 +63,31 @@ export class SubRosaTimeoutError extends Error {
     this.pollIntervalMs = params.pollIntervalMs;
   }
 }
+
+export class SubRosaContractError extends Error {
+  readonly name = "SubRosaContractError";
+  readonly contractErrorCode: number;
+  readonly contractErrorName: string;
+
+  constructor(code: number, name: string, options?: ErrorOptions) {
+    super(`contract error #${code}: ${name}`, options);
+    this.contractErrorCode = code;
+    this.contractErrorName = name;
+  }
+}
+
+export class SubRosaPreflightRpcError extends Error {
+  readonly name = "SubRosaPreflightRpcError";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+  }
+}
+
+export class SubRosaMalformedSimulationError extends Error {
+  readonly name = "SubRosaMalformedSimulationError";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+  }
+}

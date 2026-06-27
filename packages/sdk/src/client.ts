@@ -22,6 +22,7 @@ import {
 } from "@sub-rosa/round-bindings";
 import type { SealedBid } from "@sub-rosa/tlock";
 import type { TransactionSubmitter } from "./submitter.js";
+import { runPreflight, type PreflightResult } from "./preflight.js";
 import {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
@@ -320,6 +321,89 @@ export class SubRosaClient {
   async void(roundId: number | bigint): Promise<void> {
     const tx = await this.contract.void({ round_id: toBigInt(roundId) });
     await this.#sendUnwrap(tx);
+  }
+
+  // ── Preflight simulation (no signing/submission) ───────────────────────
+
+  async preflightCreateRound(
+    params: CreateRoundParams,
+  ): Promise<PreflightResult<bigint>> {
+    const operator = params.operator ?? this.#requireSource("operator");
+    const clearing_rule = {
+      tag: params.clearingRule ?? "HighestBid",
+      values: undefined,
+    } as ClearingRule;
+    const tx = await this.contract.create_round({
+      operator,
+      item_ref: toBuffer(params.itemRef),
+      reveal_round: toBigInt(params.revealRound),
+      clearing_rule,
+      commit_deadline: toBigInt(params.commitDeadline),
+      reveal_deadline: toBigInt(params.revealDeadline),
+      auditor_pubkey: toBuffer(params.auditorPubkey),
+    });
+    return runPreflight(tx);
+  }
+
+  async preflightCommit(params: CommitParams): Promise<PreflightResult<void>> {
+    const bidder = params.bidder ?? this.#requireSource("bidder");
+    const tx = await this.contract.commit({
+      round_id: toBigInt(params.roundId),
+      bidder,
+      commitment: toBuffer(params.sealed.commitment),
+      ciphertext: toBuffer(params.sealed.ciphertext),
+      escrow: params.escrow,
+      auditor_blob: toBuffer(params.sealed.auditorBlob),
+    });
+    return runPreflight(tx);
+  }
+
+  async preflightOpenReveal(
+    roundId: number | bigint,
+    drandSignature: Uint8Array,
+  ): Promise<PreflightResult<void>> {
+    const tx = await this.contract.open_reveal({
+      round_id: toBigInt(roundId),
+      drand_signature: toBuffer(drandSignature),
+    });
+    return runPreflight(tx);
+  }
+
+  async preflightReveal(
+    params: RevealParams,
+  ): Promise<PreflightResult<void>> {
+    const tx = await this.contract.reveal({
+      round_id: toBigInt(params.roundId),
+      bidder: params.bidder,
+      value: params.value,
+      nonce: toBuffer(params.nonce),
+    });
+    return runPreflight(tx);
+  }
+
+  async preflightClear(
+    roundId: number | bigint,
+  ): Promise<PreflightResult<string | undefined>> {
+    const tx = await this.contract.clear({ round_id: toBigInt(roundId) });
+    const result = runPreflight(tx);
+    if (result.ok) {
+      return { ...result, result: result.result ?? undefined };
+    }
+    return result;
+  }
+
+  async preflightSettle(
+    roundId: number | bigint,
+  ): Promise<PreflightResult<void>> {
+    const tx = await this.contract.settle({ round_id: toBigInt(roundId) });
+    return runPreflight(tx);
+  }
+
+  async preflightVoid(
+    roundId: number | bigint,
+  ): Promise<PreflightResult<void>> {
+    const tx = await this.contract.void({ round_id: toBigInt(roundId) });
+    return runPreflight(tx);
   }
 
   // ── Read-only views (simulation only; no signing/submission) ───────────

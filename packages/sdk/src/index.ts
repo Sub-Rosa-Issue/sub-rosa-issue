@@ -16,12 +16,26 @@ export {
 } from "./submitter.js";
 export {
   SubRosaClientConfigError,
+  SubRosaContractError,
+  SubRosaMalformedSimulationError,
   SubRosaMissingReturnValueError,
+  SubRosaPreflightRpcError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
 } from "./errors.js";
 export type { TimeoutErrorParams } from "./errors.js";
+export {
+  lookupContractError,
+  runPreflight,
+  type PreflightContractFailure,
+  type PreflightFailure,
+  type PreflightMalformedFailure,
+  type PreflightResources,
+  type PreflightResult,
+  type PreflightRpcFailure,
+  type PreflightSuccess,
+} from "./preflight.js";
 export { MAINNET_ARTIFACTS, MAINNET_MICRO_MAX_ESCROW } from "./mainnet-artifacts.js";
 
 // Re-export the generated contract types so consumers get spec-accurate shapes

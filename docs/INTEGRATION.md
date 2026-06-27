@@ -54,6 +54,56 @@ await client.commit({
 });
 ```
 
+## Preflight before submit
+
+Every mutating `SubRosaClient` method has a matching `preflight*` helper that
+simulates the same call without signing or submitting. Use this to check whether
+create, commit, reveal, clear, settle, and void are likely to succeed and to
+read estimated resource fees before asking a wallet to sign.
+
+```ts
+import { SubRosaClient } from "@sub-rosa/sdk";
+
+const client = new SubRosaClient({
+  rpcUrl,
+  networkPassphrase,
+  contractId,
+  publicKey, // secretKey not required for preflight
+});
+
+const preflight = await client.preflightCommit({
+  roundId,
+  sealed,
+  escrow,
+  bidder,
+});
+
+if (!preflight.ok) {
+  if (preflight.kind === "contract") {
+    console.error(
+      preflight.error.contractErrorName,
+      preflight.error.contractErrorCode,
+    );
+  } else {
+    console.error(preflight.error.message);
+  }
+  return;
+}
+
+console.log("estimated min resource fee:", preflight.resources.minResourceFee);
+await client.commit({ roundId, sealed, escrow, bidder });
+```
+
+Preflight helpers return a typed `PreflightResult`:
+
+- `ok: true` with the simulated return value and `resources.minResourceFee`
+- `ok: false` with `kind: "contract"` and a decoded `SubRosaContractError`
+- `ok: false` with `kind: "rpc"` when Soroban RPC simulation fails
+- `ok: false` with `kind: "malformed"` when the simulation payload is unusable
+
+Existing submit methods are unchanged; call them only after preflight succeeds
+(or when you intentionally skip the check).
+
 After Drand round `R` is published, any keeper or participant can submit the
 Drand signature, reveal valid entries, clear the round, and settle escrow.
 
