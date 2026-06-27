@@ -24,3 +24,12 @@ export const MAINNET_ARTIFACTS = {
 
 /** Hard ceiling for optional mainnet micro runner (1 XLM escrow). */
 export const MAINNET_MICRO_MAX_ESCROW = 10_000_000n;
+
+/** Required env value before value-moving mainnet commands execute. */
+export const MAINNET_CONFIRM_PHRASE = "SUB_ROSA_MAINNET";
+
+/** Recommended minimum operator XLM for wasm upload (~30 XLM). */
+export const MAINNET_DEPLOY_MIN_XLM_STROOPS = 300_000_000n;
+
+/** Minimum XLM reserve for keeper/bidder fee coverage. */
+export const MAINNET_MIN_FEE_RESERVE_STROOPS = 5_000_000n;

@@ -22,7 +22,31 @@ export {
   SubRosaTransactionError,
 } from "./errors.js";
 export type { TimeoutErrorParams } from "./errors.js";
-export { MAINNET_ARTIFACTS, MAINNET_MICRO_MAX_ESCROW } from "./mainnet-artifacts.js";
+export {
+  MAINNET_ARTIFACTS,
+  MAINNET_CONFIRM_PHRASE,
+  MAINNET_DEPLOY_MIN_XLM_STROOPS,
+  MAINNET_MICRO_MAX_ESCROW,
+  MAINNET_MIN_FEE_RESERVE_STROOPS,
+} from "./mainnet-artifacts.js";
+export {
+  assertMainnetConfirmed,
+  assertMicroAmounts,
+  assertReadinessForExecute,
+  createSacBalanceReader,
+  defaultMainnetReadinessInput,
+  fetchContractWasmHash,
+  formatReadinessReport,
+  hasBlockingFailures,
+  nativeXlmSacId,
+  runMainnetReadiness,
+  verifySettledRoundProof,
+  type MainnetReadinessDeps,
+  type MainnetReadinessInput,
+  type MainnetReadinessReport,
+  type ReadinessCheck,
+  type ReadinessStatus,
+} from "./mainnet-readiness.js";
 
 // Re-export the generated contract types so consumers get spec-accurate shapes
 // from a single import surface.

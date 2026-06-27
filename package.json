@@ -20,6 +20,7 @@
     "sdk:smoke": "bash packages/sdk/scripts/live-smoke.sh",
     "mainnet:deploy": "bash packages/sdk/scripts/mainnet-deploy.sh",
     "mainnet:settle": "bash services/keeper/scripts/mainnet-settle.sh",
+    "mainnet:ready": "bash packages/sdk/scripts/mainnet-ready.sh",
     "mainnet:verify": "bash packages/sdk/scripts/mainnet-verify.sh",
     "mainnet:micro": "bash packages/sdk/scripts/mainnet-micro.sh",
     "tlock:test": "pnpm --filter @sub-rosa/tlock test",

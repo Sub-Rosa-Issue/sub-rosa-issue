@@ -4,10 +4,7 @@
 
 import { SubRosaClient } from "../src/client.js";
 import { MAINNET_ARTIFACTS } from "../src/mainnet-artifacts.js";
-
-const fail = (m: string): never => {
-  throw new Error(`mainnet verify failed: ${m}`);
-};
+import { verifySettledRoundProof } from "../src/mainnet-readiness.js";
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run") || process.env.MAINNET_DRY_RUN === "1";
@@ -46,28 +43,16 @@ async function main() {
   });
 
   const roundId = BigInt(process.env.ROUND_ID ?? String(MAINNET_ARTIFACTS.settledRoundId));
-  const round = await reader.getRound(roundId);
-  const bidders = await reader.getBidders(roundId);
-  if (bidders.length !== 1) fail(`expected 1 bidder, got ${bidders.length}`);
-
-  const st = await reader.getBidState(roundId, bidders[0]!);
-  if (round.status.tag !== "Settled") fail(`status ${round.status.tag} != Settled`);
-  if (Number(round.reveal_round) !== MAINNET_ARTIFACTS.revealRound) {
-    fail(`R ${round.reveal_round} != ${MAINNET_ARTIFACTS.revealRound}`);
-  }
-  if (st.revealed_value !== MAINNET_ARTIFACTS.bidStroops) {
-    fail(`revealed ${st.revealed_value} != ${MAINNET_ARTIFACTS.bidStroops}`);
-  }
-  if (st.escrow !== MAINNET_ARTIFACTS.escrowStroops) {
-    fail(`escrow ${st.escrow} != ${MAINNET_ARTIFACTS.escrowStroops}`);
-  }
-  if (!st.valid || !st.settled) fail("bid not valid/settled");
+  await verifySettledRoundProof(reader, roundId, {
+    bidStroops: MAINNET_ARTIFACTS.bidStroops,
+    escrowStroops: MAINNET_ARTIFACTS.escrowStroops,
+    revealRound: MAINNET_ARTIFACTS.revealRound,
+  });
 
   console.log("✅ MAINNET VERIFY PASSED");
   console.log("   contract:", process.env.ROUND_CONTRACT_ID ?? MAINNET_ARTIFACTS.contractId);
-  console.log("   round:   ", roundId.toString(), "status:", round.status.tag);
-  console.log("   R:       ", round.reveal_round.toString());
-  console.log("   winner:  ", round.winner ?? bidders[0]);
+  console.log("   round:   ", roundId.toString(), "status:", MAINNET_ARTIFACTS.status);
+  console.log("   R:       ", MAINNET_ARTIFACTS.revealRound.toString());
   console.log("   bid:     ", MAINNET_ARTIFACTS.bidXlm, "XLM");
   console.log("   escrow:  ", MAINNET_ARTIFACTS.escrowXlm, "XLM");
 }
