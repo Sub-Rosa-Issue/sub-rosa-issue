@@ -38,6 +38,8 @@
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
     "web:test": "pnpm --filter @sub-rosa/web test",
-    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck"
+    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
+    "grant-scoring:test": "pnpm --filter @sub-rosa/grant-scoring-pilot test",
+    "grant-scoring:start": "pnpm --filter @sub-rosa/grant-scoring-pilot start"
   }
 }

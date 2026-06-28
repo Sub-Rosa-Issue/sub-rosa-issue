@@ -57,6 +57,13 @@ await client.commit({
 After Drand round `R` is published, any keeper or participant can submit the
 Drand signature, reveal valid entries, clear the round, and settle escrow.
 
+## Grant scoring pilot template
+
+For SCF-style sealed grant scoring (multiple projects, panel judges, ranked
+receipt output), see [`examples/grant-scoring`](../examples/grant-scoring/README.md).
+It uses the same `@sub-rosa/sdk` + `@sub-rosa/tlock` commit path as above but
+models the full grant lifecycle separately from the jury demo trace.
+
 ## Auditor identity recovery CLI
 
 For pilots that need machine-readable selective-disclosure evidence, recover

@@ -1,0 +1,22 @@
+{
+  "name": "@sub-rosa/grant-scoring-pilot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sealed grant scoring pilot template — projects, judges, criteria, sealed commits, reveal, and ranked receipt output using @sub-rosa/sdk and @sub-rosa/tlock.",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node --import tsx src/run-fixture-pilot.ts",
+    "test": "node --import tsx --test src/pilot.test.ts src/scoring.test.ts src/reveal-readiness.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/tlock": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
