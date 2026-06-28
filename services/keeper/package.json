@@ -9,7 +9,7 @@
     "start": "node --import tsx src/run.ts",
     "watch": "node --import tsx src/watch.ts",
     "queue": "node --import tsx src/queue.ts",
-    "test": "node --import tsx --test src/dry-run.test.ts src/keeper.test.ts src/watch.test.ts src/store.test.ts src/watch-queue.test.ts",
+    "test": "node --import tsx --test src/dry-run.test.ts src/keeper.test.ts src/watch.test.ts src/store.test.ts src/watch-queue.test.ts src/settlement-guard.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
