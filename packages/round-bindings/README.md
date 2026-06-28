@@ -14,6 +14,30 @@ soroban contract bindings ts \
 
 The network passphrase and contract ID are exported from [index.ts](./src/index.ts) in the `networks` constant. If you are the one who generated this library and you know that this contract is also deployed to other networks, feel free to update `networks` with other valid options. This will help your contract consumers use this library more easily.
 
+# Event snapshot tests
+
+The Round contract emits seven on-chain events (`created`, `commit`,
+`revealing`, `reveal`, `cleared`, `settled`, `voided`) — but events are
+not part of the generated method spec, so a silent rename in
+`contracts/round/src/lib.rs` would not break a bindings test. To catch
+event drift, this package ships an event **snapshot** paired with tests
+that assert the snapshot matches a JSON golden fixture and that
+in-memory decoded payloads round-trip through the public decoders.
+
+- Snapshot module: [`src/event-snapshot.ts`](./src/event-snapshot.ts)
+- Test suite: [`src/event-snapshot.test.ts`](./src/event-snapshot.test.ts)
+- Golden JSON fixture:
+  [`fixtures/event-snapshot.json`](./fixtures/event-snapshot.json)
+- Regeneration procedure:
+  [`SNAPSHOT_TESTS.md`](./SNAPSHOT_TESTS.md)
+
+Run them with:
+
+```bash
+pnpm --filter @sub-rosa/round-bindings test
+pnpm --filter @sub-rosa/round-bindings typecheck
+```
+
 # To publish or not to publish
 
 This library is suitable for publishing to NPM. You can publish it to NPM using the `npm publish` command.

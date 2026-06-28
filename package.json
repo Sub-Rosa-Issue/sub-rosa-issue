@@ -17,6 +17,8 @@
     "bindings:generate": "stellar contract build --out-dir artifacts && rm -rf .tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir .tmp-bindings --overwrite && cp .tmp-bindings/src/index.ts packages/round-bindings/src/index.ts && rm -rf .tmp-bindings",
     "sdk:test": "pnpm --filter @sub-rosa/sdk test",
     "sdk:typecheck": "pnpm --filter @sub-rosa/sdk typecheck",
+    "bindings:test": "pnpm --filter @sub-rosa/round-bindings test",
+    "bindings:typecheck": "pnpm --filter @sub-rosa/round-bindings typecheck",
     "sdk:smoke": "bash packages/sdk/scripts/live-smoke.sh",
     "mainnet:deploy": "bash packages/sdk/scripts/mainnet-deploy.sh",
     "mainnet:settle": "bash services/keeper/scripts/mainnet-settle.sh",
