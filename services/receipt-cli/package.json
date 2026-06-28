@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node --import tsx src/index.ts",
     "receipt": "node --import tsx src/index.ts",
-    "test": "node --import tsx --test src/receipt.test.ts",
+    "test": "node --import tsx --test src/receipt.test.ts src/cli.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -10,58 +10,109 @@
 //   RPC_URL             default https://soroban-testnet.stellar.org
 //   NETWORK_PASSPHRASE  default testnet
 
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { SubRosaClient } from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
 
 import {
   buildKeeperDryRunSummary,
   parseKeeperRunConfig,
+  type KeeperDryRunReader,
+  type KeeperRunConfig,
 } from "./dry-run.js";
 import { keepRound } from "./keeper.js";
 
-async function main() {
-  const config = parseKeeperRunConfig();
+type CliIo = {
+  stdout: Pick<Console, "log">;
+  stderr: Pick<Console, "error">;
+};
 
-  if (config.dryRun) {
-    const reader = new SubRosaClient({
+interface KeeperCliDeps {
+  createClient: (config: KeeperRunConfig) => unknown;
+  buildDryRunSummary: (
+    reader: KeeperDryRunReader,
+    roundId: bigint,
+  ) => Promise<unknown>;
+  keepRoundFn?: (
+    input: {
+      sdk: unknown;
+      drand: unknown;
+      log: (m: string) => void;
+      maxWaitSeconds: number;
+    },
+    roundId: bigint,
+  ) => Promise<unknown>;
+}
+
+const defaultDeps: KeeperCliDeps = {
+  createClient: (config: KeeperRunConfig) =>
+    new SubRosaClient({
       rpcUrl: config.rpcUrl,
       networkPassphrase: config.networkPassphrase,
       contractId: config.contractId,
-    });
-    const summary = await buildKeeperDryRunSummary(reader, config.roundId);
-    console.log("keeper dry-run summary:");
-    console.log(JSON.stringify(summary, bigintReplacer, 2));
-    return;
-  }
-
-  const sdk = new SubRosaClient({
-    rpcUrl: config.rpcUrl,
-    networkPassphrase: config.networkPassphrase,
-    contractId: config.contractId,
-    secretKey: config.keeperSecret!,
-  });
-
-  const result = await keepRound(
-    {
-      sdk,
-      drand: quicknet(),
-      log: (m) => console.log(`· ${m}`),
-      maxWaitSeconds: config.maxWaitSeconds,
-    },
-    config.roundId,
-  );
-
-  console.log("\nkeeper result:", JSON.stringify(result, bigintReplacer, 2));
-  if (result.finalStatus === "Open") {
-    console.log("round still Open (R not yet published) — re-run later.");
-  }
-}
+      ...(config.keeperSecret ? { secretKey: config.keeperSecret } : {}),
+    }),
+  buildDryRunSummary: (reader, roundId) =>
+    buildKeeperDryRunSummary(reader, roundId),
+};
 
 function bigintReplacer(_key: string, value: unknown): unknown {
   return typeof value === "bigint" ? value.toString() : value;
 }
 
-main().catch((err) => {
-  console.error("keeper failed:", err);
-  process.exit(1);
-});
+export async function runKeeperCli(
+  env: NodeJS.ProcessEnv = process.env,
+  io: CliIo = { stdout: console, stderr: console },
+  deps: KeeperCliDeps = defaultDeps,
+): Promise<number> {
+  let config: KeeperRunConfig;
+  try {
+    config = parseKeeperRunConfig(env);
+  } catch (err) {
+    io.stderr.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+
+  try {
+    if (config.dryRun) {
+      const reader = deps.createClient(config) as KeeperDryRunReader;
+      const summary = await deps.buildDryRunSummary(reader, config.roundId);
+      io.stdout.log("keeper dry-run summary:");
+      io.stdout.log(JSON.stringify(summary, bigintReplacer, 2));
+      return 0;
+    }
+
+    const sdk = deps.createClient(config);
+    const result = await (deps.keepRoundFn ?? ((input, roundId) => keepRound(input as Parameters<typeof keepRound>[0], roundId)))(
+      {
+        sdk,
+        drand: quicknet(),
+        log: (m) => io.stdout.log(`· ${m}`),
+        maxWaitSeconds: config.maxWaitSeconds,
+      },
+      config.roundId,
+    );
+
+    io.stdout.log("\nkeeper result:", JSON.stringify(result, bigintReplacer, 2));
+    if ((result as { finalStatus?: string }).finalStatus === "Open") {
+      io.stdout.log("round still Open (R not yet published) — re-run later.");
+    }
+    return 0;
+  } catch (err) {
+    io.stderr.error(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
+}
+
+async function main() {
+  const exitCode = await runKeeperCli();
+  process.exit(exitCode);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error("keeper failed:", err);
+    process.exit(1);
+  });
+}
