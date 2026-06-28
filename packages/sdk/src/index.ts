@@ -6,6 +6,7 @@ export {
   type RevealParams,
   type ClearingRuleTag,
 } from "./client.js";
+export { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 export {
   createOzChannelsSubmitter,
   createOzChannelsSubmitterFromEnv,
