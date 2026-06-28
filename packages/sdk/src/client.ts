@@ -23,6 +23,7 @@ import {
 import { toHex } from "@sub-rosa/tlock";
 import type { SealedBid } from "@sub-rosa/tlock";
 import type { RoundReceipt } from "./receipt.js";
+import { validateEncryptedBlob } from "./encrypted-blob.js";
 import { networkFingerprint } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
 import {
@@ -274,6 +275,27 @@ export class SubRosaClient {
   }
 
   async commit(params: CommitParams): Promise<void> {
+    // Validate encrypted blobs before submitting — catches size/encoding
+    // issues early, before paying gas for an on-chain revert (PayloadTooLarge).
+    const ciphertextResult = validateEncryptedBlob(
+      params.sealed.ciphertext,
+      "ciphertext",
+    );
+    if (!ciphertextResult.valid) {
+      throw new SubRosaClientConfigError(
+        ciphertextResult.issues.map((i) => i.message).join("; "),
+      );
+    }
+    const auditorBlobResult = validateEncryptedBlob(
+      params.sealed.auditorBlob,
+      "auditor_blob",
+    );
+    if (!auditorBlobResult.valid) {
+      throw new SubRosaClientConfigError(
+        auditorBlobResult.issues.map((i) => i.message).join("; "),
+      );
+    }
+
     const bidder = params.bidder ?? this.#requireSource("bidder");
     const tx = await this.contract.commit({
       round_id: toBigInt(params.roundId),

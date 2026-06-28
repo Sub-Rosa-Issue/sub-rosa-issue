@@ -22,6 +22,17 @@ export {
   SubRosaTransactionError,
 } from "./errors.js";
 export type { TimeoutErrorParams } from "./errors.js";
+
+export {
+  validateEncryptedBlob,
+  tryDecodeHex,
+  tryDecodeBase64,
+  MAX_CIPHERTEXT_BYTES,
+  MAX_AUDITOR_BLOB_BYTES,
+  type BlobContentType,
+  type BlobValidationIssue,
+  type BlobValidationResult,
+} from "./encrypted-blob.js";
 export {
   MAINNET_ARTIFACTS,
   MAINNET_CONFIRM_PHRASE,

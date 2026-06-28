@@ -95,8 +95,8 @@ describe("SubRosaClient source configuration", () => {
         roundId: 1,
         sealed: {
           commitment: new Uint8Array(32),
-          ciphertext: new Uint8Array(),
-          auditorBlob: new Uint8Array(),
+          ciphertext: new Uint8Array([0x61, 0x67, 0x65]), // non-empty
+          auditorBlob: new Uint8Array(1), // non-empty
         },
         escrow: 1n,
       }),
