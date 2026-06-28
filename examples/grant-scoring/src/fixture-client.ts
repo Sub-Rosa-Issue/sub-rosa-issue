@@ -1,4 +1,9 @@
-import type { BidState, Round, SubRosaClient } from "@sub-rosa/sdk";
+import type {
+  BidState,
+  CreateRoundParams,
+  Round,
+  SubRosaClient,
+} from "@sub-rosa/sdk";
 import { commitment } from "@sub-rosa/tlock";
 
 import type { SealedScoreSubmission } from "./types.js";
@@ -50,21 +55,13 @@ export class FixtureGrantClient implements Pick<
     this.#roundByProject.set(projectId, roundId);
   }
 
-  async createRound(params: {
-    itemRef: Uint8Array;
-    revealRound: number | bigint;
-    commitDeadline: number | bigint;
-    revealDeadline: number | bigint;
-    auditorPubkey: Uint8Array;
-    clearingRule?: { tag: string };
-    operator?: string;
-  }): Promise<bigint> {
+  async createRound(params: CreateRoundParams): Promise<bigint> {
     const roundId = this.#nextRoundId++;
     const round: StoredRound = {
       internalId: roundId,
       auditor_pubkey: Buffer.from(params.auditorPubkey),
       bidders: [],
-      clearing_rule: { tag: params.clearingRule?.tag ?? "HighestBid", values: undefined },
+      clearing_rule: { tag: params.clearingRule ?? "HighestBid", values: undefined },
       commit_deadline: BigInt(params.commitDeadline),
       item_ref: Buffer.from(params.itemRef),
       operator: params.operator ?? "GOPERATOR",

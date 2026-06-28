@@ -80,7 +80,7 @@ export class GrantScoringPilot {
         commitDeadline: this.program.commitDeadline,
         revealDeadline: this.program.revealDeadline,
         auditorPubkey: this.auditor.publicKey,
-        clearingRule: { tag: "HighestBid" },
+        clearingRule: "HighestBid",
       });
       bindings.push({ projectId: project.id, roundId });
       this.#fixtureClient?.linkProjectRound(project.id, roundId);
