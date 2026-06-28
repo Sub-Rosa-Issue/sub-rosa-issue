@@ -50,6 +50,9 @@ export function LandingPage({
           <a href="https://github.com/karagozemin/Sub-Rosa" target="_blank" rel="noreferrer">
             GitHub
           </a>
+          <a href="#/dashboard" className="secondary-action compact">
+            Dashboard
+          </a>
           <button type="button" className="primary-action compact" onClick={onDemo}>
             Open demo
           </button>
