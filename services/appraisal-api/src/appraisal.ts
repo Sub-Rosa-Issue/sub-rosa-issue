@@ -11,6 +11,10 @@ import { createHash } from "node:crypto";
 
 export const APPRAISAL_MODEL = "subrosa-appraisal/v1";
 
+/** Safety bounds for free-text fields. Generous, but caps integrator footguns. */
+export const MAX_ITEMREF_LENGTH = 256;
+export const MAX_CATEGORY_LENGTH = 64;
+
 export interface AppraisalAttributes {
   /** Intrinsic quality, 0–100. */
   quality?: number;
@@ -85,11 +89,21 @@ export function parseAppraisalRequest(raw: unknown): AppraisalRequest {
   if (typeof o.itemRef !== "string" || o.itemRef.trim() === "") {
     throw new AppraisalInputError("itemRef must be a non-empty string");
   }
+  if (o.itemRef.length > MAX_ITEMREF_LENGTH) {
+    throw new AppraisalInputError(
+      `itemRef must be at most ${MAX_ITEMREF_LENGTH} characters`,
+    );
+  }
   if (typeof o.basePrice !== "number" || !Number.isFinite(o.basePrice) || o.basePrice <= 0) {
     throw new AppraisalInputError("basePrice must be a finite number > 0");
   }
   if (o.category !== undefined && typeof o.category !== "string") {
     throw new AppraisalInputError("category must be a string");
+  }
+  if (typeof o.category === "string" && o.category.length > MAX_CATEGORY_LENGTH) {
+    throw new AppraisalInputError(
+      `category must be at most ${MAX_CATEGORY_LENGTH} characters`,
+    );
   }
   const attrs: AppraisalAttributes = {};
   if (o.attributes !== undefined) {
@@ -103,6 +117,9 @@ export function parseAppraisalRequest(raw: unknown): AppraisalRequest {
         if (typeof v !== "number" || !Number.isFinite(v)) {
           throw new AppraisalInputError(`attributes.${key} must be a number`);
         }
+        // Scores are clamped (do not reject) so integrators can submit raw 0–100
+        // survey data without coercing it first; only NaN/Infinity propagate
+        // invalidly into math and are treated as a validation error.
         attrs[key] = Math.min(100, Math.max(0, v));
       }
     }
