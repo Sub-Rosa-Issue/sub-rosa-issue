@@ -27,3 +27,16 @@ export {
   type KeeperDryRunSummary,
   type KeeperRunConfig,
 } from "./dry-run.js";
+export {
+  addRound,
+  listRounds,
+  loadQueue,
+  saveQueue,
+  removeRound,
+  updateRound,
+  pruneCompleted,
+  DEFAULT_QUEUE_FILE,
+  QUEUE_VERSION,
+  type WatchedRound,
+  type WatchQueue,
+} from "./queue.js";
