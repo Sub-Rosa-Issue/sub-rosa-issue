@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { serializeReceipt, type RoundReceipt } from "./receipt.js";
+import { serializeReceipt, parseReceipt, type RoundReceipt } from "./receipt.js";
 import { redactReceipt, type BidReceiptEntry } from "./redact.js";
+import { verifyReceipt } from "./verify.js";
 
 function makeReceipt(): RoundReceipt {
   return {
@@ -192,4 +193,89 @@ test("handles null evidence gracefully", () => {
   const entry = redacted.bids["<redacted:0>"] as BidReceiptEntry;
   assert.equal(entry.evidence.ciphertext, null);
   assert.equal(entry.evidence.auditorBlob, null);
+});
+
+test("does not mutate the original receipt", () => {
+  const receipt = makeReceipt();
+  const originalJson = serializeReceipt(receipt);
+  redactReceipt(receipt);
+  assert.equal(serializeReceipt(receipt), originalJson);
+});
+
+test("unredacted copy does not affect original verification", () => {
+  const receipt = makeReceipt();
+  const copy = JSON.parse(JSON.stringify(receipt)) as RoundReceipt;
+  redactReceipt(copy);
+  const result = verifyReceipt(receipt);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.issues, []);
+});
+
+test("deep nested objects with multiple sensitive levels are redacted", () => {
+  const receipt = makeReceipt() as any;
+  receipt.auditTrail = {
+    metadata: {
+      internal: {
+        accountId: "GXYZ...ABC",
+        memo: "confidential note",
+        details: {
+          txHash: "abc123def456",
+          appraiser: "GAPP...RAISER",
+        },
+      },
+    },
+  };
+  const redacted = redactReceipt(receipt);
+  assert.equal(redacted.auditTrail.metadata.internal.accountId, "<redacted>");
+  assert.equal(redacted.auditTrail.metadata.internal.memo, "<redacted>");
+  assert.equal(redacted.auditTrail.metadata.internal.details.txHash, "<redacted>");
+  assert.equal(redacted.auditTrail.metadata.internal.details.appraiser, "<redacted>");
+});
+
+test("arrays inside nested objects are redacted correctly", () => {
+  const receipt = makeReceipt() as any;
+  receipt.reviewLog = {
+    entries: [
+      { bidder: "GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3", note: "reviewed" },
+      { bidder: "GB5HN3Y8ZRLRK6Z6Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4", note: "reviewed" },
+    ],
+  };
+  const redacted = redactReceipt(receipt);
+  assert.deepEqual(redacted.reviewLog.entries, [
+    { bidder: "<redacted>", note: "reviewed" },
+    { bidder: "<redacted>", note: "reviewed" },
+  ]);
+});
+
+test("keep-list preserves entire bidders array", () => {
+  const receipt = makeReceipt();
+  const redacted = redactReceipt(receipt, { keep: ["bidders"] });
+  assert.deepEqual(redacted.bidders, receipt.bidders);
+});
+
+test("keep-list preserves entire bids object", () => {
+  const receipt = makeReceipt();
+  const redacted = redactReceipt(receipt, { keep: ["bids"] });
+  assert.deepEqual(Object.keys(redacted.bids), Object.keys(receipt.bids));
+  for (const bidder of receipt.bidders) {
+    const entry = redacted.bids[bidder] as BidReceiptEntry;
+    assert.equal(entry.commitment, receipt.bids[bidder]!.commitment);
+    assert.equal(entry.evidence.ciphertext, receipt.bids[bidder]!.evidence.ciphertext);
+    assert.equal(entry.evidence.auditorBlob, receipt.bids[bidder]!.evidence.auditorBlob);
+  }
+});
+
+test("idempotent on nested structures", () => {
+  const receipt = makeReceipt() as any;
+  receipt.auditTrail = {
+    internal: {
+      accountId: "GXYZ...ABC",
+      details: {
+        txHash: "abc123",
+      },
+    },
+  };
+  const once = redactReceipt(receipt);
+  const twice = redactReceipt(once);
+  assert.equal(serializeReceipt(once), serializeReceipt(twice));
 });

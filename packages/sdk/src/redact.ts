@@ -94,17 +94,21 @@ export function redactReceipt<T extends RoundReceipt>(receipt: T, options?: Reda
     if (key === "bids") {
       const redactedBids: Record<string, BidReceiptEntry> = {};
       const entries = Object.entries(val as Record<string, BidReceiptEntry>);
-      for (let i = 0; i < entries.length; i++) {
-        const [bidKey, entry] = entries[i];
-        const isKept =
-          keep.has(`bids.${bidKey}`) ||
-          Array.from(keep).some((p) => p.startsWith(`bids.${bidKey}.`));
-        const newKey = isKept ? bidKey : `<redacted:${i}>`;
-        redactedBids[newKey] = redactBidEntry(entry, `bids.${bidKey}`, keep);
+      if (keep.has("bids")) {
+        root[key] = JSON.parse(JSON.stringify(val));
+      } else {
+        for (let i = 0; i < entries.length; i++) {
+          const [bidKey, entry] = entries[i];
+          const isKept =
+            keep.has(`bids.${bidKey}`) ||
+            Array.from(keep).some((p) => p.startsWith(`bids.${bidKey}.`));
+          const newKey = isKept ? bidKey : `<redacted:${i}>`;
+          redactedBids[newKey] = redactBidEntry(entry, `bids.${bidKey}`, keep);
+        }
+        root[key] = redactedBids;
       }
-      root[key] = redactedBids;
     } else if (key === "bidders" && Array.isArray(val)) {
-      root[key] = val.map((_, i) => `<redacted:${i}>`);
+      root[key] = keep.has("bidders") ? val : val.map((_, i) => `<redacted:${i}>`);
     } else if (keep.has(key)) {
       root[key] = val;
     } else if (isSensitiveKey(key)) {

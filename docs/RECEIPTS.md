@@ -103,6 +103,64 @@ console.log(result.valid ? "✓ Receipt valid" : "✗ Receipt invalid");
 console.table(result.issues);
 ```
 
+## Redaction for public demos
+
+The SDK ships a pure `redactReceipt` helper that produces a public-safe copy of any round receipt. The original receipt is never mutated.
+
+### Usage
+
+```ts
+import { redactReceipt, serializeReceipt, parseReceipt } from "@sub-rosa/sdk";
+import { readFileSync, writeFileSync } from "node:fs";
+
+const receipt = parseReceipt(readFileSync("round-1-receipt.json", "utf-8"));
+const redacted = redactReceipt(receipt);
+writeFileSync("round-1-receipt.redacted.json", serializeReceipt(redacted), "utf-8");
+```
+
+### CLI
+
+```bash
+pnpm --filter @sub-rosa/receipt-cli receipt redact round-1-receipt.json
+```
+
+This writes `round-1-receipt.redacted.json` next to the source file.
+
+### What gets redacted
+
+By default the following fields are replaced with `<redacted>` or indexed placeholders:
+
+- `operator`, `winner`, `contractId`, `roundId`, `itemRef`, `revealRound`
+- `bidders` array (replaced with `<redacted:0>`, `<redacted:1>`, …)
+- `bids` object keys (replaced with the same `<redacted:N>` placeholders)
+- `evidence.ciphertext` and `evidence.auditorBlob`
+- Any other field whose name matches a sensitive key such as `memo`, `txHash`, `accountId`, etc.
+
+**Non-sensitive proof metadata is preserved** so reviewers can still inspect the cryptographic binding inside each bid: `commitment`, `escrow`, `revealedValue`, `nonce`, `hashValid`, `valid`, `settled`, and round-level metadata such as `network`, `networkFingerprint`, `version`, `clearingRule`, and `status`.
+
+### Keep-list
+
+Use `keep` to preserve specific fields for review or partial verification:
+
+```ts
+const redacted = redactReceipt(receipt, {
+  keep: [
+    "bidders",
+    "winner",
+    "bids.GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
+  ],
+});
+```
+
+- `keep: ["bidders"]` preserves the entire bidder list.
+- `keep: ["bids"]` preserves the entire bids object with original keys.
+- `keep: ["bids.GA4..."]` preserves a single bid entry and its nested evidence.
+- `keep: ["bids.GA4... .commitment"]` preserves just the commitment field.
+
+### Determinism
+
+`redactReceipt` is fully deterministic: calling it repeatedly on the same receipt yields identical serialised output. This makes it safe to use in automated demo pipelines and snapshot tests.
+
 ## Fixtures
 
 Test fixtures live in `services/receipt-cli/src/fixtures/`:
