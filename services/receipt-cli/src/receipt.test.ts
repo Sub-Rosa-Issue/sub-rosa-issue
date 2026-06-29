@@ -2,10 +2,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { verifyReceipt, parseReceipt } from "@sub-rosa/sdk";
+import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { verifyReceipt, parseReceipt, serializeReceipt } from "@sub-rosa/sdk";
 import { buildJsonOutput } from "./json-output.js";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
@@ -150,4 +152,102 @@ test("JSON mode: malformed input produces parse_error with null ids", () => {
   assert.equal(out.errors[0].code, "parse_error");
   assert.ok(out.errors[0].message.includes("SyntaxError"));
   assert.deepEqual(out.warnings, []);
+});
+
+test("CLI: existing receipt verification without the new flag still passes", () => {
+  const receiptPath = resolve(DIR, "fixtures", "golden.json");
+  const stdout = execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify ${receiptPath}`, { encoding: "utf8" });
+  assert.match(stdout, /Verification: PASS/);
+});
+
+test("CLI: --verify-artifact-checksum with matching checksum passes", () => {
+  const artifactPath = resolve(DIR, "temp-artifact-match.txt");
+  const content = "hello-world-artifact";
+  writeFileSync(artifactPath, content, "utf8");
+  const hash = createHash("sha256").update(content).digest("hex");
+
+  const receipt = loadFixture("golden.json");
+  receipt.artifactChecksum = hash;
+  const receiptPath = resolve(DIR, "temp-receipt-match.json");
+  writeFileSync(receiptPath, serializeReceipt(receipt), "utf8");
+
+  try {
+    const stdout = execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify ${receiptPath} --verify-artifact-checksum ${artifactPath}`, { encoding: "utf8" });
+    assert.match(stdout, /Verification: PASS/);
+    assert.match(stdout, /Artifact verification: PASS/);
+  } finally {
+    try { unlinkSync(artifactPath); } catch {}
+    try { unlinkSync(receiptPath); } catch {}
+  }
+});
+
+test("CLI: --verify-artifact-checksum with mismatching checksum fails with non-zero exit", () => {
+  const artifactPath = resolve(DIR, "temp-artifact-mismatch.txt");
+  writeFileSync(artifactPath, "wrong-content", "utf8");
+
+  const receipt = loadFixture("golden.json");
+  receipt.artifactChecksum = "expected-hash-that-does-not-match";
+  const receiptPath = resolve(DIR, "temp-receipt-mismatch.json");
+  writeFileSync(receiptPath, serializeReceipt(receipt), "utf8");
+
+  try {
+    assert.throws(() => {
+      execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify ${receiptPath} --verify-artifact-checksum ${artifactPath}`, { stdio: "pipe" });
+    }, (err: any) => {
+      assert.equal(err.status, 1);
+      const stderr = err.stderr.toString();
+      assert.match(stderr, /Checksum mismatch/);
+      return true;
+    });
+  } finally {
+    try { unlinkSync(artifactPath); } catch {}
+    try { unlinkSync(receiptPath); } catch {}
+  }
+});
+
+test("CLI: --verify-artifact-checksum with missing checksum metadata fails", () => {
+  const artifactPath = resolve(DIR, "temp-artifact-missing-meta.txt");
+  writeFileSync(artifactPath, "some-content", "utf8");
+
+  const receipt = loadFixture("golden.json");
+  // Ensure artifactChecksum is not set
+  delete receipt.artifactChecksum;
+  const receiptPath = resolve(DIR, "temp-receipt-missing-meta.json");
+  writeFileSync(receiptPath, serializeReceipt(receipt), "utf8");
+
+  try {
+    assert.throws(() => {
+      execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify ${receiptPath} --verify-artifact-checksum ${artifactPath}`, { stdio: "pipe" });
+    }, (err: any) => {
+      assert.equal(err.status, 1);
+      const stderr = err.stderr.toString();
+      assert.match(stderr, /Missing checksum metadata/);
+      return true;
+    });
+  } finally {
+    try { unlinkSync(artifactPath); } catch {}
+    try { unlinkSync(receiptPath); } catch {}
+  }
+});
+
+test("CLI: --verify-artifact-checksum with missing artifact file fails", () => {
+  const receipt = loadFixture("golden.json");
+  receipt.artifactChecksum = "some-checksum";
+  const receiptPath = resolve(DIR, "temp-receipt-missing-file.json");
+  writeFileSync(receiptPath, serializeReceipt(receipt), "utf8");
+
+  const nonExistentPath = resolve(DIR, "non-existent-artifact-file.txt");
+
+  try {
+    assert.throws(() => {
+      execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify ${receiptPath} --verify-artifact-checksum ${nonExistentPath}`, { stdio: "pipe" });
+    }, (err: any) => {
+      assert.equal(err.status, 1);
+      const stderr = err.stderr.toString();
+      assert.match(stderr, /Cannot read artifact file/);
+      return true;
+    });
+  } finally {
+    try { unlinkSync(receiptPath); } catch {}
+  }
 });
