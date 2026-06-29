@@ -9,6 +9,10 @@
 
 # Sub Rosa
 
+[![CI Quality Gates](https://github.com/karagozemin/sub-rosa-drips/actions/workflows/ci.yml/badge.svg)](https://github.com/karagozemin/sub-rosa-drips/actions/workflows/ci.yml)
+
+
+
 **1st Place — Hack Privacy Track, Build On Stellar Hackathon — IBW 2026**
 
 **Verifiable allocation infrastructure for Stellar grants, hackathons,

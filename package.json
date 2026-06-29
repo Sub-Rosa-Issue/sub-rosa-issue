@@ -38,6 +38,15 @@
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
     "web:test": "pnpm --filter @sub-rosa/web test",
-    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck"
+    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
+    "typecheck": "pnpm sdk:typecheck && pnpm appraisal:typecheck && pnpm agent:typecheck && pnpm web:typecheck",
+    "test:sdk": "pnpm sdk:test",
+    "test:tlock": "pnpm tlock:test",
+    "test:keeper": "pnpm keeper:test",
+    "test:appraisal-api": "pnpm appraisal:test",
+    "test:agent": "pnpm agent:test",
+    "test:web": "pnpm web:test",
+    "build:web": "pnpm web:build",
+    "lint": "pnpm run -r lint || echo 'No lint script configured in all packages'"
   }
 }
