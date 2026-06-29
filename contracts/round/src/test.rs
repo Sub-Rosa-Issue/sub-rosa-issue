@@ -1431,3 +1431,99 @@ fn error_codes_use_reserved_ranges() {
         );
     }
 }
+
+fn parse_error_docs() -> ([(&'static str, u32); 64], usize) {
+    let mut entries: [(&'static str, u32); 64] = [("", 0); 64];
+    let mut count = 0;
+
+    for line in include_str!("../ERRORS.md").lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with('|') {
+            continue;
+        }
+
+        let parts: std::vec::Vec<&str> = trimmed.split('|').map(|s| s.trim()).collect();
+        if parts.len() < 3 {
+            continue;
+        }
+
+        if parts[1].starts_with('-') || parts[1].is_empty() {
+            continue;
+        }
+
+        let code = match parts[1].parse::<u32>() {
+            Ok(code) => code,
+            Err(_) => continue,
+        };
+
+        let variant_cell = parts[2];
+        let variant = match (variant_cell.find('`'), variant_cell.rfind('`')) {
+            (Some(first), Some(last)) if first != last => &variant_cell[first + 1..last],
+            _ => continue,
+        };
+
+        entries[count] = (variant, code);
+        count += 1;
+    }
+
+    (entries, count)
+}
+
+#[test]
+fn error_docs_match_exported_error_codes() {
+    let (doc_entries, doc_count) = parse_error_docs();
+    assert_eq!(
+        doc_count,
+        DOCUMENTED_ERROR_CODES.len(),
+        "contracts/round/ERRORS.md documents {doc_count} errors, but the contract exports {} variants in Error",
+        DOCUMENTED_ERROR_CODES.len(),
+    );
+
+    for (variant, expected_code) in DOCUMENTED_ERROR_CODES {
+        let name = variant_name(*variant);
+        let mut found = false;
+
+        for i in 0..doc_count {
+            if doc_entries[i].0 == name {
+                found = true;
+                assert_eq!(
+                    doc_entries[i].1,
+                    *expected_code,
+                    "contracts/round/ERRORS.md documents {name} with code {} but the contract uses {}",
+                    doc_entries[i].1,
+                    expected_code,
+                );
+                break;
+            }
+        }
+
+        assert!(
+            found,
+            "contracts/round/ERRORS.md is missing an entry for the contract error {name}"
+        );
+    }
+
+    for i in 0..doc_count {
+        let (doc_name, doc_code) = doc_entries[i];
+        let mut found = false;
+
+        for (variant, expected_code) in DOCUMENTED_ERROR_CODES {
+            if doc_name == variant_name(*variant) {
+                found = true;
+                assert_eq!(
+                    doc_code,
+                    *expected_code,
+                    "contracts/round/ERRORS.md documents {doc_name} with code {} but the contract exports {}",
+                    doc_code,
+                    expected_code,
+                );
+                break;
+            }
+        }
+
+        assert!(
+            found,
+            "contracts/round/ERRORS.md documents an unknown error variant {doc_name}"
+        );
+    }
+}
