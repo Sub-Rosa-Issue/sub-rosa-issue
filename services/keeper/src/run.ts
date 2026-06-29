@@ -18,6 +18,7 @@ import {
   parseKeeperRunConfig,
 } from "./dry-run.js";
 import { keepRound } from "./keeper.js";
+import { redact } from "./redact.js";
 
 async function main() {
   const config = parseKeeperRunConfig();
@@ -45,7 +46,7 @@ async function main() {
     {
       sdk,
       drand: quicknet(),
-      log: (m) => console.log(`· ${m}`),
+      log: (m) => console.log(`· ${redact(m)}`),
       maxWaitSeconds: config.maxWaitSeconds,
     },
     config.roundId,
@@ -62,6 +63,6 @@ function bigintReplacer(_key: string, value: unknown): unknown {
 }
 
 main().catch((err) => {
-  console.error("keeper failed:", err);
+  console.error("keeper failed:", redact(String(err)));
   process.exit(1);
 });

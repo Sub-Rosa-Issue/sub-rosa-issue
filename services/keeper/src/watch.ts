@@ -23,6 +23,7 @@ import {
   type WatchTickResult,
 } from "./keeper.js";
 import { KeeperStore } from "./store.js";
+import { redact } from "./redact.js";
 
 function reqEnv(name: string): string {
   const v = process.env[name];
@@ -80,7 +81,7 @@ async function main() {
   });
 
   const drand = quicknet();
-  const log = (m: string) => console.log(`· ${m}`);
+  const log = (m: string) => console.log(`· ${redact(m)}`);
 
   let stopping = false;
   process.on("SIGINT", () => {
@@ -108,7 +109,7 @@ async function main() {
         store.addRound(id, { contractId, network: networkPassphrase });
       }
     } catch (e) {
-      console.error("watch: failed to list/discover rounds:", e);
+      console.error("watch: failed to list/discover rounds:", redact(String(e)));
     }
 
     const queuedRounds = store.listRounds();
@@ -148,11 +149,11 @@ async function main() {
         if (active || acted) {
           console.log(
             `[round ${roundId}] ${summarizeTick(tick)}`,
-            acted ? JSON.stringify(tick, bigintReplacer) : "",
+            acted ? redact(JSON.stringify(tick, bigintReplacer)) : "",
           );
         }
       } catch (e) {
-        console.error(`[round ${roundId}] tick failed:`, e);
+        console.error(`[round ${roundId}] tick failed:`, redact(String(e)));
         store.updateRound(roundId, {
           retryCount: storedRound.retryCount + 1,
           lastError: e instanceof Error ? e.message : String(e),
@@ -169,6 +170,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("watch keeper failed:", err);
+  console.error("watch keeper failed:", redact(String(err)));
   process.exit(1);
 });
