@@ -208,5 +208,4 @@ pnpm mainnet:verify         # mainnet read-only proof
 - **Unlock:** round-R BLS verified on-chain before reveal
 - **Selective disclosure:** values public post-R; identities auditor-encrypted
 
-
 all done
