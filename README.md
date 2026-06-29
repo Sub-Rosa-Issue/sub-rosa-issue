@@ -256,6 +256,7 @@ threat model.
 | [`docs/SECURITY.md`](docs/SECURITY.md) | STRIDE threat model, audit prep checklist, bug bounty |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Testnet + mainnet deployment, env var reference, network configuration |
 | [`docs/REVIEW_RESPONSE.md`](docs/REVIEW_RESPONSE.md) | Direct response to v1 reviewer feedback, item by item |
+| [`docs/POST_DEMO_EVIDENCE_PACK.md`](docs/POST_DEMO_EVIDENCE_PACK.md) | Post-demo evidence pack template for reviewer and investor follow-up |
 
 ---
 
