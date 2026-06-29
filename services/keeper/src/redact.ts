@@ -46,4 +46,3 @@ export function redact(raw: string): string {
 
   return s;
 }
-

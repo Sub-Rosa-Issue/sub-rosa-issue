@@ -121,5 +121,3 @@ test("redact handles all patterns in one message", () => {
   ].join(" ");
   assert.equal(redact(msg), want);
 });
-
-
