@@ -20,6 +20,8 @@
     "bindings:test": "pnpm --filter @sub-rosa/round-bindings test",
     "bindings:typecheck": "pnpm --filter @sub-rosa/round-bindings typecheck",
     "sdk:smoke": "bash packages/sdk/scripts/live-smoke.sh",
+    "threat-model:check": "node scripts/check-threat-model-anchors.mjs docs/THREAT_MODEL.md",
+    "threat-model:test": "node --test scripts/check-threat-model-anchors.test.mjs",
     "mainnet:deploy": "bash packages/sdk/scripts/mainnet-deploy.sh",
     "mainnet:settle": "bash services/keeper/scripts/mainnet-settle.sh",
     "mainnet:ready": "bash packages/sdk/scripts/mainnet-ready.sh",
