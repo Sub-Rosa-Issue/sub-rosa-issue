@@ -18,6 +18,13 @@ export {
   type SkipRecord,
 } from "./keeper.js";
 export {
+  createSettlementGuard,
+  type DuplicateSkipEvent,
+  type SettlementGuard,
+  type SettlementGuardEntry,
+  type SettlementGuardStatus,
+} from "./settlement-guard.js";
+export {
   buildKeeperDryRunSummary,
   decideKeeperDryRunAction,
   parseKeeperRunConfig,

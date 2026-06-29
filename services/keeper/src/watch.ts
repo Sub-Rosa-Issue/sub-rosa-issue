@@ -22,6 +22,7 @@ import {
   watchRound,
   type WatchTickResult,
 } from "./keeper.js";
+import { KeeperStore } from "./store.js";
 
 function reqEnv(name: string): string {
   const v = process.env[name];
@@ -90,6 +91,8 @@ async function main() {
     stopping = true;
   });
 
+  const store = new KeeperStore();
+
   console.log("Sub Rosa watch-mode keeper");
   console.log("· contract:", contractId);
   console.log("· poll:    ", pollMs, "ms");
@@ -97,20 +100,32 @@ async function main() {
 
   while (!stopping) {
     const started = Date.now();
-    let roundIds: bigint[];
+    let discoveredIds: bigint[] = [];
     try {
-      roundIds = await resolveRoundIds(reader);
+      discoveredIds = await resolveRoundIds(reader);
+      // Auto-add newly discovered/requested rounds to store
+      for (const id of discoveredIds) {
+        store.addRound(id, { contractId, network: networkPassphrase });
+      }
     } catch (e) {
-      console.error("watch: failed to list rounds:", e);
-      await sleep(pollMs);
-      continue;
+      console.error("watch: failed to list/discover rounds:", e);
     }
 
-    if (roundIds.length === 0) {
-      log("no rounds found — waiting");
+    const queuedRounds = store.listRounds();
+    // Only process rounds that belong to this contract/network and aren't permanently finished
+    const activeRounds = queuedRounds.filter((r) => {
+      if (r.contractId && r.contractId !== contractId) return false;
+      if (r.network && r.network !== networkPassphrase) return false;
+      if (r.lastStatus === "Settled" || r.lastStatus === "Voided") return false;
+      return true;
+    });
+
+    if (activeRounds.length === 0) {
+      log("no active rounds found in queue — waiting");
     }
 
-    for (const roundId of roundIds) {
+    for (const storedRound of activeRounds) {
+      const roundId = BigInt(storedRound.roundId);
       if (stopping) break;
       try {
         const tick = await watchRound({ sdk, drand, log }, roundId);
@@ -122,6 +137,14 @@ async function main() {
           (tick.keep?.revealed.length ?? 0) > 0 ||
           tick.close?.cleared ||
           tick.close?.settled;
+
+        store.updateRound(roundId, {
+          lastStatus: tick.finalStatus,
+          retryCount: 0,
+          lastError: undefined,
+          lastAction: acted ? summarizeTick(tick) : storedRound.lastAction,
+        });
+
         if (active || acted) {
           console.log(
             `[round ${roundId}] ${summarizeTick(tick)}`,
@@ -130,6 +153,10 @@ async function main() {
         }
       } catch (e) {
         console.error(`[round ${roundId}] tick failed:`, e);
+        store.updateRound(roundId, {
+          retryCount: storedRound.retryCount + 1,
+          lastError: e instanceof Error ? e.message : String(e),
+        });
       }
     }
 
