@@ -30,6 +30,14 @@ export {
   MAINNET_MIN_FEE_RESERVE_STROOPS,
 } from "./mainnet-artifacts.js";
 export {
+  AssetConfigError,
+  validateAssetConfig,
+  validateAssetConfigs,
+  ASSET_FIXTURES,
+  type AssetConfig,
+  type AssetType,
+} from "./asset-config.js";
+export {
   assertMainnetConfirmed,
   assertMicroAmounts,
   assertReadinessForExecute,
