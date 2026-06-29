@@ -3,12 +3,14 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt } from "@sub-rosa/sdk";
+import { buildJsonOutput } from "./json-output.js";
 
 function usage(): never {
   console.error(`
 Usage:
-  receipt-cli export <roundId>             Fetch receipt from RPC (uses env config)
-  receipt-cli verify <receipt.json>        Verify a local receipt file
+  receipt-cli export <roundId>                  Fetch receipt from RPC (uses env config)
+  receipt-cli verify <receipt.json>             Verify a local receipt file
+  receipt-cli verify <receipt.json> --json      Output verification result as JSON
 
 Environment for "export":
   RPC_URL                  Soroban RPC endpoint (default: https://soroban-testnet.stellar.org)
@@ -37,24 +39,38 @@ async function cmdExport(roundIdStr: string) {
   console.log(`Wrote ${filename}`);
 }
 
-async function cmdVerify(path: string) {
-  let json: string;
+async function cmdVerify(path: string, jsonMode: boolean) {
+  let rawJson: string;
   try {
-    json = readFileSync(path, "utf-8");
+    rawJson = readFileSync(path, "utf-8");
   } catch (e) {
-    console.error(`Cannot read ${path}: ${e}`);
+    if (jsonMode) {
+      console.log(JSON.stringify(buildJsonOutput(null, null, `Cannot read file: ${e}`), null, 2));
+    } else {
+      console.error(`Cannot read ${path}: ${e}`);
+    }
     process.exit(1);
   }
 
   let receipt;
   try {
-    receipt = parseReceipt(json);
+    receipt = parseReceipt(rawJson);
   } catch (e) {
-    console.error(`Invalid JSON: ${e}`);
+    if (jsonMode) {
+      console.log(JSON.stringify(buildJsonOutput(null, null, `Invalid JSON: ${e}`), null, 2));
+    } else {
+      console.error(`Invalid JSON: ${e}`);
+    }
     process.exit(1);
   }
 
   const result = verifyReceipt(receipt);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(buildJsonOutput(receipt, result, null), null, 2));
+    process.exit(result.valid ? 0 : 1);
+  }
+
   const status = result.valid ? "PASS" : "FAIL";
   console.log(`Verification: ${status}`);
   console.log(`Computed winner: ${result.computedWinner.address ?? "(none)"} = ${result.computedWinner.value ?? "(none)"}`);
@@ -70,16 +86,23 @@ async function cmdVerify(path: string) {
 
 async function main() {
   const cmd = process.argv[2];
-  const arg = process.argv[3];
-  if (!cmd || !arg) usage();
+  if (!cmd) usage();
 
   switch (cmd) {
-    case "export":
+    case "export": {
+      const arg = process.argv[3];
+      if (!arg) usage();
       await cmdExport(arg);
       break;
-    case "verify":
-      await cmdVerify(arg);
+    }
+    case "verify": {
+      const args = process.argv.slice(3);
+      const jsonMode = args.includes("--json");
+      const path = args.find((a) => !a.startsWith("--"));
+      if (!path) usage();
+      await cmdVerify(path, jsonMode);
       break;
+    }
     default:
       usage();
   }

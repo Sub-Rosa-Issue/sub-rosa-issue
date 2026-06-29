@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyReceipt, parseReceipt } from "@sub-rosa/sdk";
+import { buildJsonOutput } from "./json-output.js";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -112,4 +113,41 @@ test("tampered evidence: invalid hex in ciphertext fails", () => {
   const evidenceIssues = result.issues.filter((i) => i.code === "invalid_evidence_hex");
   assert.equal(evidenceIssues.length, 1);
   assert.ok(evidenceIssues[0].path?.includes("GA4GN"));
+});
+
+test("JSON mode: valid receipt produces stable output shape", () => {
+  const receipt = loadFixture("golden.json");
+  const result = verifyReceipt(receipt);
+  const out = buildJsonOutput(receipt, result, null);
+  assert.equal(out.valid, true);
+  assert.equal(typeof out.receiptId, "string");
+  assert.equal(out.receiptId!.length, 64);
+  assert.equal(out.roundId, receipt.roundId);
+  assert.equal(typeof out.checkedAt, "string");
+  assert.ok(out.checkedAt.endsWith("Z"));
+  assert.deepEqual(out.errors, []);
+  assert.deepEqual(out.warnings, []);
+});
+
+test("JSON mode: invalid receipt includes error codes in errors array", () => {
+  const receipt = loadFixture("tampered-winner.json");
+  const result = verifyReceipt(receipt);
+  const out = buildJsonOutput(receipt, result, null);
+  assert.equal(out.valid, false);
+  assert.equal(typeof out.receiptId, "string");
+  assert.equal(out.roundId, receipt.roundId);
+  assert.ok(out.errors.some((e) => e.code === "winner_mismatch"));
+  assert.equal(out.warnings.length, 0);
+});
+
+test("JSON mode: malformed input produces parse_error with null ids", () => {
+  const out = buildJsonOutput(null, null, "SyntaxError: Unexpected token < in JSON");
+  assert.equal(out.valid, false);
+  assert.equal(out.receiptId, null);
+  assert.equal(out.roundId, null);
+  assert.equal(typeof out.checkedAt, "string");
+  assert.equal(out.errors.length, 1);
+  assert.equal(out.errors[0].code, "parse_error");
+  assert.ok(out.errors[0].message.includes("SyntaxError"));
+  assert.deepEqual(out.warnings, []);
 });

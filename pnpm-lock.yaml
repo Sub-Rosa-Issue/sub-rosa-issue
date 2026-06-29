@@ -80,6 +80,25 @@ importers:
         specifier: ^6.3.5
         version: 6.4.3(@types/node@25.9.1)(tsx@4.22.4)
 
+  examples/grant-scoring:
+    dependencies:
+      '@sub-rosa/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@sub-rosa/tlock':
+        specifier: workspace:*
+        version: link:../../packages/tlock
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/round-bindings:
     dependencies:
       '@stellar/stellar-sdk':
@@ -189,6 +208,31 @@ importers:
         specifier: ^2.11.0
         version: 2.14.0
     devDependencies:
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  services/auction-template:
+    dependencies:
+      '@sub-rosa/keeper':
+        specifier: workspace:*
+        version: link:../keeper
+      '@sub-rosa/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@sub-rosa/tlock':
+        specifier: workspace:*
+        version: link:../../packages/tlock
+    devDependencies:
+      '@stellar/stellar-sdk':
+        specifier: ^15.1.0
+        version: 15.1.0
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
@@ -902,10 +946,12 @@ packages:
   '@stellar/stellar-base@14.1.0':
     resolution: {integrity: sha512-A8kFli6QGy22SRF45IjgPAJfUNGjnI+R7g4DF5NZYVsD1kGf7B4ITyc4OPclLV9tqNI4/lXxafGEw0JEUbHixw==}
     engines: {node: '>=20.0.0'}
+    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   '@stellar/stellar-base@15.0.0':
     resolution: {integrity: sha512-XQhxUr9BYiEcFcgc4oWcCMR9QJCny/GmmGsuwPKf/ieIcOeb5149KLHYx9mJCA0ea8QbucR2/GzV58QbXOTxQA==}
     engines: {node: '>=20.0.0'}
+    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   '@stellar/stellar-sdk@14.6.1':
     resolution: {integrity: sha512-A1rQWDLdUasXkMXnYSuhgep+3ZZzyuXJKdt5/KAIc0gkmSp906HTvUpbT4pu+bVr41tu0+J4Ugz9J4BQAGGytg==}

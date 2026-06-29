@@ -8,7 +8,7 @@ use soroban_sdk::testutils::storage::Temporary as TemporaryStorageTest;
 
 use crate::drand;
 use crate::storage::{seal_ttl_for_reveal_deadline, TEMP_THRESHOLD};
-use crate::types::{ClearingRule, DataKey, GlobalConfig, Status};
+use crate::types::{ClearingRule, DataKey, Error, GlobalConfig, Status};
 use crate::{SubRosaRound, SubRosaRoundClient};
 
 // ── Dummy fixture (no BLS) — only for tests that never call open_reveal ──────
@@ -1265,8 +1265,169 @@ fn observer_reads_round_and_bid_state_after_lifecycle_completion() {
     assert_eq!(round.status, Status::Settled);
     assert_eq!(round.winner, Some(alice.clone()));
     assert_eq!(round.winning_bid, 700);
-    let state = f.client.get_bid_state(&id, &alice);
-    assert_eq!(state.revealed_value, Some(700));
+    let state = f.client.get_bid_state(&id, &alice);    assert_eq!(state.revealed_value, Some(700));
     assert!(state.valid);
     assert!(state.settled);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ISSUE #85 — ERROR CODE DOCUMENTATION CONSISTENCY
+//
+// These tests make sure contracts/round/ERRORS.md never drifts away from the
+// exported enum Error in src/types.rs. Two complementary guards:
+//
+//   1. `variant_name` is a non-exhaustive-friendly match — adding, renaming, or
+//      removing a variant in `src/types.rs` will fail to compile here. That is
+//      the strongest guard.
+//
+//   2. `DOCUMENTED_ERROR_CODES` mirrors the same set of variants with their
+//      runtime discriminants; the assertions below catch any silent reordering
+//      or renumbering that does not change the variant list.
+//
+// Whenever you change the `Error` enum, update `contracts/round/ERRORS.md`,
+// `DOCUMENTED_ERROR_CODES`, and `variant_name` in lock-step.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Authoritative (name, code) mapping for every variant of [`Error`]. Keep in
+/// sync with `contracts/round/ERRORS.md`.
+const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
+    // ── 1–4: initialization & lookup ──
+    (Error::NotInitialized, 1),
+    (Error::AlreadyInitialized, 2),
+    (Error::RoundNotFound, 3),
+    (Error::BidNotFound, 4),
+    // ── 10–22: lifecycle & timing ──
+    (Error::CommitClosed, 10),
+    (Error::CommitNotClosed, 11),
+    (Error::CommitDeadlineAfterReveal, 12),
+    (Error::RevealNotOpen, 13),
+    (Error::RevealAlreadyOpen, 14),
+    (Error::RevealWindowClosed, 15),
+    (Error::RevealStillOpen, 16),
+    (Error::NotCleared, 17),
+    (Error::AlreadyCleared, 18),
+    (Error::AlreadySettled, 19),
+    (Error::RoundVoided, 20),
+    (Error::NotVoidable, 21),
+    (Error::WrongStatus, 22),
+    // ── 30–39: cryptography & validation ──
+    (Error::InvalidDrandSignature, 30),
+    (Error::HashMismatch, 31),
+    (Error::AlreadyRevealed, 32),
+    (Error::PayloadTooLarge, 33),
+    (Error::InvalidAmount, 34),
+    (Error::BidExceedsEscrow, 35),
+    (Error::DeadlineInPast, 36),
+    (Error::NoValidBids, 37),
+    (Error::RoundFull, 38),
+    (Error::InvalidLimit, 39),
+];
+
+/// Convert an `Error` to its on-chain discriminant using the [`repr(u32)`]
+/// representation declared in `src/types.rs`. This is the same value that is
+/// embedded in `soroban_sdk::Error::Contract(...)` instances seen by callers.
+fn discriminant(e: Error) -> u32 {
+    e as u32
+}
+
+fn variant_name(e: Error) -> &'static str {
+    match e {
+        Error::NotInitialized => "NotInitialized",
+        Error::AlreadyInitialized => "AlreadyInitialized",
+        Error::RoundNotFound => "RoundNotFound",
+        Error::BidNotFound => "BidNotFound",
+        Error::CommitClosed => "CommitClosed",
+        Error::CommitNotClosed => "CommitNotClosed",
+        Error::CommitDeadlineAfterReveal => "CommitDeadlineAfterReveal",
+        Error::RevealNotOpen => "RevealNotOpen",
+        Error::RevealAlreadyOpen => "RevealAlreadyOpen",
+        Error::RevealWindowClosed => "RevealWindowClosed",
+        Error::RevealStillOpen => "RevealStillOpen",
+        Error::NotCleared => "NotCleared",
+        Error::AlreadyCleared => "AlreadyCleared",
+        Error::AlreadySettled => "AlreadySettled",
+        Error::RoundVoided => "RoundVoided",
+        Error::NotVoidable => "NotVoidable",
+        Error::WrongStatus => "WrongStatus",
+        Error::InvalidDrandSignature => "InvalidDrandSignature",
+        Error::HashMismatch => "HashMismatch",
+        Error::AlreadyRevealed => "AlreadyRevealed",
+        Error::PayloadTooLarge => "PayloadTooLarge",
+        Error::InvalidAmount => "InvalidAmount",
+        Error::BidExceedsEscrow => "BidExceedsEscrow",
+        Error::DeadlineInPast => "DeadlineInPast",
+        Error::NoValidBids => "NoValidBids",
+        Error::RoundFull => "RoundFull",
+        Error::InvalidLimit => "InvalidLimit",
+    }
+}
+
+#[test]
+fn error_discriminants_match_document() {
+    for (variant, expected_code) in DOCUMENTED_ERROR_CODES {
+        let actual = discriminant(*variant);
+        assert_eq!(
+            actual, *expected_code,
+            "{} discriminant drifted (got {}, expected {}) — update \
+             contracts/round/ERRORS.md and DOCUMENTED_ERROR_CODES together",
+            variant_name(*variant),
+            actual,
+            expected_code,
+        );
+    }
+}
+
+#[test]
+fn error_codes_have_no_duplicate_discriminants() {
+    // O(n²) is fine: n = 27. Done without `std::collections` because the
+    // contract's `#![no_std]` applies to this module.
+    for (i, (variant_a, code_a)) in DOCUMENTED_ERROR_CODES.iter().enumerate() {
+        let name_a = variant_name(*variant_a);
+        for (variant_b, code_b) in DOCUMENTED_ERROR_CODES.iter().skip(i + 1) {
+            if code_a == code_b {
+                let name_b = variant_name(*variant_b);
+                panic!(
+                    "duplicate discriminant {code_a}: both {name_a} and {name_b} claim it. \
+                     Two variants must not share an on-chain code."
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn error_table_enumerates_every_variant() {
+    // Maintenance hint: this test pins the *count* of variants in
+    // DOCUMENTED_ERROR_CODES. The stronger parity guard is compile-time:
+    // `variant_name` exhaustively matches every variant of `enum Error`, so
+    // adding, removing, or renaming a variant fails to compile here. This
+    // test just documents the expected scale and catches the sneakier case
+    // where someone adds a variant AND a `variant_name` arm without updating
+    // DOCUMENTED_ERROR_CODES.
+    assert_eq!(
+        DOCUMENTED_ERROR_CODES.len(),
+        27,
+        "DOCUMENTED_ERROR_CODES appears missing entries. The exhaustive \
+         `variant_name` match already enforces parity at compile time — \
+         update it together with this list and contracts/round/ERRORS.md."
+    );
+}
+
+#[test]
+fn error_codes_use_reserved_ranges() {
+    // Range policy enforced by the documentation:
+    //   1–4     → initialization/lookup
+    //   10–22   → lifecycle/timing
+    //   30–39   → crypto/validation
+    // New categories should pick a fresh, contiguous range — not collide with
+    // logging conventions — and update ERRORS.md at the same time.
+    for (variant, code) in DOCUMENTED_ERROR_CODES {
+        let name = variant_name(*variant);
+        let in_range = matches!(*code, 1..=4 | 10..=22 | 30..=39);
+        assert!(
+            in_range,
+            "{name} = {code} falls outside the documented code ranges; \
+             update contracts/round/ERRORS.md if you intentionally added a new category"
+        );
+    }
 }

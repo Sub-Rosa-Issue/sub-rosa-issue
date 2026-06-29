@@ -35,11 +35,14 @@
     "agent:test": "pnpm --filter @sub-rosa/agent test",
     "agent:typecheck": "pnpm --filter @sub-rosa/agent typecheck",
     "agents:e2e": "bash services/agent/scripts/agents-e2e.sh",
+    "template:fixture": "pnpm --filter @sub-rosa/auction-template fixture",
+    "template:testnet": "bash services/auction-template/testnet.sh",
+    "template:typecheck": "pnpm --filter @sub-rosa/auction-template typecheck",
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
     "web:test": "pnpm --filter @sub-rosa/web test",
     "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
-    "check:fixtures": "node scripts/check-fixture-sizes.mjs",
-    "check:fixtures:test": "node --test scripts/check-fixture-sizes.test.mjs"
+    "grant-scoring:test": "pnpm --filter @sub-rosa/grant-scoring-pilot test",
+    "grant-scoring:start": "pnpm --filter @sub-rosa/grant-scoring-pilot start"
   }
 }
