@@ -63,6 +63,11 @@ export {
   type VerifyOptions,
   type Severity,
 } from "./verify.js";
+export {
+  classifyRoundPhase,
+  type RoundLike,
+  type RoundPhase,
+} from "./phase.js";
 
 // Re-export the generated contract types so consumers get spec-accurate shapes
 // from a single import surface.
