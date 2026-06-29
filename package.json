@@ -38,6 +38,8 @@
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
     "web:test": "pnpm --filter @sub-rosa/web test",
-    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck"
+    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
+    "check:fixtures": "node scripts/check-fixture-sizes.mjs",
+    "check:fixtures:test": "node --test scripts/check-fixture-sizes.test.mjs"
   }
 }
