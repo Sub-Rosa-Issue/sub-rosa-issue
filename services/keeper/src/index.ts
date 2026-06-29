@@ -34,3 +34,24 @@ export {
   type KeeperDryRunSummary,
   type KeeperRunConfig,
 } from "./dry-run.js";
+export {
+  createStatusServer,
+  withGracefulShutdown,
+  bigintReplacer as statusBigintReplacer,
+  type StatusServerConfig,
+  type StatusServerHandle,
+} from "./status-server.js";
+export {
+  buildKeeperStatus,
+  buildRoundStatus,
+  checkHealth,
+  type BuildStatusSource,
+  type BuildRoundStatusArgs,
+  type StatusReader,
+  type RoundStatus,
+  type SettlementIndicator,
+  type RoundStatusView,
+  type KeeperServiceHealth,
+  type KeeperStatusResponse,
+} from "./status.js";
+export { runWatchLoop, type RunWatchLoopParams } from "./watch-loop.js";
