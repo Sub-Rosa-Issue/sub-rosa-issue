@@ -40,3 +40,11 @@ export {
   type SealedBid,
   type OpenedBid,
 } from "./seal.js";
+
+export {
+  classifyDrandRound,
+  DEFAULT_STALE_THRESHOLD_MS,
+  type DrandRoundInfo,
+  type FreshnessStatus,
+  type FreshnessResult,
+} from "./freshness.js";

@@ -1,0 +1,22 @@
+{
+  "name": "@sub-rosa/auction-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fixture": "node --import tsx sealed-auction.ts",
+    "testnet": "node --import tsx sealed-auction.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sub-rosa/keeper": "workspace:*",
+    "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/tlock": "workspace:*"
+  },
+  "devDependencies": {
+    "@stellar/stellar-sdk": "^15.1.0",
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { validatePublicConfig } from "./config";
+import { normalizeUrl, validatePublicConfig } from "./config";
 
 const VALID_ENV: Record<string, string> = {
   VITE_RPC_URL: "https://custom-soroban.example.com",
@@ -111,4 +111,97 @@ test("custom config with no optional keys still passes critical check", () => {
     (i) => i.key !== "VITE_ESCROW_TOKEN_LABEL" && i.key !== "VITE_ROUND_ID",
   );
   assert.equal(critical.length, 0);
+});
+
+// --- URL normalization regression tests ---
+
+test("normalizeUrl strips a single trailing slash", () => {
+  assert.equal(normalizeUrl("https://soroban-testnet.stellar.org/"), "https://soroban-testnet.stellar.org");
+});
+
+test("normalizeUrl strips multiple trailing slashes", () => {
+  assert.equal(normalizeUrl("https://soroban-testnet.stellar.org///"), "https://soroban-testnet.stellar.org");
+});
+
+test("normalizeUrl preserves URL without trailing slash", () => {
+  assert.equal(normalizeUrl("https://soroban-testnet.stellar.org"), "https://soroban-testnet.stellar.org");
+});
+
+test("normalizeUrl trims surrounding whitespace", () => {
+  assert.equal(normalizeUrl("  https://soroban-testnet.stellar.org/  "), "https://soroban-testnet.stellar.org");
+});
+
+test("VITE_RPC_URL with trailing slash is not flagged as invalid", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "https://soroban-testnet.stellar.org/",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  const urlIssues = issues.filter((i) => i.key === "VITE_RPC_URL" && i.message.includes("valid URL"));
+  assert.equal(urlIssues.length, 0);
+});
+
+test("VITE_RPC_URL with trailing slash is still flagged as placeholder default", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "https://soroban-testnet.stellar.org/",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_RPC_URL" &&
+        i.message.includes("default/example value"),
+    ),
+  );
+});
+
+test("invalid VITE_RPC_URL without protocol is reported", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "not-a-valid-url",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_RPC_URL" &&
+        i.message.includes("not a valid URL"),
+    ),
+  );
+});
+
+test("invalid VITE_RPC_URL with non-http protocol is reported", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "ftp://soroban-testnet.stellar.org",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_RPC_URL" &&
+        i.message.includes("not a valid URL"),
+    ),
+  );
+});
+
+test("VITE_RPC_URL with http (not https) passes validation", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "http://localhost:8000",
+    VITE_NETWORK_PASSPHRASE: "Custom Network",
+    VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+  });
+  const urlIssues = issues.filter((i) => i.key === "VITE_RPC_URL" && i.message.includes("valid URL"));
+  assert.equal(urlIssues.length, 0);
+});
+
+test("invalid VITE_RPC_URL error message is actionable", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "garbage",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  const msg = issues.find((i) => i.key === "VITE_RPC_URL")!.message;
+  assert.ok(msg.includes("must start with http:// or https://"));
 });

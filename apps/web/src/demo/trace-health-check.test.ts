@@ -6,6 +6,11 @@ import {
   assertDemoTrace,
   DemoTraceHealthCheckError,
 } from "./trace-health-check.js";
+import {
+  computeMilestoneChecksum,
+  LIFE_CYCLE_PHASES_CHECKSUM,
+  verifyMilestones,
+} from "./demo-trace.checksum.js";
 
 test("canonical generated demo trace contains every field required by the UI", () => {
   assert.doesNotThrow(() => assertDemoTrace(DEMO_TRACE));
@@ -49,4 +54,39 @@ test("health check requires at least one lifecycle event", () => {
     () => assertDemoTrace(invalidTrace),
     /lifecycle must contain at least one item/,
   );
+});
+
+test("checksum matches the generated trace lifecycle phases", () => {
+  assert.strictEqual(computeMilestoneChecksum(), LIFE_CYCLE_PHASES_CHECKSUM);
+});
+
+test("every required milestone phase is present in the trace lifecycle", () => {
+  const phases = DEMO_TRACE.lifecycle.map((e: { phase: string }) => e.phase);
+  const result = verifyMilestones(phases);
+  assert.ok(
+    result.ok,
+    result.ok ? "" : `Missing milestones: ${result.missing.join(", ")}`,
+  );
+});
+
+test("receipt milestone — settlement section is present", () => {
+  assert.ok(
+    "settlement" in DEMO_TRACE,
+    "trace must have a settlement section (receipt)",
+  );
+  const settlement = (DEMO_TRACE as Record<string, unknown>).settlement;
+  assert.ok(
+    typeof settlement === "object" && settlement !== null,
+    "settlement must be an object",
+  );
+});
+
+test("checksum fails when a required milestone is removed from lifecycle", () => {
+  const stripped = DEMO_TRACE.lifecycle.filter(
+    (e: { phase: string }) => e.phase !== "open_reveal",
+  );
+  const phases = stripped.map((e: { phase: string }) => e.phase);
+  const result = verifyMilestones(phases);
+  assert.ok(!result.ok);
+  assert.ok(result.ok === false && result.missing.includes("open_reveal"));
 });

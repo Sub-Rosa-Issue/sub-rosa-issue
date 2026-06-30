@@ -114,3 +114,18 @@ non-zero.
 Sub Rosa does not ask integrators to trust a reveal operator. Before Drand R,
 values are timelock-encrypted. After R, the Drand BLS signature is public and
 the Soroban contract verifies it before opening reveal.
+
+## Contract error codes
+
+Every failure mode from the round contract is returned (or reserved) as a
+defined code with no silent fallbacks. When a transaction surfaces a
+`soroban_sdk::Error::Contract(code)`, the canonical mapping — variant name,
+trigger condition, user-facing message, and suggested next action — lives in:
+
+[`contracts/round/ERRORS.md`](../contracts/round/ERRORS.md)
+
+UI layers, receipt exporters, and keeper triage logic should consult that
+table to translate on-chain failures into actionable messages. The contract
+test suite (`cargo test -p sub-rosa-round ::error_codes`) keeps the table in
+lock-step with the exported `Error` enum, so a divergent code is a test
+failure, not a silent docs bug.

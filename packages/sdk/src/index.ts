@@ -42,6 +42,14 @@ export {
   MAINNET_MIN_FEE_RESERVE_STROOPS,
 } from "./mainnet-artifacts.js";
 export {
+  AssetConfigError,
+  validateAssetConfig,
+  validateAssetConfigs,
+  ASSET_FIXTURES,
+  type AssetConfig,
+  type AssetType,
+} from "./asset-config.js";
+export {
   assertMainnetConfirmed,
   assertMicroAmounts,
   assertReadinessForExecute,
@@ -75,6 +83,26 @@ export {
   type VerifyOptions,
   type Severity,
 } from "./verify.js";
+
+// Keeper status-API response shapes. Mirror services/keeper/src/status.ts.
+export {
+  type RoundStatus,
+  type SettlementIndicator,
+  type KeeperHealthState,
+  type KeeperRoundStatusView,
+  type KeeperServiceHealth,
+  type KeeperStatusResponse,
+  type KeeperHealthResponse,
+  type ApiError,
+} from "./status.js";
+
+// Fetch client for the keeper status API.
+export {
+  KeeperStatusClient,
+  StatusApiError,
+  type StatusClientOptions,
+  fetchKeeperStatus,
+} from "./status-client.js";
 
 // Re-export the generated contract types so consumers get spec-accurate shapes
 // from a single import surface.
