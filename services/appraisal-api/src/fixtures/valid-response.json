@@ -1,0 +1,16 @@
+{
+  "model": "subrosa-appraisal/v1",
+  "itemRef": "sub-rosa://grant/42",
+  "inputsHash": "ebbf2b155420d547f8630be982a1f87a11ab0bc3b183cbf57a1c1281779b3c14",
+  "fairValue": 121.42,
+  "low": 121.42,
+  "high": 121.42,
+  "confidence": 1,
+  "suggestedMaxBid": 115.35,
+  "rationale": [
+    "base 100 USDC scaled by quality×1.3, demand×1.08, scarcity×0.94, risk×0.92",
+    "category 'grant' multiplier ×1",
+    "4/4 attributes supplied → confidence 1",
+    "suggested max bid is fair value × 0.95 to preserve margin"
+  ]
+}
