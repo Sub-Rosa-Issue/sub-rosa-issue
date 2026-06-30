@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "network": "Test SDF Network ; September 2015",
+  "networkFingerprint": "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472",
+  "contractId": "CA3D5K7FJ3YZM2SJ6XJ6Y5Q5XJ6Z2M3SJ6XJ6Y5Q5XJ6Z2M3SJ6XJ6Y5",
+  "exportedAt": "2026-06-23T12:00:00.000Z",
+  "roundId": "2",
+  "itemRef": "ab84f41446646ddbea23656fda8f2e0c282deb2da09603618a71f9d2ff1d1d6d",
+  "revealRound": 5000000,
+  "clearingRule": "HighestBid",
+  "commitDeadline": "1728000",
+  "revealDeadline": "1731600",
+  "operator": "GBCDABQZOSZG4Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
+  "auditorPubkey": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+  "bidders": [
+    "GB5HN3Y8ZRLRK6Z6Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4",
+    "GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
+    "GC6IO4Z9ASMSL7A7Y5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5"
+  ],
+  "bids": {
+    "GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3": {
+      "commitment": "ebed1ec6e63a3092c6f2c94df66a4cc88164a204ebb8ea6a193d010b85dac953",
+      "escrow": "500",
+      "revealedValue": "300",
+      "nonce": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "hashValid": true,
+      "valid": true,
+      "settled": true,
+      "evidence": {
+        "ciphertext": "a1b2c3d4",
+        "auditorBlob": "e5f6a7b8"
+      }
+    },
+    "GB5HN3Y8ZRLRK6Z6Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4": {
+      "commitment": "72f1390a226beed8602485115b61a7ccb843237f09d07b8baef9642d23189929",
+      "escrow": "500",
+      "revealedValue": "300",
+      "nonce": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "hashValid": true,
+      "valid": true,
+      "settled": false,
+      "evidence": {
+        "ciphertext": "b2c3d4e5",
+        "auditorBlob": "f6a7b8c9"
+      }
+    },
+    "GC6IO4Z9ASMSL7A7Y5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5": {
+      "commitment": "31255d42775517c61a54a8924ce6e0db4476255186d76c05ba0b623d42d2c1dc",
+      "escrow": "200",
+      "revealedValue": "50",
+      "nonce": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "hashValid": true,
+      "valid": true,
+      "settled": true,
+      "evidence": {
+        "ciphertext": "c3d4e5f6",
+        "auditorBlob": "07a8b9c0"
+      }
+    }
+  },
+  "winner": "GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
+  "winningValue": "300",
+  "status": "Settled"
+}

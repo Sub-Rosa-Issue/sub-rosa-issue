@@ -110,6 +110,41 @@ Preflight results include:
 Existing submit methods are unchanged; preflight is optional and does not
 require live signing credentials beyond a source `publicKey` (or `secretKey`).
 
+## Grant scoring pilot template
+
+For SCF-style sealed grant scoring (multiple projects, panel judges, ranked
+receipt output), see [`examples/grant-scoring`](../examples/grant-scoring/README.md).
+It uses the same `@sub-rosa/sdk` + `@sub-rosa/tlock` commit path as above but
+models the full grant lifecycle separately from the jury demo trace.
+
+## Auditor identity recovery CLI
+
+For pilots that need machine-readable selective-disclosure evidence, recover
+bidder identities from auditor blobs with:
+
+```bash
+pnpm --filter @sub-rosa/tlock recover:identities -- \
+  --auditor-secret-hex <32-byte-hex> \
+  --input-json '{"auditor":{"blobs":{"agent-alpha":"<blob-hex>"}}}'
+```
+
+Hex-only input (single blob):
+
+```bash
+pnpm --filter @sub-rosa/tlock recover:identities -- \
+  --auditor-secret-hex <32-byte-hex> \
+  --blob-hex <blob-hex> \
+  --label agent-alpha
+```
+
+Canonical trace JSON is supported as well, including shapes like
+`{"trace":{"auditor":{"blobs":{...}}}}` and
+`{"auditor":{"blobs":{...}}}` exported from lifecycle/agent fixtures.
+
+Output is JSON and always includes per-blob rows with either recovered identity
+or an error. Invalid required inputs return `{ "ok": false, ... }` and exit
+non-zero.
+
 ## Allocation use cases
 
 - SCF-style grant allocation: judges cannot react to leaked scores
@@ -132,3 +167,18 @@ require live signing credentials beyond a source `publicKey` (or `secretKey`).
 Sub Rosa does not ask integrators to trust a reveal operator. Before Drand R,
 values are timelock-encrypted. After R, the Drand BLS signature is public and
 the Soroban contract verifies it before opening reveal.
+
+## Contract error codes
+
+Every failure mode from the round contract is returned (or reserved) as a
+defined code with no silent fallbacks. When a transaction surfaces a
+`soroban_sdk::Error::Contract(code)`, the canonical mapping — variant name,
+trigger condition, user-facing message, and suggested next action — lives in:
+
+[`contracts/round/ERRORS.md`](../contracts/round/ERRORS.md)
+
+UI layers, receipt exporters, and keeper triage logic should consult that
+table to translate on-chain failures into actionable messages. The contract
+test suite (`cargo test -p sub-rosa-round ::error_codes`) keeps the table in
+lock-step with the exported `Error` enum, so a divergent code is a test
+failure, not a silent docs bug.

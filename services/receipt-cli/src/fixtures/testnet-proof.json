@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "network": "Test SDF Network ; September 2015",
+  "networkFingerprint": "cee0302d59844d32bdca915c8203dd44b33fbb7edc19051ea37abedf28ecd472",
+  "contractId": "CA3D5K7FJ3YZM2SJ6XJ6Y5Q5XJ6Z2M3SJ6XJ6Y5Q5XJ6Z2M3SJ6XJ6Y5",
+  "exportedAt": "2026-06-23T14:00:00.000Z",
+  "roundId": "42",
+  "itemRef": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+  "revealRound": 5100000,
+  "clearingRule": "HighestBid",
+  "commitDeadline": "1732000",
+  "revealDeadline": "1735600",
+  "operator": "GBCDABQZOSZG4Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
+  "auditorPubkey": "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe",
+  "bidders": [
+    "GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
+    "GB5HN3Y8ZRLRK6Z6Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4"
+  ],
+  "bids": {
+    "GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3": {
+      "commitment": "d77d1adf5eca2aa1b1d26b310fe4da2af3900fb080bcb701cae8cae879be1e7a",
+      "escrow": "200",
+      "revealedValue": "100",
+      "nonce": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "hashValid": true,
+      "valid": true,
+      "settled": true,
+      "evidence": {
+        "ciphertext": "a1b2c3d4",
+        "auditorBlob": "e5f6a7b8"
+      }
+    },
+    "GB5HN3Y8ZRLRK6Z6Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4": {
+      "commitment": "c5ee5d77eaee11aac66da233c475bd9e14dc5dc89a639c84cfd8ca47d1837cb0",
+      "escrow": "500",
+      "revealedValue": "250",
+      "nonce": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "hashValid": true,
+      "valid": true,
+      "settled": false,
+      "evidence": {
+        "ciphertext": "b2c3d4e5",
+        "auditorBlob": "f6a7b8c9"
+      }
+    }
+  },
+  "winner": "GB5HN3Y8ZRLRK6Z6Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4X4Y4",
+  "winningValue": "250",
+  "status": "Settled"
+}

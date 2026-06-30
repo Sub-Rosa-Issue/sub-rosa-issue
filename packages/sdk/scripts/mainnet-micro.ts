@@ -12,6 +12,13 @@ import {
   MAINNET_ARTIFACTS,
   MAINNET_MICRO_MAX_ESCROW,
 } from "../src/mainnet-artifacts.js";
+import {
+  assertMainnetConfirmed,
+  assertMicroAmounts,
+  assertReadinessForExecute,
+  defaultMainnetReadinessInput,
+  runMainnetReadiness,
+} from "../src/mainnet-readiness.js";
 import { generateAuditorKeypair, generateNonce, quicknet, sealBid } from "@sub-rosa/tlock";
 
 const DRAND_GENESIS = 1_692_803_367;
@@ -62,7 +69,7 @@ async function main() {
   const execute = process.argv.includes("--execute");
   const bid = parseStroops("MICRO_BID_STROOPS", DEFAULT_BID);
   const escrow = parseStroops("MICRO_ESCROW_STROOPS", DEFAULT_ESCROW);
-  if (bid > escrow) throw new Error("MICRO_BID_STROOPS cannot exceed MICRO_ESCROW_STROOPS");
+  assertMicroAmounts(bid, escrow);
 
   printChecklist(bid, escrow, execute);
 
@@ -76,6 +83,7 @@ async function main() {
   if (process.env.MAINNET_CONFIRM !== "SUB_ROSA_MAINNET") {
     throw new Error('set MAINNET_CONFIRM=SUB_ROSA_MAINNET to execute on mainnet');
   }
+  assertMainnetConfirmed();
 
   const operatorSecret = reqEnv("OPERATOR_SECRET");
   const bidderSecret = reqEnv("BIDDER_SECRET");
@@ -92,6 +100,19 @@ async function main() {
     contractId,
     publicKey: operatorKp.publicKey(),
   });
+
+  const readiness = await runMainnetReadiness(
+    defaultMainnetReadinessInput({
+      rpcUrl,
+      networkPassphrase: network,
+      contractId,
+      withBalances: true,
+      operatorAccount: operatorKp.publicKey(),
+      bidderAccount: bidderKp.publicKey(),
+    }),
+    { reader },
+  );
+  assertReadinessForExecute(readiness.checks);
 
   // Pick next round id: max existing + 1 (probe up to 32).
   let nextRound = 1n;

@@ -108,6 +108,10 @@ pub struct BidState {
     /// Public USDC budget locked at commit; upper bound on the sealed bid.
     pub escrow: i128,
     pub revealed_value: Option<i128>,
+    /// The 32-byte nonce used in the commitment. Persisted at reveal time so
+    /// that offline receipt verifiers can recompute sha256(be16(value)‖nonce)
+    /// without trusting the exporter.
+    pub revealed_nonce: Option<BytesN<32>>,
     pub valid: bool,
     pub settled: bool,
 }

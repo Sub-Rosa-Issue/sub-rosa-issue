@@ -190,11 +190,22 @@ Deploying new contract round?
 ## Mainnet scripts
 
 ```bash
+pnpm mainnet:ready -- --strict       # consolidated read-only readiness
 pnpm mainnet:verify              # read-only — no secrets
 pnpm mainnet:micro               # dry-run checklist
 MAINNET_CONFIRM=SUB_ROSA_MAINNET OPERATOR_SECRET=S… BIDDER_SECRET=S… \
   pnpm mainnet:micro -- --execute   # optional micro commit (≤1 XLM escrow)
+MAINNET_CONFIRM=SUB_ROSA_MAINNET KEEPER_SECRET=S… ROUND_CONTRACT_ID=C… \
+  pnpm mainnet:settle               # keeper settle (requires readiness + confirm)
 ```
+
+### Mainnet launch checklist
+
+1. Run `pnpm mainnet:ready -- --strict` (no secrets required for baseline checks).
+2. Run `pnpm mainnet:verify` to confirm settled round 1 matches frozen artifacts.
+3. Optional balance review: `pnpm mainnet:ready -- --with-balances` with funded operator/keeper secrets in env.
+4. For value-moving commands, set `MAINNET_CONFIRM=SUB_ROSA_MAINNET` and re-run readiness implicitly via deploy/micro/settle guards.
+5. After settlement, confirm contract native XLM SAC balance is **0** (settle script enforces this).
 
 ## Security
 

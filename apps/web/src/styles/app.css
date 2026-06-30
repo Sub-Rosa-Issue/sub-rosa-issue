@@ -1664,6 +1664,77 @@ h3 {
   font-style: italic;
 }
 
+/* —— Config banner —— */
+.config-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--amber);
+  background: rgba(255, 211, 106, 0.06);
+}
+
+.config-banner-body {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.config-banner-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 211, 106, 0.15);
+  color: var(--amber);
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.config-banner-content strong {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--amber);
+  margin-bottom: 4px;
+}
+
+.config-banner-content ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.config-banner-content li {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.config-banner-dismiss {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--faint);
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.config-banner-dismiss:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
 /* —— Responsive —— */
 @media (max-width: 1100px) {
   .cockpit-grid {

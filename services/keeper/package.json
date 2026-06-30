@@ -8,7 +8,9 @@
   "scripts": {
     "start": "node --import tsx src/run.ts",
     "watch": "node --import tsx src/watch.ts",
-    "test": "node --import tsx --test src/dry-run.test.ts src/keeper.test.ts src/watch.test.ts",
+    "serve": "node --import tsx src/serve.ts",
+    "queue": "node --import tsx src/queue.ts",
+    "test": "node --import tsx --test src/dry-run.test.ts src/keeper.test.ts src/watch.test.ts src/store.test.ts src/watch-queue.test.ts src/settlement-guard.test.ts src/status.test.ts src/status-server.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
