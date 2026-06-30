@@ -89,6 +89,9 @@ function isTerminalStatus(status: string): boolean {
  *  This is a stand-in for the real keeper.ts `watchRound()` — it keeps the
  *  test deterministic by driving state transitions from the fixture rather
  *  than from real on-chain RPC calls.
+ *
+ *  NOTE: Terminal rounds are handled by `processQueue` and never reach this
+ *  function, so we don't check for them here.
  */
 async function simulateProcessRound(
   roundId: bigint,
@@ -96,16 +99,6 @@ async function simulateProcessRound(
   settlementGuard: SettlementGuard,
   actions: ReplayAction[],
 ): Promise<string> {
-  if (isTerminalStatus(currentStatus)) {
-    actions.push({
-      roundId,
-      kind: "skip-terminal",
-      statusBefore: currentStatus,
-      statusAfter: currentStatus,
-    });
-    return currentStatus;
-  }
-
   // ── Simulate keeper actions based on current status ────────────────────
   let nextStatus = currentStatus;
 
@@ -114,13 +107,13 @@ async function simulateProcessRound(
     nextStatus = "Revealing";
   }
 
+  // keepRound reveals; closeRound checks reveal deadline
+  // For fixture purposes: if we're now "Revealing", proceed to clear.
   if (currentStatus === "Revealing" || nextStatus === "Revealing") {
-    // keepRound reveals; closeRound checks reveal deadline
-    // For fixture purposes: if we're still "Revealing" after the open,
-    // assume we proceed to clear/settle.
     nextStatus = "Cleared";
   }
 
+  // closeRound: settle a cleared round (real SAC transfers)
   if (currentStatus === "Cleared" || nextStatus === "Cleared") {
     // Guard against duplicate settles.
     const check = settlementGuard.canSettle(roundId);
@@ -135,9 +128,10 @@ async function simulateProcessRound(
     }
 
     // Only mark submitted when we actually "dispatch" a settle.
-    // In the real code this happens inside closeRound → sdk.settle().
-    // For the fixture we only call markTerminal via markSubmitted + settle.
-    if (currentStatus === "Cleared") {
+    // Use nextStatus here because the round may have cascaded from Open
+    // through Revealing to Cleared (currentStatus would still be "Open"
+    // but nextStatus tracks the evolving state).
+    if (nextStatus === "Cleared") {
       settlementGuard.markSubmitted(roundId);
       nextStatus = "Settled";
       settlementGuard.markTerminal(roundId, "settled via fixture replay");
@@ -171,15 +165,26 @@ async function processQueue(
   contractId: string,
   actions: ReplayAction[],
 ): Promise<void> {
-  const activeRounds = store.listRounds().filter((r) => {
+  const allRounds = store.listRounds().filter((r) => {
     if (r.contractId !== contractId) return false;
-    if (isTerminalStatus(r.lastStatus)) return false;
     return true;
   });
 
-  for (const stored of activeRounds) {
+  for (const stored of allRounds) {
     const roundId = BigInt(stored.roundId);
     const statusBefore = stored.lastStatus;
+
+    // Handle terminal rounds at the queue level: emit a skip action and
+    // move on without calling simulateProcessRound.
+    if (isTerminalStatus(statusBefore)) {
+      actions.push({
+        roundId,
+        kind: "skip-terminal",
+        statusBefore,
+        statusAfter: statusBefore,
+      });
+      continue;
+    }
 
     const statusAfter = await simulateProcessRound(
       roundId,
