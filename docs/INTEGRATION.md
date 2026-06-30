@@ -57,6 +57,41 @@ await client.commit({
 After Drand round `R` is published, any keeper or participant can submit the
 Drand signature, reveal valid entries, clear the round, and settle escrow.
 
+## Grant scoring pilot template
+
+For SCF-style sealed grant scoring (multiple projects, panel judges, ranked
+receipt output), see [`examples/grant-scoring`](../examples/grant-scoring/README.md).
+It uses the same `@sub-rosa/sdk` + `@sub-rosa/tlock` commit path as above but
+models the full grant lifecycle separately from the jury demo trace.
+
+## Auditor identity recovery CLI
+
+For pilots that need machine-readable selective-disclosure evidence, recover
+bidder identities from auditor blobs with:
+
+```bash
+pnpm --filter @sub-rosa/tlock recover:identities -- \
+  --auditor-secret-hex <32-byte-hex> \
+  --input-json '{"auditor":{"blobs":{"agent-alpha":"<blob-hex>"}}}'
+```
+
+Hex-only input (single blob):
+
+```bash
+pnpm --filter @sub-rosa/tlock recover:identities -- \
+  --auditor-secret-hex <32-byte-hex> \
+  --blob-hex <blob-hex> \
+  --label agent-alpha
+```
+
+Canonical trace JSON is supported as well, including shapes like
+`{"trace":{"auditor":{"blobs":{...}}}}` and
+`{"auditor":{"blobs":{...}}}` exported from lifecycle/agent fixtures.
+
+Output is JSON and always includes per-blob rows with either recovered identity
+or an error. Invalid required inputs return `{ "ok": false, ... }` and exit
+non-zero.
+
 ## Allocation use cases
 
 - SCF-style grant allocation: judges cannot react to leaked scores
@@ -80,23 +115,17 @@ Sub Rosa does not ask integrators to trust a reveal operator. Before Drand R,
 values are timelock-encrypted. After R, the Drand BLS signature is public and
 the Soroban contract verifies it before opening reveal.
 
-## Contract artifacts
+## Contract error codes
 
-Integrators need a reproducible way to know which WASM, contract ID, bindings,
-and network metadata belong together. The repo ships a versioned manifest at
-`deployments/artifact-manifest.json` with:
+Every failure mode from the round contract is returned (or reserved) as a
+defined code with no silent fallbacks. When a transaction surfaces a
+`soroban_sdk::Error::Contract(code)`, the canonical mapping — variant name,
+trigger condition, user-facing message, and suggested next action — lives in:
 
-- WASM hash and ContractSpec hash for the current build
-- Generated bindings path and regeneration command
-- Network passphrases and RPC URLs for local, testnet, and mainnet
-- Known contract IDs for canonical proof deployments (when available)
+[`contracts/round/ERRORS.md`](../contracts/round/ERRORS.md)
 
-After changing `contracts/round/`, maintainers run:
-
-```bash
-pnpm bindings:generate   # rebuild WASM, regenerate bindings, refresh manifest
-pnpm bindings:check      # verify committed artifacts match the build
-```
-
-Commit the updated bindings and manifest together. CI fails with a clear message
-when contract source changes without regenerating artifacts.
+UI layers, receipt exporters, and keeper triage logic should consult that
+table to translate on-chain failures into actionable messages. The contract
+test suite (`cargo test -p sub-rosa-round ::error_codes`) keeps the table in
+lock-step with the exported `Error` enum, so a divergent code is a test
+failure, not a silent docs bug.

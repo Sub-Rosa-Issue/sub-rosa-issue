@@ -1,0 +1,10 @@
+{
+  "itemRef": "sub-rosa://grant/42",
+  "basePrice": 100,
+  "attributes": {
+    "quality": "high",
+    "demand": null,
+    "scarcity": { "score": 80 },
+    "risk": true
+  }
+}

@@ -183,6 +183,7 @@ impl SubRosaRound {
             commitment,
             escrow,
             revealed_value: None,
+            revealed_nonce: None,
             valid: false,
             settled: false,
         };
@@ -195,6 +196,7 @@ impl SubRosaRound {
                 ciphertext,
                 auditor_blob,
             },
+            round.reveal_deadline,
         );
         set_round(&env, round_id, &round);
 
@@ -226,6 +228,7 @@ impl SubRosaRound {
         }
 
         round.status = Status::Revealing;
+        extend_round_seals(&env, round_id, &round.bidders, round.reveal_deadline);
         set_round(&env, round_id, &round);
 
         env.events()
@@ -275,6 +278,7 @@ impl SubRosaRound {
         // clearing if the bidder committed to a non-positive value or one above
         // their escrow (a self-inflicted invalid bid; escrow refunded at settle).
         state.revealed_value = Some(value);
+        state.revealed_nonce = Some(nonce.clone());
         state.valid = value > 0 && value <= state.escrow;
         set_state(&env, round_id, &bidder, &state);
 
@@ -459,10 +463,12 @@ impl SubRosaRound {
         })
     }
 
-    /// Observer view: the sealed ciphertext + auditor blob, while still in
-    /// Temporary storage. Visibly unreadable during the sealed phase.
+    /// Observer view: the sealed ciphertext + auditor blob while still in
+    /// Temporary storage. Returns `None` once the seal TTL has expired (by design
+    /// after the reveal window). Persistent bid state remains for settlement.
     pub fn get_seal(env: Env, round_id: u64, bidder: Address) -> Option<Seal> {
-        storage::get_seal(&env, round_id, &bidder)
+        let round = storage::get_round(&env, round_id).ok()?;
+        storage::get_seal(&env, round_id, &bidder, round.reveal_deadline)
     }
 
     pub fn get_config(env: Env) -> Result<GlobalConfig, Error> {

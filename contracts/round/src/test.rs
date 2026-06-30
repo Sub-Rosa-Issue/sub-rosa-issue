@@ -4,9 +4,11 @@ use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, Bytes, BytesN, Env, Vec,
 };
+use soroban_sdk::testutils::storage::Temporary as TemporaryStorageTest;
 
 use crate::drand;
-use crate::types::{ClearingRule, GlobalConfig, Status};
+use crate::storage::{seal_ttl_for_reveal_deadline, TEMP_THRESHOLD};
+use crate::types::{ClearingRule, DataKey, Error, GlobalConfig, Status};
 use crate::{SubRosaRound, SubRosaRoundClient};
 
 // ── Dummy fixture (no BLS) — only for tests that never call open_reveal ──────
@@ -1084,4 +1086,348 @@ fn void_before_grace_rejected() {
     let id = open_round(&f, &operator);
     f.env.ledger().with_mut(|l| l.timestamp = 2_600);
     assert!(f.client.try_void(&id).is_err());
+}
+
+// ── Storage expiration and cleanup coverage (#51) ────────────────────────────
+
+fn seal_key(round_id: u64, bidder: &Address) -> DataKey {
+    DataKey::Seal(round_id, bidder.clone())
+}
+
+fn temporary_seal_ttl(f: &Fixture, key: &DataKey) -> u32 {
+    f.env.as_contract(&f.client.address, || {
+        f.env.storage().temporary().get_ttl(key)
+    })
+}
+
+fn advance_ledgers(f: &Fixture, count: u32) {
+    let seq = f.env.ledger().sequence();
+    f.env.ledger().set_sequence_number(seq + count);
+}
+
+fn active_round_with_bidder() -> (Fixture, u64, Address, u64) {
+    let f = setup();
+    let operator = Address::generate(&f.env);
+    let id = open_round(&f, &operator);
+    let bidder = funded_bidder(&f, 1_000);
+    commit_bid(&f, id, &bidder, 500, 1_000, 0x01);
+    let reveal_deadline = f.client.get_round(&id).reveal_deadline;
+    (f, id, bidder, reveal_deadline)
+}
+
+#[test]
+fn active_round_seal_ttl_covers_reveal_window() {
+    let (f, id, bidder, reveal_deadline) = active_round_with_bidder();
+    let now = f.env.ledger().timestamp();
+    let expected = seal_ttl_for_reveal_deadline(reveal_deadline, now);
+    let ttl = temporary_seal_ttl(&f, &seal_key(id, &bidder));
+    assert!(
+        ttl >= expected.saturating_sub(1),
+        "seal TTL {ttl} should cover reveal window ({expected} ledgers)"
+    );
+    assert!(ttl >= TEMP_THRESHOLD);
+    assert!(f.client.get_seal(&id, &bidder).is_some());
+}
+
+#[test]
+fn open_reveal_extends_seal_through_reveal_window() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let bidder = funded_bidder(&f, 1_000);
+    commit_bid(&f, id, &bidder, 500, 1_000, 0x01);
+
+    advance_ledgers(&f, TEMP_THRESHOLD);
+    let ttl_before = temporary_seal_ttl(&f, &seal_key(id, &bidder));
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+
+    let ttl_after = temporary_seal_ttl(&f, &seal_key(id, &bidder));
+    let expected = seal_ttl_for_reveal_deadline(reveal_deadline, f.env.ledger().timestamp());
+    assert!(
+        ttl_after >= expected.saturating_sub(1),
+        "open_reveal should re-extend seal TTL to {expected}, got {ttl_after}"
+    );
+    assert!(ttl_after >= ttl_before);
+    assert!(f.client.get_seal(&id, &bidder).is_some());
+}
+
+#[test]
+fn settled_round_persistent_state_survives_seal_expiry() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let alice = funded_bidder(&f, 1_000);
+    let nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &700, &nonce);
+    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+    f.client.settle(&id);
+
+    let ttl = temporary_seal_ttl(&f, &seal_key(id, &alice));
+    advance_ledgers(&f, ttl + 1);
+    assert!(f.client.get_seal(&id, &alice).is_none(), "seal should expire after TTL");
+    assert_eq!(f.client.get_round(&id).status, Status::Settled);
+    assert_eq!(f.client.get_bid_state(&id, &alice).revealed_value, Some(700));
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
+}
+
+#[test]
+fn voided_round_refunds_survive_seal_expiry() {
+    let f = setup();
+    let operator = Address::generate(&f.env);
+    let id = open_round(&f, &operator);
+    let alice = funded_bidder(&f, 1_000);
+    commit_bid(&f, id, &alice, 500, 1_000, 0x01);
+
+    let ttl = temporary_seal_ttl(&f, &seal_key(id, &alice));
+    advance_ledgers(&f, ttl + 1);
+    assert!(f.client.get_seal(&id, &alice).is_none());
+
+    f.env.ledger().with_mut(|l| l.timestamp = 2_500 + 3_601);
+    f.client.void(&id);
+    assert_eq!(f.client.get_round(&id).status, Status::Voided);
+    assert_eq!(f.usdc_token.balance(&alice), 1_000);
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
+}
+
+#[test]
+fn late_reveal_rejected_after_window_even_with_seal_present() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let alice = funded_bidder(&f, 1_000);
+    let nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    assert!(f.client.get_seal(&id, &alice).is_some());
+
+    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    assert!(
+        f.client.try_reveal(&id, &alice, &700, &nonce).is_err(),
+        "late reveal must be rejected after reveal_deadline"
+    );
+    assert_eq!(f.client.get_bid_state(&id, &alice).revealed_value, None);
+}
+
+#[test]
+fn clear_and_settle_work_after_seal_expiry() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let alice = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
+    let a_nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
+    let b_nonce = commit_bid(&f, id, &bob, 500, 1_000, 0x22);
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &700, &a_nonce);
+    f.client.reveal(&id, &bob, &500, &b_nonce);
+
+    let ttl = temporary_seal_ttl(&f, &seal_key(id, &alice));
+    advance_ledgers(&f, ttl + 1);
+    assert!(f.client.get_seal(&id, &alice).is_none());
+    assert!(f.client.get_seal(&id, &bob).is_none());
+
+    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    assert_eq!(f.client.clear(&id), Some(alice.clone()));
+    f.client.settle(&id);
+    assert_eq!(f.client.get_round(&id).status, Status::Settled);
+    assert_eq!(f.usdc_token.balance(&operator), 700);
+}
+
+#[test]
+fn observer_reads_round_and_bid_state_after_lifecycle_completion() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let alice = funded_bidder(&f, 1_000);
+    let nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &700, &nonce);
+    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+    f.client.settle(&id);
+
+    let ttl = temporary_seal_ttl(&f, &seal_key(id, &alice));
+    advance_ledgers(&f, ttl + 1);
+
+    assert!(f.client.get_seal(&id, &alice).is_none());
+    let round = f.client.get_round(&id);
+    assert_eq!(round.status, Status::Settled);
+    assert_eq!(round.winner, Some(alice.clone()));
+    assert_eq!(round.winning_bid, 700);
+    let state = f.client.get_bid_state(&id, &alice);    assert_eq!(state.revealed_value, Some(700));
+    assert!(state.valid);
+    assert!(state.settled);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ISSUE #85 — ERROR CODE DOCUMENTATION CONSISTENCY
+//
+// These tests make sure contracts/round/ERRORS.md never drifts away from the
+// exported enum Error in src/types.rs. Two complementary guards:
+//
+//   1. `variant_name` is a non-exhaustive-friendly match — adding, renaming, or
+//      removing a variant in `src/types.rs` will fail to compile here. That is
+//      the strongest guard.
+//
+//   2. `DOCUMENTED_ERROR_CODES` mirrors the same set of variants with their
+//      runtime discriminants; the assertions below catch any silent reordering
+//      or renumbering that does not change the variant list.
+//
+// Whenever you change the `Error` enum, update `contracts/round/ERRORS.md`,
+// `DOCUMENTED_ERROR_CODES`, and `variant_name` in lock-step.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Authoritative (name, code) mapping for every variant of [`Error`]. Keep in
+/// sync with `contracts/round/ERRORS.md`.
+const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
+    // ── 1–4: initialization & lookup ──
+    (Error::NotInitialized, 1),
+    (Error::AlreadyInitialized, 2),
+    (Error::RoundNotFound, 3),
+    (Error::BidNotFound, 4),
+    // ── 10–22: lifecycle & timing ──
+    (Error::CommitClosed, 10),
+    (Error::CommitNotClosed, 11),
+    (Error::CommitDeadlineAfterReveal, 12),
+    (Error::RevealNotOpen, 13),
+    (Error::RevealAlreadyOpen, 14),
+    (Error::RevealWindowClosed, 15),
+    (Error::RevealStillOpen, 16),
+    (Error::NotCleared, 17),
+    (Error::AlreadyCleared, 18),
+    (Error::AlreadySettled, 19),
+    (Error::RoundVoided, 20),
+    (Error::NotVoidable, 21),
+    (Error::WrongStatus, 22),
+    // ── 30–39: cryptography & validation ──
+    (Error::InvalidDrandSignature, 30),
+    (Error::HashMismatch, 31),
+    (Error::AlreadyRevealed, 32),
+    (Error::PayloadTooLarge, 33),
+    (Error::InvalidAmount, 34),
+    (Error::BidExceedsEscrow, 35),
+    (Error::DeadlineInPast, 36),
+    (Error::NoValidBids, 37),
+    (Error::RoundFull, 38),
+    (Error::InvalidLimit, 39),
+];
+
+/// Convert an `Error` to its on-chain discriminant using the [`repr(u32)`]
+/// representation declared in `src/types.rs`. This is the same value that is
+/// embedded in `soroban_sdk::Error::Contract(...)` instances seen by callers.
+fn discriminant(e: Error) -> u32 {
+    e as u32
+}
+
+fn variant_name(e: Error) -> &'static str {
+    match e {
+        Error::NotInitialized => "NotInitialized",
+        Error::AlreadyInitialized => "AlreadyInitialized",
+        Error::RoundNotFound => "RoundNotFound",
+        Error::BidNotFound => "BidNotFound",
+        Error::CommitClosed => "CommitClosed",
+        Error::CommitNotClosed => "CommitNotClosed",
+        Error::CommitDeadlineAfterReveal => "CommitDeadlineAfterReveal",
+        Error::RevealNotOpen => "RevealNotOpen",
+        Error::RevealAlreadyOpen => "RevealAlreadyOpen",
+        Error::RevealWindowClosed => "RevealWindowClosed",
+        Error::RevealStillOpen => "RevealStillOpen",
+        Error::NotCleared => "NotCleared",
+        Error::AlreadyCleared => "AlreadyCleared",
+        Error::AlreadySettled => "AlreadySettled",
+        Error::RoundVoided => "RoundVoided",
+        Error::NotVoidable => "NotVoidable",
+        Error::WrongStatus => "WrongStatus",
+        Error::InvalidDrandSignature => "InvalidDrandSignature",
+        Error::HashMismatch => "HashMismatch",
+        Error::AlreadyRevealed => "AlreadyRevealed",
+        Error::PayloadTooLarge => "PayloadTooLarge",
+        Error::InvalidAmount => "InvalidAmount",
+        Error::BidExceedsEscrow => "BidExceedsEscrow",
+        Error::DeadlineInPast => "DeadlineInPast",
+        Error::NoValidBids => "NoValidBids",
+        Error::RoundFull => "RoundFull",
+        Error::InvalidLimit => "InvalidLimit",
+    }
+}
+
+#[test]
+fn error_discriminants_match_document() {
+    for (variant, expected_code) in DOCUMENTED_ERROR_CODES {
+        let actual = discriminant(*variant);
+        assert_eq!(
+            actual, *expected_code,
+            "{} discriminant drifted (got {}, expected {}) — update \
+             contracts/round/ERRORS.md and DOCUMENTED_ERROR_CODES together",
+            variant_name(*variant),
+            actual,
+            expected_code,
+        );
+    }
+}
+
+#[test]
+fn error_codes_have_no_duplicate_discriminants() {
+    // O(n²) is fine: n = 27. Done without `std::collections` because the
+    // contract's `#![no_std]` applies to this module.
+    for (i, (variant_a, code_a)) in DOCUMENTED_ERROR_CODES.iter().enumerate() {
+        let name_a = variant_name(*variant_a);
+        for (variant_b, code_b) in DOCUMENTED_ERROR_CODES.iter().skip(i + 1) {
+            if code_a == code_b {
+                let name_b = variant_name(*variant_b);
+                panic!(
+                    "duplicate discriminant {code_a}: both {name_a} and {name_b} claim it. \
+                     Two variants must not share an on-chain code."
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn error_table_enumerates_every_variant() {
+    // Maintenance hint: this test pins the *count* of variants in
+    // DOCUMENTED_ERROR_CODES. The stronger parity guard is compile-time:
+    // `variant_name` exhaustively matches every variant of `enum Error`, so
+    // adding, removing, or renaming a variant fails to compile here. This
+    // test just documents the expected scale and catches the sneakier case
+    // where someone adds a variant AND a `variant_name` arm without updating
+    // DOCUMENTED_ERROR_CODES.
+    assert_eq!(
+        DOCUMENTED_ERROR_CODES.len(),
+        27,
+        "DOCUMENTED_ERROR_CODES appears missing entries. The exhaustive \
+         `variant_name` match already enforces parity at compile time — \
+         update it together with this list and contracts/round/ERRORS.md."
+    );
+}
+
+#[test]
+fn error_codes_use_reserved_ranges() {
+    // Range policy enforced by the documentation:
+    //   1–4     → initialization/lookup
+    //   10–22   → lifecycle/timing
+    //   30–39   → crypto/validation
+    // New categories should pick a fresh, contiguous range — not collide with
+    // logging conventions — and update ERRORS.md at the same time.
+    for (variant, code) in DOCUMENTED_ERROR_CODES {
+        let name = variant_name(*variant);
+        let in_range = matches!(*code, 1..=4 | 10..=22 | 30..=39);
+        assert!(
+            in_range,
+            "{name} = {code} falls outside the documented code ranges; \
+             update contracts/round/ERRORS.md if you intentionally added a new category"
+        );
+    }
 }

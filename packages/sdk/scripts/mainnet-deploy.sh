@@ -18,6 +18,11 @@ if [[ -z "${OPERATOR_SECRET:-}" ]]; then
   exit 1
 fi
 
+if [[ "${MAINNET_CONFIRM:-}" != "SUB_ROSA_MAINNET" ]]; then
+  echo "error: set MAINNET_CONFIRM=SUB_ROSA_MAINNET before mainnet deploy" >&2
+  exit 1
+fi
+
 BIDDER_SECRET="${BIDDER_SECRET:-$OPERATOR_SECRET}"
 
 echo "→ [build] compiling wasm…"
