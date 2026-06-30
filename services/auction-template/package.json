@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "fixture": "node --import tsx sealed-auction.ts",
+    "fixture": "FIXTURE=1 node --import tsx sealed-auction.ts",
     "testnet": "node --import tsx sealed-auction.ts",
+    "test": "node --import tsx --test sealed-auction.smoke.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

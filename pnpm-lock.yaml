@@ -4,8 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-packageExtensionsChecksum: sha256-Z9PoklkhhwcDAg079Of1cxD2PjhVdMMdBUjh59gsj38=
-
 importers:
 
   .: {}
@@ -2402,7 +2400,6 @@ snapshots:
     dependencies:
       '@babel/traverse': 7.29.7
       '@noble/curves': 1.9.7
-      '@noble/hashes': 1.8.0
       buffer: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -2411,7 +2408,6 @@ snapshots:
     dependencies:
       '@kevincharm/noble-bn254-drand': 0.0.1(@noble/curves@1.9.7)
       '@noble/curves': 1.9.7
-      '@noble/hashes': 1.8.0
       buffer: 6.0.3
       isomorphic-fetch: 3.0.0
     transitivePeerDependencies:

@@ -2,18 +2,6 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import {
-  Account,
-  Address,
-  Contract,
-  Keypair,
-  TransactionBuilder,
-  rpc,
-  scValToNative,
-} from "@stellar/stellar-sdk";
-import { basicNodeSigner } from "@stellar/stellar-sdk/contract";
-import { closeRound, keepRound } from "@sub-rosa/keeper";
-import { RoundContract, SubRosaClient } from "@sub-rosa/sdk";
 import { verifyReceipt, type RoundReceipt } from "@sub-rosa/sdk";
 import {
   commitment as computeCommitment,
@@ -125,6 +113,14 @@ async function fixtureMain() {
 }
 
 async function testnetMain() {
+  // Lazy imports: only needed for testnet mode; avoids triggering the
+  // @noble/hashes/sha256 export issue when running in FIXTURE=1 mode.
+  const { Account, Address, Contract, Keypair, TransactionBuilder, rpc, scValToNative } =
+    await import("@stellar/stellar-sdk");
+  const { basicNodeSigner } = await import("@stellar/stellar-sdk/contract");
+  const { closeRound, keepRound } = await import("@sub-rosa/keeper");
+  const { RoundContract, SubRosaClient } = await import("@sub-rosa/sdk");
+
   const operatorSecret = reqEnv("OPERATOR_SECRET");
   const bidder1Secret = reqEnv("BIDDER1_SECRET");
   const bidder2Secret = reqEnv("BIDDER2_SECRET");
