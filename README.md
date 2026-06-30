@@ -9,6 +9,8 @@
 
 # Sub Rosa
 
+
+
 **1st Place — Hack Privacy Track, Build On Stellar Hackathon — IBW 2026**
 
 **Verifiable allocation infrastructure for Stellar grants, hackathons,
