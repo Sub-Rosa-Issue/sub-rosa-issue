@@ -2,7 +2,9 @@
 // receipt-cli — export a round receipt from RPC or verify a local file.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt, redactReceipt } from "@sub-rosa/sdk";
+import { buildJsonOutput } from "./json-output.js";
 
 function usage(): never {
   console.error(`
@@ -195,9 +197,13 @@ async function main() {
       if (!path) usage();
       await cmdVerify(path, jsonMode, artifactPath);
       break;
-    case "redact":
+    }
+    case "redact": {
+      const arg = process.argv[3];
+      if (!arg) usage();
       await cmdRedact(arg, process.argv[4]);
       break;
+    }
     default:
       usage();
   }
