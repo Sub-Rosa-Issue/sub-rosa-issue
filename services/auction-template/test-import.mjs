@@ -1,1 +1,1 @@
-import { verifyReceipt } from '@sub-rosa/sdk'; console.log('ok');  
+import { verifyReceipt } from '@sub-rosa/sdk'; console.log('ok');
