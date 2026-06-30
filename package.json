@@ -38,6 +38,7 @@
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
     "web:test": "pnpm --filter @sub-rosa/web test",
-    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck"
+    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
+    "check:env-docs": "node scripts/env-docs-check.mjs"
   }
 }
