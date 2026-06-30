@@ -4,14 +4,14 @@
     "crate": "sub-rosa-round",
     "packageVersion": "0.1.0",
     "sourcePath": "contracts/round/src",
-    "sourceHash": "5e4348bbd58b22b226dba1fab2209db0444cebb799afef1e3ba8351de1194960"
+    "sourceHash": "f7b7453d32bd4f8c4782398cd0cb8da5404743b93e02e37a18a2169c077768a7"
   },
   "build": {
     "wasmFile": "artifacts/sub_rosa_round.wasm",
-    "wasmHash": "71d401d5562740424c92adefe07b26d4abbdaa1159d36061dd108530891f0a69",
+    "wasmHash": "be040c2b80af958ca9eb688a0aa80d34d565c2888ecf049c9a761236cd239776",
     "bindingsPath": "packages/round-bindings/src/index.ts",
-    "specHash": "d2a6673035c195d91bf3ed4c3755194f8b8b67769ca5ee337689c9763dd87449",
-    "generatedAt": "2026-06-27T22:26:42.404Z",
+    "specHash": "ab172f38614140d08ed1df7a993dab46582b8ca4bb1e983860ec16978b312102",
+    "generatedAt": "2026-06-30T16:06:49.913Z",
     "sourceCommand": "pnpm bindings:generate",
     "toolchain": {
       "stellarCli": "stellar 27.0.0 (5a7c5fe76530bf4248477ac812fc757146b98cc4)"
