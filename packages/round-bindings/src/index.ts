@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import { Address } from '@stellar/stellar-sdk';
+import { Address } from "@stellar/stellar-sdk";
 import {
   AssembledTransaction,
   Client as ContractClient,
@@ -7,7 +7,7 @@ import {
   MethodOptions,
   Result,
   Spec as ContractSpec,
-} from '@stellar/stellar-sdk/contract';
+} from "@stellar/stellar-sdk/contract";
 import type {
   u32,
   i32,
@@ -18,14 +18,14 @@ import type {
   u256,
   i256,
   Option,
-  Typepoint,
+  Timepoint,
   Duration,
-} from '@stellar/stellar-sdk/contract';
-export * from '@stellar/stellar-sdk'
-export * as contract from '@stellar/stellar-sdk/contract'
-export * as rpc from '@stellar/stellar-sdk/rpc'
+} from "@stellar/stellar-sdk/contract";
+export * from "@stellar/stellar-sdk";
+export * as contract from "@stellar/stellar-sdk/contract";
+export * as rpc from "@stellar/stellar-sdk/rpc";
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   //@ts-ignore Buffer exists
   window.Buffer = window.Buffer || Buffer;
 }
@@ -149,6 +149,25 @@ revealed_nonce: Option<Buffer>;
   valid: boolean;
 }
 
+
+/**
+ * A page of bidders for a round, with continuation metadata.
+ */
+export interface BiddersPage {
+  /**
+ * Page of bidder addresses.
+ */
+data: Array<string>;
+  /**
+ * Cursor for the next page (0 if no more pages).
+ */
+next_cursor: u32;
+  /**
+ * Total number of bidders in the round.
+ */
+total: u32;
+}
+
 /**
  * Deterministic clearing rule. Default is a first-price sealed-bid auction
  * (highest valid revealed bid wins).
@@ -174,18 +193,6 @@ export interface GlobalConfig {
   usdc: string;
 }
 
-/**
- * A page of bidders for a round, with continuation metadata.
- */
-export interface BiddersPage {
-  /** Page of bidder addresses. */
-  data: Array<string>;
-  /** Cursor for the next page (0 if no more pages). */
-  next_cursor: u32;
-  /** Total number of bidders in the round. */
-  total: u32;
-}
-
 export interface Client {
   /**
    * Construct and simulate a void transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -193,22 +200,7 @@ export interface Client {
    * and the grace window after the reveal deadline has passed without the
    * round opening, anyone can void it and all escrow is refunded.
    */
-  void: ({round_id}: {round_id: u64}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  void: ({round_id}: {round_id: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a clear transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -216,22 +208,7 @@ export interface Client {
    * valid bid was revealed, the round is voided and all escrow becomes
    * refundable.
    */
-  clear: ({round_id}: {round_id: u64}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<Option<string>>>>
+  clear: ({round_id}: {round_id: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Option<string>>>>
 
   /**
    * Construct and simulate a commit transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -243,22 +220,7 @@ export interface Client {
    * locked now so the winner can always pay.
    * - `auditor_blob` is the bidder identity encrypted to the auditor key.
    */
-  commit: ({round_id, bidder, commitment, ciphertext, escrow, auditor_blob}: {round_id: u64, bidder: string, commitment: Buffer, ciphertext: Buffer, escrow: i128, auditor_blob: Buffer}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  commit: ({round_id, bidder, commitment, ciphertext, escrow, auditor_blob}: {round_id: u64, bidder: string, commitment: Buffer, ciphertext: Buffer, escrow: i128, auditor_blob: Buffer}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a reveal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -266,22 +228,7 @@ export interface Client {
    * decrypt any ciphertext and submit the reveal — so no bidder can abort.
    * The contract checks `sha256(be16(value) ‖ nonce) == H`.
    */
-  reveal: ({round_id, bidder, value, nonce}: {round_id: u64, bidder: string, value: i128, nonce: Buffer}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  reveal: ({round_id, bidder, value, nonce}: {round_id: u64, bidder: string, value: i128, nonce: Buffer}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a settle transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -289,84 +236,25 @@ export interface Client {
    * operator; the winner's surplus and every loser's escrow are refunded.
    * Cannot fail for lack of funds — everything was escrowed at commit.
    */
-  settle: ({round_id}: {round_id: u64}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  settle: ({round_id}: {round_id: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a get_seal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Observer view: the sealed ciphertext + auditor blob, while still in
-   * Temporary storage. Visibly unreadable during the sealed phase.
+   * Observer view: the sealed ciphertext + auditor blob while still in
+   * Temporary storage. Returns `None` once the seal TTL has expired (by design
+   * after the reveal window). Persistent bid state remains for settlement.
    */
-  get_seal: ({round_id, bidder}: {round_id: u64, bidder: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Option<Seal>>>
+  get_seal: ({round_id, bidder}: {round_id: u64, bidder: string}, options?: MethodOptions) => Promise<AssembledTransaction<Option<Seal>>>
 
   /**
    * Construct and simulate a get_round transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_round: ({round_id}: {round_id: u64}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<Round>>>
+  get_round: ({round_id}: {round_id: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Round>>>
 
   /**
    * Construct and simulate a get_config transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_config: (options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<GlobalConfig>>>
+  get_config: (options?: MethodOptions) => Promise<AssembledTransaction<Result<GlobalConfig>>>
 
   /**
    * Construct and simulate a get_bidders transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -375,43 +263,7 @@ export interface Client {
    * revealed — the reveal set is on-chain state, so no event scraping or
    * indexer is required and nothing can be missed.
    */
-  get_bidders: ({round_id}: {round_id: u64}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<Array<string>>>>
-
-  /**
-   * Construct and simulate a get_bidders_page transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   * Paginated bidder index for a round. Returns a page of bidders starting at cursor, with continuation metadata.
-   */
-  get_bidders_page: ({round_id, cursor, limit}: {round_id: u64, cursor: u32, limit: u32}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<BiddersPage>>>
+  get_bidders: ({round_id}: {round_id: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Array<string>>>>
 
   /**
    * Construct and simulate a open_reveal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -420,64 +272,29 @@ export interface Client {
    * The supplied signature is verified on-chain via BLS12-381. This is the
    * only way to move a round into `Revealing`; there is no operator override.
    */
-  open_reveal: ({round_id, drand_signature}: {round_id: u64, drand_signature: Buffer}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  open_reveal: ({round_id, drand_signature}: {round_id: u64, drand_signature: Buffer}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a create_round transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Open a new sealed round. Permissionless: anyone can be an operator, and
    * the operator gets no special read power — that is the point.
    */
-  create_round: ({operator, item_ref, reveal_round, clearing_rule, commit_deadline, reveal_deadline, auditor_pubkey}: {operator: string, item_ref: Buffer, reveal_round: u64, clearing_rule: ClearingRule, commit_deadline: u64, reveal_deadline: u64, auditor_pubkey: Buffer}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<u64>>>
+  create_round: ({operator, item_ref, reveal_round, clearing_rule, commit_deadline, reveal_deadline, auditor_pubkey}: {operator: string, item_ref: Buffer, reveal_round: u64, clearing_rule: ClearingRule, commit_deadline: u64, reveal_deadline: u64, auditor_pubkey: Buffer}, options?: MethodOptions) => Promise<AssembledTransaction<Result<u64>>>
 
   /**
    * Construct and simulate a get_bid_state transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_bid_state: ({round_id, bidder}: {round_id: u64, bidder: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
+  get_bid_state: ({round_id, bidder}: {round_id: u64, bidder: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<BidState>>>
 
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<BidState>>>
+  /**
+   * Construct and simulate a get_bidders_page transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Paginated bidder index for a round. Returns a page of bidders starting
+   * at `cursor` (zero-based), with continuation metadata.
+   * 
+   * `limit` must be 1–100. `next_cursor` in the response is 0 when there
+   * are no more pages.
+   */
+  get_bidders_page: ({round_id, cursor, limit}: {round_id: u64, cursor: u32, limit: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<BiddersPage>>>
 
 }
 export class Client extends ContractClient {
@@ -504,24 +321,24 @@ export class Client extends ContractClient {
         "AAAAAAAAAXVTdWJtaXQgKG9yIG92ZXJ3cml0ZSwgYmVmb3JlIHRoZSBkZWFkbGluZSkgYSBzZWFsZWQgYmlkIGFuZCBsb2NrIGVzY3Jvdy4KCi0gYGNvbW1pdG1lbnRgIEggYmluZHMgdGhlIGJpZDsgY2hlY2tlZCBhdCByZXZlYWwuCi0gYGNpcGhlcnRleHRgIEMgaXMgdGhlIHRpbWVsb2NrIHNlYWw7IGd1YXJhbnRlZXMgZm9yY2VkIHJldmVhbC4KLSBgZXNjcm93YCBpcyBhIHB1YmxpYyBVU0RDIGJ1ZGdldCBhbmQgYW4gdXBwZXIgYm91bmQgb24gdGhlIHNlYWxlZCBiaWQ7CmxvY2tlZCBub3cgc28gdGhlIHdpbm5lciBjYW4gYWx3YXlzIHBheS4KLSBgYXVkaXRvcl9ibG9iYCBpcyB0aGUgYmlkZGVyIGlkZW50aXR5IGVuY3J5cHRlZCB0byB0aGUgYXVkaXRvciBrZXkuAAAAAAAABmNvbW1pdAAAAAAABgAAAAAAAAAIcm91bmRfaWQAAAAGAAAAAAAAAAZiaWRkZXIAAAAAABMAAAAAAAAACmNvbW1pdG1lbnQAAAAAA+4AAAAgAAAAAAAAAApjaXBoZXJ0ZXh0AAAAAAAOAAAAAAAAAAZlc2Nyb3cAAAAAAAsAAAAAAAAADGF1ZGl0b3JfYmxvYgAAAA4AAAABAAAD6QAAA+0AAAAAAAAAAw==",
         "AAAAAAAAAMlSZXZlYWwgYSBiaWQuIFBlcm1pc3Npb25sZXNzOiBvbmNlIFIncyBzaWduYXR1cmUgaXMgcHVibGljLCBhbnlvbmUgY2FuCmRlY3J5cHQgYW55IGNpcGhlcnRleHQgYW5kIHN1Ym1pdCB0aGUgcmV2ZWFsIOKAlCBzbyBubyBiaWRkZXIgY2FuIGFib3J0LgpUaGUgY29udHJhY3QgY2hlY2tzIGBzaGEyNTYoYmUxNih2YWx1ZSkg4oCWIG5vbmNlKSA9PSBIYC4AAAAAAAAGcmV2ZWFsAAAAAAAEAAAAAAAAAAhyb3VuZF9pZAAAAAYAAAAAAAAABmJpZGRlcgAAAAAAEwAAAAAAAAAFdmFsdWUAAAAAAAALAAAAAAAAAAVub25jZQAAAAAAA+4AAAAgAAAAAQAAA+kAAAPtAAAAAAAAAAM=",
         "AAAAAAAAAM9TZXR0bGUgYSBjbGVhcmVkIHJvdW5kLiBUaGUgd2lubmVyIHBheXMgdGhlaXIgYmlkIGZyb20gZXNjcm93IHRvIHRoZQpvcGVyYXRvcjsgdGhlIHdpbm5lcidzIHN1cnBsdXMgYW5kIGV2ZXJ5IGxvc2VyJ3MgZXNjcm93IGFyZSByZWZ1bmRlZC4KQ2Fubm90IGZhaWwgZm9yIGxhY2sgb2YgZnVuZHMg4oCUIGV2ZXJ5dGhpbmcgd2FzIGVzY3Jvd2VkIGF0IGNvbW1pdC4AAAAABnNldHRsZQAAAAAAAQAAAAAAAAAIcm91bmRfaWQAAAAGAAAAAQAAA+kAAAPtAAAAAAAAAAM=",
-        "AAAAAAAAAIJPYnNlcnZlciB2aWV3OiB0aGUgc2VhbGVkIGNpcGhlcnRleHQgKyBhdWRpdG9yIGJsb2IsIHdoaWxlIHN0aWxsIGluClRlbXBvcmFyeSBzdG9yYWdlLiBWaXNpYmx5IHVucmVhZGFibGUgZHVyaW5nIHRoZSBzZWFsZWQgcGhhc2UuAAAAAAAIZ2V0X3NlYWwAAAACAAAAAAAAAAhyb3VuZF9pZAAAAAYAAAAAAAAABmJpZGRlcgAAAAAAEwAAAAEAAAPoAAAH0AAAAARTZWFs",
+        "AAAAAAAAANRPYnNlcnZlciB2aWV3OiB0aGUgc2VhbGVkIGNpcGhlcnRleHQgKyBhdWRpdG9yIGJsb2Igd2hpbGUgc3RpbGwgaW4KVGVtcG9yYXJ5IHN0b3JhZ2UuIFJldHVybnMgYE5vbmVgIG9uY2UgdGhlIHNlYWwgVFRMIGhhcyBleHBpcmVkIChieSBkZXNpZ24KYWZ0ZXIgdGhlIHJldmVhbCB3aW5kb3cpLiBQZXJzaXN0ZW50IGJpZCBzdGF0ZSByZW1haW5zIGZvciBzZXR0bGVtZW50LgAAAAhnZXRfc2VhbAAAAAIAAAAAAAAACHJvdW5kX2lkAAAABgAAAAAAAAAGYmlkZGVyAAAAAAATAAAAAQAAA+gAAAfQAAAABFNlYWw=",
         "AAAAAAAAAAAAAAAJZ2V0X3JvdW5kAAAAAAAAAQAAAAAAAAAIcm91bmRfaWQAAAAGAAAAAQAAA+kAAAfQAAAABVJvdW5kAAAAAAAAAw==",
         "AAAAAAAAAAAAAAAKZ2V0X2NvbmZpZwAAAAAAAAAAAAEAAAPpAAAH0AAAAAxHbG9iYWxDb25maWcAAAAD",
         "AAAAAAAAAP1LZWVwZXIgdmlldzogdGhlIGRldGVybWluaXN0aWMsIG9yZGVyZWQgYmlkZGVyIGluZGV4IGZvciBhIHJvdW5kLiBUaGUKa2VlcGVyIHJlYWRzIHRoaXMgdG8gbGVhcm4gZXhhY3RseSB3aGljaCBzZWFscyBtdXN0IGJlIG9wZW5lZCBhbmQKcmV2ZWFsZWQg4oCUIHRoZSByZXZlYWwgc2V0IGlzIG9uLWNoYWluIHN0YXRlLCBzbyBubyBldmVudCBzY3JhcGluZyBvcgppbmRleGVyIGlzIHJlcXVpcmVkIGFuZCBub3RoaW5nIGNhbiBiZSBtaXNzZWQuAAAAAAAAC2dldF9iaWRkZXJzAAAAAAEAAAAAAAAACHJvdW5kX2lkAAAABgAAAAEAAAPpAAAD6gAAABMAAAAD",
-        "AAAAAAAAAG1QYWdpbmF0ZWQgYmlkZGVyIGluZGV4IGZvciBhIHJvdW5kLiBSZXR1cm5zIGEgcGFnZSBvZiBiaWRkZXJzIHN0YXJ0aW5nIGF0IGN1cnNvciwgd2l0aCBjb250aW51YXRpb24gbWV0YWRhdGEuAAAAAAAAEGdldF9iaWRkZXJzX3BhZ2UAAAADAAAACVJvdW5kIElELgAAAAAAAAhyb3VuZF9pZAAAAAYAAAAgWmVyby1iYXNlZCBjdXJzb3IgKHN0YXJ0IGluZGV4KS4AAAAGY3Vyc29yAAAAAAAEAAAALE1heGltdW0gbnVtYmVyIG9mIGJpZGRlcnMgdG8gcmV0dXJuICgxLTEwMCkuAAAABWxpbWl0AAAAAAAABAAAAAEAAAPpAAAH0AAAAAtCaWRkZXJzUGFnZQAAAAAD",
         "AAAAAAAAANRPcGVuIHRoZSByZXZlYWwgd2luZG93IGJ5IHByb3ZpbmcgRHJhbmQgcm91bmQgUiBoYXMgYmVlbiBwcm9kdWNlZC4KClRoZSBzdXBwbGllZCBzaWduYXR1cmUgaXMgdmVyaWZpZWQgb24tY2hhaW4gdmlhIEJMUzEyLTM4MS4gVGhpcyBpcyB0aGUKb25seSB3YXkgdG8gbW92ZSBhIHJvdW5kIGludG8gYFJldmVhbGluZ2A7IHRoZXJlIGlzIG5vIG9wZXJhdG9yIG92ZXJyaWRlLgAAAAtvcGVuX3JldmVhbAAAAAACAAAAAAAAAAhyb3VuZF9pZAAAAAYAAAAAAAAAD2RyYW5kX3NpZ25hdHVyZQAAAAPuAAAAYAAAAAEAAAPpAAAD7QAAAAAAAAAD",
         "AAAAAAAAAIZPcGVuIGEgbmV3IHNlYWxlZCByb3VuZC4gUGVybWlzc2lvbmxlc3M6IGFueW9uZSBjYW4gYmUgYW4gb3BlcmF0b3IsIGFuZAp0aGUgb3BlcmF0b3IgZ2V0cyBubyBzcGVjaWFsIHJlYWQgcG93ZXIg4oCUIHRoYXQgaXMgdGhlIHBvaW50LgAAAAAADGNyZWF0ZV9yb3VuZAAAAAcAAAAAAAAACG9wZXJhdG9yAAAAEwAAAAAAAAAIaXRlbV9yZWYAAAPuAAAAIAAAAAAAAAAMcmV2ZWFsX3JvdW5kAAAABgAAAAAAAAANY2xlYXJpbmdfcnVsZQAAAAAAB9AAAAAMQ2xlYXJpbmdSdWxlAAAAAAAAAA9jb21taXRfZGVhZGxpbmUAAAAABgAAAAAAAAAPcmV2ZWFsX2RlYWRsaW5lAAAAAAYAAAAAAAAADmF1ZGl0b3JfcHVia2V5AAAAAAAOAAAAAQAAA+kAAAAGAAAAAw==",
         "AAAAAAAAAAAAAAANZ2V0X2JpZF9zdGF0ZQAAAAAAAAIAAAAAAAAACHJvdW5kX2lkAAAABgAAAAAAAAAGYmlkZGVyAAAAAAATAAAAAQAAA+kAAAfQAAAACEJpZFN0YXRlAAAAAw==",
         "AAAAAAAAAIVPbmUtdGltZSBkZXBsb3kgY29uZmlndXJhdGlvbi4gQWxsIERyYW5kIHBhcmFtZXRlcnMgYXJlIHN1cHBsaWVkIGJ5IHRoZQpkZXBsb3llciBmcm9tIHZhbHVlcyB2YWxpZGF0ZWQgYWdhaW5zdCBhIGxpdmUgcXVpY2tuZXQgcm91bmQuAAAAAAAADV9fY29uc3RydWN0b3IAAAAAAAAGAAAAAAAAAAxkcmFuZF9wdWJrZXkAAAPuAAAAwAAAAAAAAAAQZzJfbmVnX2dlbmVyYXRvcgAAA+4AAADAAAAAAAAAAANkc3QAAAAADgAAAAAAAAANZHJhbmRfZ2VuZXNpcwAAAAAAAAYAAAAAAAAADGRyYW5kX3BlcmlvZAAAAAYAAAAAAAAABHVzZGMAAAATAAAAAA==",
+        "AAAAAAAAANdQYWdpbmF0ZWQgYmlkZGVyIGluZGV4IGZvciBhIHJvdW5kLiBSZXR1cm5zIGEgcGFnZSBvZiBiaWRkZXJzIHN0YXJ0aW5nCmF0IGBjdXJzb3JgICh6ZXJvLWJhc2VkKSwgd2l0aCBjb250aW51YXRpb24gbWV0YWRhdGEuCgpgbGltaXRgIG11c3QgYmUgMeKAkzEwMC4gYG5leHRfY3Vyc29yYCBpbiB0aGUgcmVzcG9uc2UgaXMgMCB3aGVuIHRoZXJlCmFyZSBubyBtb3JlIHBhZ2VzLgAAAAAQZ2V0X2JpZGRlcnNfcGFnZQAAAAMAAAAAAAAACHJvdW5kX2lkAAAABgAAAAAAAAAGY3Vyc29yAAAAAAAEAAAAAAAAAAVsaW1pdAAAAAAAAAQAAAABAAAD6QAAB9AAAAALQmlkZGVyc1BhZ2UAAAAAAw==",
         "AAAAAQAAAI5QZXItYmlkIGVwaGVtZXJhbCBzZWFsZWQgcGF5bG9hZCAoVGVtcG9yYXJ5KS4gQXV0by1leHBpcmVzIGFmdGVyIHRoZSByZXZlYWwKd2luZG93OyB0aGUgYXV0by1leHBpcnkgaXMgdGhlIGRlc2lnbiwgbm90IGEgd29ya2Fyb3VuZCAoUFJEIMKnOCkuAAAAAAAAAAAABFNlYWwAAAACAAAARmVuYyhiaWRkZXJfaWRlbnRpdHksIGF1ZGl0b3JfcHVia2V5KSDigJQgcmVhZGFibGUgb25seSBieSB0aGUgYXVkaXRvci4AAAAAAAxhdWRpdG9yX2Jsb2IAAAAOAAAAOkMgPSB0bG9ja19lbmNyeXB0KGJlMTYodmFsdWUpIOKAliBub25jZSwgZHJhbmRfcHVia2V5LCBSKS4AAAAAAApjaXBoZXJ0ZXh0AAAAAAAO",
         "AAAABAAAAIRDb250cmFjdCBlcnJvciBjb2Rlcy4gRXZlcnkgZmFpbHVyZSBzdGF0ZSBmcm9tIHRoZSBQUkQgaGFzIGEgZGVmaW5lZCBjb2RlIOKAlAp0aGVyZSBpcyBubyB1bmRlZmluZWQgYmVoYXZpb3IgYW5kIG5vIHNpbGVudCBmYWxsYmFjay4AAAAAAAAABUVycm9yAAAAAAAAGwAAAAAAAAAOTm90SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAAEkFscmVhZHlJbml0aWFsaXplZAAAAAAAAgAAAAAAAAANUm91bmROb3RGb3VuZAAAAAAAAAMAAAAAAAAAC0JpZE5vdEZvdW5kAAAAAAQAAAAAAAAADENvbW1pdENsb3NlZAAAAAoAAAAAAAAAD0NvbW1pdE5vdENsb3NlZAAAAAALAAAAAAAAABlDb21taXREZWFkbGluZUFmdGVyUmV2ZWFsAAAAAAAADAAAAAAAAAANUmV2ZWFsTm90T3BlbgAAAAAAAA0AAAAAAAAAEVJldmVhbEFscmVhZHlPcGVuAAAAAAAADgAAAAAAAAASUmV2ZWFsV2luZG93Q2xvc2VkAAAAAAAPAAAAAAAAAA9SZXZlYWxTdGlsbE9wZW4AAAAAEAAAAAAAAAAKTm90Q2xlYXJlZAAAAAAAEQAAAAAAAAAOQWxyZWFkeUNsZWFyZWQAAAAAABIAAAAAAAAADkFscmVhZHlTZXR0bGVkAAAAAAATAAAAAAAAAAtSb3VuZFZvaWRlZAAAAAAUAAAAAAAAAAtOb3RWb2lkYWJsZQAAAAAVAAAAAAAAAAtXcm9uZ1N0YXR1cwAAAAAWAAAAAAAAABVJbnZhbGlkRHJhbmRTaWduYXR1cmUAAAAAAAAeAAAAAAAAAAxIYXNoTWlzbWF0Y2gAAAAfAAAAAAAAAA9BbHJlYWR5UmV2ZWFsZWQAAAAAIAAAAAAAAAAPUGF5bG9hZFRvb0xhcmdlAAAAACEAAAAAAAAADUludmFsaWRBbW91bnQAAAAAAAAiAAAAAAAAABBCaWRFeGNlZWRzRXNjcm93AAAAIwAAAAAAAAAORGVhZGxpbmVJblBhc3QAAAAAACQAAAAAAAAAC05vVmFsaWRCaWRzAAAAACUAAAAAAAAACVJvdW5kRnVsbAAAAAAAACYAAAAAAAAADEludmFsaWRMaW1pdAAAACc=",
         "AAAAAQAAAE1QZXItcm91bmQgcmVjb3JkIChQZXJzaXN0ZW50KS4gU3Vydml2ZXMgdW50aWwgdGhlIHJvdW5kIGlzIGV4cGxpY2l0bHkgY2xvc2VkLgAAAAAAAAAAAAAFUm91bmQAAAAAAAALAAAASVB1YmxpYyBrZXkgYmlkZGVyLWlkZW50aXR5IGJsb2JzIGFyZSBlbmNyeXB0ZWQgdG8gKHNlbGVjdGl2ZSBkaXNjbG9zdXJlKS4AAAAAAAAOYXVkaXRvcl9wdWJrZXkAAAAAAA4AAAAAAAAAB2JpZGRlcnMAAAAD6gAAABMAAAAAAAAADWNsZWFyaW5nX3J1bGUAAAAAAAfQAAAADENsZWFyaW5nUnVsZQAAAC5Vbml4IHNlY29uZHMuIE11c3QgYmUgc3RyaWN0bHkgYmVmb3JlIHRpbWUoUikuAAAAAAAPY29tbWl0X2RlYWRsaW5lAAAAAAYAAACET3BhcXVlIHJlZmVyZW5jZSB0byB0aGUgaXRlbSAvIGFsbG9jYXRpb24gYmVpbmcgZGVjaWRlZCAoaGFzaCBvZiBhbgpvZmYtY2hhaW4gZGVzY3JpcHRpb24pLiBUaGUgY29udHJhY3QgaXMgYWdub3N0aWMgdG8gaXRzIG1lYW5pbmcuAAAACGl0ZW1fcmVmAAAD7gAAACAAAAAAAAAACG9wZXJhdG9yAAAAEwAAAD9Vbml4IHNlY29uZHMuIFJldmVhbCB3aW5kb3cgY2xvc2VzIGhlcmU7IG11c3QgYmUgYWZ0ZXIgdGltZShSKS4AAAAAD3JldmVhbF9kZWFkbGluZQAAAAAGAAAAQERyYW5kIHJvdW5kIG51bWJlciBSIHdob3NlIHRocmVzaG9sZCBzaWduYXR1cmUgdW5zZWFscyB0aGUgYmlkcy4AAAAMcmV2ZWFsX3JvdW5kAAAABgAAAAAAAAAGc3RhdHVzAAAAAAfQAAAABlN0YXR1cwAAAAAAAAAAAAZ3aW5uZXIAAAAAA+gAAAATAAAAAAAAAAt3aW5uaW5nX2JpZAAAAAAL",
         "AAAAAgAAADZSb3VuZCBsaWZlY3ljbGUuIE1pcnJvcnMgdGhlIHN0YXRlIG1hY2hpbmUgaW4gUFJEIMKnNi4AAAAAAAAAAAAGU3RhdHVzAAAAAAAFAAAAAAAAAAAAAAAET3BlbgAAAAAAAAAAAAAACVJldmVhbGluZwAAAAAAAAAAAAAAAAAAB0NsZWFyZWQAAAAAAAAAAAAAAAAHU2V0dGxlZAAAAAAAAAAAAAAAAAZWb2lkZWQAAA==",
         "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAABQAAAAAAAAAAAAAABkNvbmZpZwAAAAAAAAAAAAAAAAAMUm91bmRDb3VudGVyAAAAAQAAAAAAAAAFUm91bmQAAAAAAAABAAAABgAAAAEAAAAAAAAABVN0YXRlAAAAAAAAAgAAAAYAAAATAAAAAQAAAAAAAAAEU2VhbAAAAAIAAAAGAAAAEw==",
         "AAAAAQAAAJBQZXItYmlkIGR1cmFibGUgc3RhdGUgKFBlcnNpc3RlbnQpLiBIb2xkcyBldmVyeXRoaW5nIHJlcXVpcmVkIHRvIGNsZWFyIGFuZApzZXR0bGUgLyByZWZ1bmQgc2FmZWx5LCBldmVuIGlmIHRoZSBlcGhlbWVyYWwgY2lwaGVydGV4dCBoYXMgZXhwaXJlZC4AAAAAAAAACEJpZFN0YXRlAAAABgAAADtIID0gc2hhMjU2KGJlMTYodmFsdWUpIOKAliBub25jZSkg4oCUIGJpbmRzIHRoZSBzZWFsZWQgYmlkLgAAAAAKY29tbWl0bWVudAAAAAAD7gAAACAAAABDUHVibGljIFVTREMgYnVkZ2V0IGxvY2tlZCBhdCBjb21taXQ7IHVwcGVyIGJvdW5kIG9uIHRoZSBzZWFsZWQgYmlkLgAAAAAGZXNjcm93AAAAAAALAAAArVRoZSAzMi1ieXRlIG5vbmNlIHVzZWQgaW4gdGhlIGNvbW1pdG1lbnQuIFBlcnNpc3RlZCBhdCByZXZlYWwgdGltZSBzbwp0aGF0IG9mZmxpbmUgcmVjZWlwdCB2ZXJpZmllcnMgY2FuIHJlY29tcHV0ZSBzaGEyNTYoYmUxNih2YWx1ZSnigJZub25jZSkKd2l0aG91dCB0cnVzdGluZyB0aGUgZXhwb3J0ZXIuAAAAAAAADnJldmVhbGVkX25vbmNlAAAAAAPoAAAD7gAAACAAAAAAAAAADnJldmVhbGVkX3ZhbHVlAAAAAAPoAAAACwAAAAAAAAAHc2V0dGxlZAAAAAABAAAAAAAAAAV2YWxpZAAAAAAAAAE=",
+        "AAAAAQAAADpBIHBhZ2Ugb2YgYmlkZGVycyBmb3IgYSByb3VuZCwgd2l0aCBjb250aW51YXRpb24gbWV0YWRhdGEuAAAAAAAAAAAAC0JpZGRlcnNQYWdlAAAAAAMAAAAZUGFnZSBvZiBiaWRkZXIgYWRkcmVzc2VzLgAAAAAAAARkYXRhAAAD6gAAABMAAAAuQ3Vyc29yIGZvciB0aGUgbmV4dCBwYWdlICgwIGlmIG5vIG1vcmUgcGFnZXMpLgAAAAAAC25leHRfY3Vyc29yAAAAAAQAAAAlVG90YWwgbnVtYmVyIG9mIGJpZGRlcnMgaW4gdGhlIHJvdW5kLgAAAAAAAAV0b3RhbAAAAAAAAAQ=",
         "AAAAAgAAAGtEZXRlcm1pbmlzdGljIGNsZWFyaW5nIHJ1bGUuIERlZmF1bHQgaXMgYSBmaXJzdC1wcmljZSBzZWFsZWQtYmlkIGF1Y3Rpb24KKGhpZ2hlc3QgdmFsaWQgcmV2ZWFsZWQgYmlkIHdpbnMpLgAAAAAAAAAADENsZWFyaW5nUnVsZQAAAAIAAAAAAAAAAAAAAApIaWdoZXN0QmlkAAAAAAAAAAAAAAAAAAlMb3dlc3RCaWQAAAA=",
-        "AAAAAQAAAaRDb250cmFjdC1nbG9iYWwgY29uZmlndXJhdGlvbiwgc2V0IG9uY2UgYXQgZGVwbG95IGluIEluc3RhbmNlIHN0b3JhZ2UuCgpBbGwgRHJhbmQgcGFyYW1ldGVycyBhcmUgc3VwcGxpZWQgYXQgZGVwbG95IHRpbWUgKHZhbGlkYXRlZCBhZ2FpbnN0IGEgbGl2ZQpxdWlja25ldCByb3VuZCBiZWZvcmUgZGVwbG95KSBzbyB0aGUgc291cmNlIGNhcnJpZXMgbm8gZ3Vlc3NlZCBjb25zdGFudHMuCmBkcmFuZF9wdWJrZXlgIGFuZCBgZzJfbmVnX2dlbmVyYXRvcmAgYXJlIHVuY29tcHJlc3NlZCBCTFMxMi0zODEgRzIgcG9pbnRzCigxOTIgYnl0ZXMgZWFjaCkgaW4gU29yb2JhbiBob3N0IHNlcmlhbGl6YXRpb24uIGBkc3RgIGlzIHRoZSBSRkMgOTM4MApkb21haW4gc2VwYXJhdGlvbiB0YWcgZm9yIHRoZSBjb25maWd1cmVkIERyYW5kIHNjaGVtZS4AAAAAAAAADEdsb2JhbENvbmZpZwAAAAYAAAAAAAAADWRyYW5kX2dlbmVzaXMAAAAAAAAGAAAAAAAAAAxkcmFuZF9wZXJpb2QAAAAGAAAAAAAAAAxkcmFuZF9wdWJrZXkAAAPuAAAAwAAAAAAAAAADZHN0AAAAAA4AAAAAAAAAEGcyX25lZ19nZW5lcmF0b3IAAAPuAAAAwAAAAAAAAAAEdXNkYwAAABM=",
-        "AAAAAQAAADpBIHBhZ2Ugb2YgYmlkZGVycyBmb3IgYSByb3VuZCwgd2l0aCBjb250aW51YXRpb24gbWV0YWRhdGEuAAAAAAAAAAAAC0JpZGRlcnNQYWdlAAAAAAMAAAAZUGFnZSBvZiBiaWRkZXIgYWRkcmVzc2VzLgAAAAAAAARkYXRhAAAD6gAAABMAAAAuQ3Vyc29yIGZvciB0aGUgbmV4dCBwYWdlICgwIGlmIG5vIG1vcmUgcGFnZXMpLgAAAAAAC25leHRfY3Vyc29yAAAAAAQAAAAlVG90YWwgbnVtYmVyIG9mIGJpZGRlcnMgaW4gdGhlIHJvdW5kLgAAAAAAAAV0b3RhbAAAAAAAAAQ=" ]),
+        "AAAAAQAAAaRDb250cmFjdC1nbG9iYWwgY29uZmlndXJhdGlvbiwgc2V0IG9uY2UgYXQgZGVwbG95IGluIEluc3RhbmNlIHN0b3JhZ2UuCgpBbGwgRHJhbmQgcGFyYW1ldGVycyBhcmUgc3VwcGxpZWQgYXQgZGVwbG95IHRpbWUgKHZhbGlkYXRlZCBhZ2FpbnN0IGEgbGl2ZQpxdWlja25ldCByb3VuZCBiZWZvcmUgZGVwbG95KSBzbyB0aGUgc291cmNlIGNhcnJpZXMgbm8gZ3Vlc3NlZCBjb25zdGFudHMuCmBkcmFuZF9wdWJrZXlgIGFuZCBgZzJfbmVnX2dlbmVyYXRvcmAgYXJlIHVuY29tcHJlc3NlZCBCTFMxMi0zODEgRzIgcG9pbnRzCigxOTIgYnl0ZXMgZWFjaCkgaW4gU29yb2JhbiBob3N0IHNlcmlhbGl6YXRpb24uIGBkc3RgIGlzIHRoZSBSRkMgOTM4MApkb21haW4gc2VwYXJhdGlvbiB0YWcgZm9yIHRoZSBjb25maWd1cmVkIERyYW5kIHNjaGVtZS4AAAAAAAAADEdsb2JhbENvbmZpZwAAAAYAAAAAAAAADWRyYW5kX2dlbmVzaXMAAAAAAAAGAAAAAAAAAAxkcmFuZF9wZXJpb2QAAAAGAAAAAAAAAAxkcmFuZF9wdWJrZXkAAAPuAAAAwAAAAAAAAAADZHN0AAAAAA4AAAAAAAAAEGcyX25lZ19nZW5lcmF0b3IAAAPuAAAAwAAAAAAAAAAEdXNkYwAAABM=" ]),
       options
     )
   }
@@ -535,9 +352,9 @@ export class Client extends ContractClient {
         get_round: this.txFromJSON<Result<Round>>,
         get_config: this.txFromJSON<Result<GlobalConfig>>,
         get_bidders: this.txFromJSON<Result<Array<string>>>,
-        get_bidders_page: this.txFromJSON<Result<BiddersPage>>,
         open_reveal: this.txFromJSON<Result<void>>,
         create_round: this.txFromJSON<Result<u64>>,
-        get_bid_state: this.txFromJSON<Result<BidState>>
+        get_bid_state: this.txFromJSON<Result<BidState>>,
+        get_bidders_page: this.txFromJSON<Result<BiddersPage>>
   }
 }
