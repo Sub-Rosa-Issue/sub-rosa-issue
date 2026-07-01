@@ -17,3 +17,9 @@ export {
   type SorobanCreateOrderInput,
   type SorobanSigner
 } from "./soroban/index.js";
+export { SubRosaNetworkMismatchError } from "./errors.js";
+export {
+  assertNetworkConfig,
+  KNOWN_NETWORKS,
+  type KnownNetwork,
+} from "./network.js";
