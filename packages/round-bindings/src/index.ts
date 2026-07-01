@@ -177,7 +177,7 @@ export type ClearingRule = {tag: "HighestBid", values: void} | {tag: "LowestBid"
 
 /**
  * Contract-global configuration, set once at deploy in Instance storage.
- * 
+ *
  * All Drand parameters are supplied at deploy time (validated against a live
  * quicknet round before deploy) so the source carries no guessed constants.
  * `drand_pubkey` and `g2_neg_generator` are uncompressed BLS12-381 G2 points
@@ -213,7 +213,7 @@ export interface Client {
   /**
    * Construct and simulate a commit transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Submit (or overwrite, before the deadline) a sealed bid and lock escrow.
-   * 
+   *
    * - `commitment` H binds the bid; checked at reveal.
    * - `ciphertext` C is the timelock seal; guarantees forced reveal.
    * - `escrow` is a public USDC budget and an upper bound on the sealed bid;
@@ -268,7 +268,7 @@ export interface Client {
   /**
    * Construct and simulate a open_reveal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Open the reveal window by proving Drand round R has been produced.
-   * 
+   *
    * The supplied signature is verified on-chain via BLS12-381. This is the
    * only way to move a round into `Revealing`; there is no operator override.
    */
@@ -290,7 +290,7 @@ export interface Client {
    * Construct and simulate a get_bidders_page transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Paginated bidder index for a round. Returns a page of bidders starting
    * at `cursor` (zero-based), with continuation metadata.
-   * 
+   *
    * `limit` must be 1–100. `next_cursor` in the response is 0 when there
    * are no more pages.
    */

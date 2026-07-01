@@ -5,7 +5,6 @@ import {
   readdirSync,
   writeFileSync,
   mkdirSync,
-  copyFileSync,
   rmSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
@@ -138,10 +137,15 @@ export function generateBindingsToTemp() {
 }
 
 export function installBindingsFromTemp() {
-  copyFileSync(
+  // The Stellar CLI emits blank JSDoc lines as "   * " with trailing
+  // whitespace. Strip trailing whitespace per line so the committed bindings
+  // stay reproducible and pass `git diff --check`.
+  const generated = readFileSync(
     join(PATHS.tmpBindings, "src/index.ts"),
-    PATHS.bindings,
+    "utf8",
   );
+  const normalized = generated.replace(/[ \t]+$/gm, "");
+  writeFileSync(PATHS.bindings, normalized, "utf8");
   rmSync(PATHS.tmpBindings, { recursive: true, force: true });
 }
 
