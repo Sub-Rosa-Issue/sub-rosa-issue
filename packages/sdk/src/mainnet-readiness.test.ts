@@ -49,6 +49,7 @@ const settledRound = {
 const settledBidState: BidState = {
   commitment: Buffer.alloc(32),
   escrow: MAINNET_ARTIFACTS.escrowStroops,
+  revealed_nonce: Buffer.alloc(32),
   revealed_value: MAINNET_ARTIFACTS.bidStroops,
   settled: true,
   valid: true,

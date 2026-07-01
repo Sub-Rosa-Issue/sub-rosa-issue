@@ -83,6 +83,8 @@ export interface RoundReceipt {
   winningValue: string | null;
   /** Final on-chain status tag. */
   status: string;
+  /** Optional checksum of the local artifact manifest or binding file. */
+  artifactChecksum?: string;
 }
 
 function sortKeys(_: string, value: unknown): unknown {
