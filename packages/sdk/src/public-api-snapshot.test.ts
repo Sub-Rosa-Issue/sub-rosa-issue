@@ -42,6 +42,7 @@ const EXPECTED_EXPORTS = [
   "normalizeRoundId",
   "normalizeSorobanContractId",
   "parseReceipt",
+  "redactReceipt",
   "runMainnetReadiness",
   "serializeReceipt",
   "tryDecodeBase64",
