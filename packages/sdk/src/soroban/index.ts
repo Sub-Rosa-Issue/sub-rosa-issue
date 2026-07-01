@@ -11,6 +11,7 @@ import {
   type Transaction
 } from "@stellar/stellar-sdk";
 import type { SorobanOrderData, SorobanOrderStatus } from "../types/index.js";
+import { assertNetworkConfig } from "../network.js";
 
 export interface SorobanHTLCClientOptions {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
@@ -53,6 +54,11 @@ export class SorobanHTLCClient {
     this.server = new rpc.Server(opts.rpcUrl, { allowHttp: opts.allowHttp ?? false });
     this.contract = new Contract(opts.contractId);
     this.networkPassphrase = opts.networkPassphrase ?? Networks.TESTNET;
+    assertNetworkConfig({
+      networkPassphrase: this.networkPassphrase,
+      rpcUrl: opts.rpcUrl,
+      allowHttp: opts.allowHttp,
+    });
   }
 
   private async buildTx(
