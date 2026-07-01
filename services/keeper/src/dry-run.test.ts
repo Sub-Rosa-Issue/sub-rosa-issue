@@ -30,6 +30,7 @@ const baseRound = {
 const bidState = (revealed: boolean): BidState => ({
   commitment: Buffer.alloc(32),
   escrow: 1n,
+  revealed_nonce: revealed ? Buffer.alloc(32) : undefined,
   revealed_value: revealed ? 1n : undefined,
   settled: false,
   valid: revealed,
