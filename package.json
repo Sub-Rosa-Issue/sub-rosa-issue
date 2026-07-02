@@ -17,7 +17,11 @@
     "bindings:generate": "stellar contract build --out-dir artifacts && rm -rf .tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir .tmp-bindings --overwrite && cp .tmp-bindings/src/index.ts packages/round-bindings/src/index.ts && rm -rf .tmp-bindings",
     "sdk:test": "pnpm --filter @sub-rosa/sdk test",
     "sdk:typecheck": "pnpm --filter @sub-rosa/sdk typecheck",
+    "bindings:test": "pnpm --filter @sub-rosa/round-bindings test",
+    "bindings:typecheck": "pnpm --filter @sub-rosa/round-bindings typecheck",
     "sdk:smoke": "bash packages/sdk/scripts/live-smoke.sh",
+    "threat-model:check": "node scripts/check-threat-model-anchors.mjs docs/THREAT_MODEL.md",
+    "threat-model:test": "node --test scripts/check-threat-model-anchors.test.mjs",
     "mainnet:deploy": "bash packages/sdk/scripts/mainnet-deploy.sh",
     "mainnet:settle": "bash services/keeper/scripts/mainnet-settle.sh",
     "mainnet:ready": "bash packages/sdk/scripts/mainnet-ready.sh",
@@ -35,9 +39,17 @@
     "agent:test": "pnpm --filter @sub-rosa/agent test",
     "agent:typecheck": "pnpm --filter @sub-rosa/agent typecheck",
     "agents:e2e": "bash services/agent/scripts/agents-e2e.sh",
+    "template:fixture": "pnpm --filter @sub-rosa/auction-template fixture",
+    "template:testnet": "bash services/auction-template/testnet.sh",
+    "template:typecheck": "pnpm --filter @sub-rosa/auction-template typecheck",
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
     "web:test": "pnpm --filter @sub-rosa/web test",
-    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck"
+    "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
+    "grant-scoring:test": "pnpm --filter @sub-rosa/grant-scoring-pilot test",
+    "grant-scoring:start": "pnpm --filter @sub-rosa/grant-scoring-pilot start",
+    "snapshot:check": "node scripts/check-snapshots.mjs",
+    "docs:check": "node scripts/check-deploy-docs.mjs",
+    "docs:check-links": "node scripts/check-links.js"
   }
 }

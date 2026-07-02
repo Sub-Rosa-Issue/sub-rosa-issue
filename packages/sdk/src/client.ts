@@ -23,6 +23,7 @@ import {
 import { toHex } from "@sub-rosa/tlock";
 import type { SealedBid } from "@sub-rosa/tlock";
 import type { RoundReceipt } from "./receipt.js";
+import { validateEncryptedBlob } from "./encrypted-blob.js";
 import { networkFingerprint } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
 import { validateNetworkPassphrase } from "./network.js";
@@ -33,6 +34,7 @@ import {
   SubRosaTimeoutError,
   SubRosaTransactionError,
 } from "./errors.js";
+import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 
 export interface SubRosaClientConfig {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
@@ -159,7 +161,7 @@ export class SubRosaClient {
       ? basicNodeSigner(keypair, config.networkPassphrase)
       : undefined;
 
-    this.contractId = config.contractId;
+    this.contractId = normalizeSorobanContractId(config.contractId);
     this.networkPassphrase = config.networkPassphrase;
     this.#source = source;
     this.#rpcUrl = config.rpcUrl;
@@ -169,7 +171,7 @@ export class SubRosaClient {
     this.#pollInterval = pollInterval;
     if (config._sleep) this.#sleep = config._sleep;
     this.contract = new RoundContract({
-      contractId: config.contractId,
+      contractId: this.contractId,
       networkPassphrase: config.networkPassphrase,
       rpcUrl: config.rpcUrl,
       allowHttp,
@@ -277,9 +279,30 @@ export class SubRosaClient {
   }
 
   async commit(params: CommitParams): Promise<void> {
+    // Validate encrypted blobs before submitting — catches size/encoding
+    // issues early, before paying gas for an on-chain revert (PayloadTooLarge).
+    const ciphertextResult = validateEncryptedBlob(
+      params.sealed.ciphertext,
+      "ciphertext",
+    );
+    if (!ciphertextResult.valid) {
+      throw new SubRosaClientConfigError(
+        ciphertextResult.issues.map((i) => i.message).join("; "),
+      );
+    }
+    const auditorBlobResult = validateEncryptedBlob(
+      params.sealed.auditorBlob,
+      "auditor_blob",
+    );
+    if (!auditorBlobResult.valid) {
+      throw new SubRosaClientConfigError(
+        auditorBlobResult.issues.map((i) => i.message).join("; "),
+      );
+    }
+
     const bidder = params.bidder ?? this.#requireSource("bidder");
     const tx = await this.contract.commit({
-      round_id: toBigInt(params.roundId),
+      round_id: normalizeRoundId(params.roundId),
       bidder,
       commitment: toBuffer(params.sealed.commitment),
       ciphertext: toBuffer(params.sealed.ciphertext),
@@ -294,7 +317,7 @@ export class SubRosaClient {
     drandSignature: Uint8Array,
   ): Promise<void> {
     const tx = await this.contract.open_reveal({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       drand_signature: toBuffer(drandSignature),
     });
     await this.#sendUnwrap(tx);
@@ -302,7 +325,7 @@ export class SubRosaClient {
 
   async reveal(params: RevealParams): Promise<void> {
     const tx = await this.contract.reveal({
-      round_id: toBigInt(params.roundId),
+      round_id: normalizeRoundId(params.roundId),
       bidder: params.bidder,
       value: params.value,
       nonce: toBuffer(params.nonce),
@@ -313,25 +336,25 @@ export class SubRosaClient {
   /** Clear a round. Returns the winning address, or undefined if the round was
    *  voided for having no valid bids. */
   async clear(roundId: number | bigint): Promise<string | undefined> {
-    const tx = await this.contract.clear({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.clear({ round_id: normalizeRoundId(roundId) });
     const winner = await this.#sendUnwrap(tx);
     return winner ?? undefined;
   }
 
   async settle(roundId: number | bigint): Promise<void> {
-    const tx = await this.contract.settle({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.settle({ round_id: normalizeRoundId(roundId) });
     await this.#sendUnwrap(tx);
   }
 
   async void(roundId: number | bigint): Promise<void> {
-    const tx = await this.contract.void({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.void({ round_id: normalizeRoundId(roundId) });
     await this.#sendUnwrap(tx);
   }
 
   // ── Read-only views (simulation only; no signing/submission) ───────────
 
   async getRound(roundId: number | bigint): Promise<Round> {
-    const tx = await this.contract.get_round({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.get_round({ round_id: normalizeRoundId(roundId) });
     return tx.result.unwrap();
   }
 
@@ -340,7 +363,7 @@ export class SubRosaClient {
     bidder: string,
   ): Promise<BidState> {
     const tx = await this.contract.get_bid_state({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       bidder,
     });
     return tx.result.unwrap();
@@ -349,7 +372,7 @@ export class SubRosaClient {
   /** The deterministic, ordered bidder index — the keeper's reveal set. Reading
    *  this is how the keeper knows exactly which seals to open and reveal. */
   async getBidders(roundId: number | bigint): Promise<string[]> {
-    const tx = await this.contract.get_bidders({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.get_bidders({ round_id: normalizeRoundId(roundId) });
     return tx.result.unwrap();
   }
 
@@ -361,7 +384,7 @@ export class SubRosaClient {
     limit: number,
   ): Promise<BiddersPage> {
     const tx = await this.contract.get_bidders_page({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       cursor,
       limit,
     });
@@ -389,7 +412,7 @@ export class SubRosaClient {
     bidder: string,
   ): Promise<Seal | undefined> {
     const tx = await this.contract.get_seal({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       bidder,
     });
     return tx.result ?? undefined;
@@ -404,7 +427,7 @@ export class SubRosaClient {
    *  state — round params, bidders, commitments, reveal validity, seal evidence
    *  (may be null if expired) — into a single portable document. */
   async exportReceipt(roundId: number | bigint): Promise<RoundReceipt> {
-    const rid = toBigInt(roundId);
+    const rid = normalizeRoundId(roundId);
     const [round, config] = await Promise.all([
       this.getRound(rid),
       this.getConfig(),
