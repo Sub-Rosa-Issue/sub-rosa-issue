@@ -74,6 +74,19 @@ export const DoctorCommand = new Command('doctor')
       logResult('PASS', `Network verification passphrase recognized. (${networkPassphrase.substring(0, 8)}...)`);
     }
 
+    // 5. Validate Optional Persistence Paths
+    const persistencePath = process.env.PERSISTENCE_PATH;
+    if (persistencePath) {
+      const absolutePersistencePath = path.resolve(persistencePath);
+      if (!fs.existsSync(absolutePersistencePath)) {
+        logResult('WARN', `Optional persistence path does not exist: ${persistencePath}`, 'The directory will be created if the keeper requires state persistence, or ensure it is pre-provisioned.');
+      } else {
+        logResult('PASS', 'Optional persistence path is properly configured and exists.');
+      }
+    } else {
+      logResult('PASS', 'No optional persistence path provided, continuing ephemerally.');
+    }
+
     // Guardrail evaluation response printouts
     console.log('\n--- Diagnostic Run Summary ---');
     if (hasFailures) {

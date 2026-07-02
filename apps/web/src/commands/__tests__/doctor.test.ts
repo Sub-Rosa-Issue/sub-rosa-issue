@@ -23,6 +23,8 @@ describe('Keeper Doctor Command Suite', () => {
     process.env.KEEPER_RPC_URL = 'https://localhost:8545';
     process.env.CONTRACT_ARTIFACT_PATH = '/mock/valid.json';
     process.env.NETWORK_PASSPHRASE = 'Test Net';
+    delete process.env.DRAND_ENDPOINT_URL;
+    delete process.env.PERSISTENCE_PATH;
 
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify({ abi: [] }));
@@ -44,6 +46,27 @@ describe('Keeper Doctor Command Suite', () => {
   it('should fail when artifact file paths do not exist', async () => {
     process.env.KEEPER_RPC_URL = 'https://localhost:8545';
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    await DoctorCommand.parseAsync(['node', 'doctor']);
+    expect(process.exit).toHaveBeenCalledWith(1);
+  });
+
+  it('should fail when RPC URL is malformed', async () => {
+    process.env.KEEPER_RPC_URL = 'invalid-url-format';
+    process.env.CONTRACT_ARTIFACT_PATH = '/mock/valid.json';
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue('{}');
+
+    await DoctorCommand.parseAsync(['node', 'doctor']);
+    expect(process.exit).toHaveBeenCalledWith(1);
+  });
+
+  it('should fail when Drand URL is malformed', async () => {
+    process.env.KEEPER_RPC_URL = 'https://localhost:8545';
+    process.env.DRAND_ENDPOINT_URL = 'not-a-url';
+    process.env.CONTRACT_ARTIFACT_PATH = '/mock/valid.json';
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue('{}');
 
     await DoctorCommand.parseAsync(['node', 'doctor']);
     expect(process.exit).toHaveBeenCalledWith(1);
