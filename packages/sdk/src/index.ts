@@ -17,11 +17,17 @@ export {
 export {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
+  SubRosaNetworkMismatchError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
 } from "./errors.js";
 export type { TimeoutErrorParams } from "./errors.js";
+export {
+  STELLAR_PUBLIC_PASSPHRASE,
+  STELLAR_TESTNET_PASSPHRASE,
+  validateNetworkPassphrase,
+} from "./network.js";
 export {
   MAINNET_ARTIFACTS,
   MAINNET_CONFIRM_PHRASE,

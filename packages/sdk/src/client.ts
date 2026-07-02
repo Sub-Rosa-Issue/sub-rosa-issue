@@ -25,6 +25,7 @@ import type { SealedBid } from "@sub-rosa/tlock";
 import type { RoundReceipt } from "./receipt.js";
 import { networkFingerprint } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
+import { validateNetworkPassphrase } from "./network.js";
 import {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
@@ -127,6 +128,8 @@ export class SubRosaClient {
   readonly #pollInterval: number;
 
   constructor(config: SubRosaClientConfig) {
+    validateNetworkPassphrase(config.networkPassphrase, config.rpcUrl);
+
     const allowHttp = config.allowHttp ?? false;
     if (/^http:\/\//i.test(config.rpcUrl) && !allowHttp) {
       throw new SubRosaClientConfigError(

@@ -44,6 +44,14 @@ export interface TimeoutErrorParams {
   pollIntervalMs: number;
 }
 
+export class SubRosaNetworkMismatchError extends Error {
+  readonly name = "SubRosaNetworkMismatchError";
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+  }
+}
+
 export class SubRosaTimeoutError extends Error {
   readonly name = "SubRosaTimeoutError";
   readonly hash: string;
