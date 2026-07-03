@@ -113,6 +113,7 @@ allocation dashboard. Sub Rosa supplies the sealed round state machine.
 | Bid / escrow | **1 XLM / 5 XLM** (not testnet 700 USDC demo) |
 
 ```bash
+pnpm mainnet:ready -- --strict   # consolidated read-only readiness
 pnpm mainnet:verify          # read-only — no secrets
 pnpm mainnet:micro           # dry-run checklist; --execute needs MAINNET_CONFIRM
 ```
@@ -206,3 +207,5 @@ pnpm mainnet:verify         # mainnet read-only proof
 - **Binding:** `H = sha256(value‖nonce)`
 - **Unlock:** round-R BLS verified on-chain before reveal
 - **Selective disclosure:** values public post-R; identities auditor-encrypted
+
+all done

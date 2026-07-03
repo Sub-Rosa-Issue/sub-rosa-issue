@@ -1,3 +1,5 @@
+import { SubRosaSubmitError } from "./errors.js";
+
 export interface SubmittedTransaction {
   hash: string;
   relayerTransactionId?: string | null;
@@ -40,7 +42,7 @@ export function createOzChannelsSubmitter(config: OzChannelsSubmitterConfig): Tr
         ...(config.fundRelayerId ? { fundRelayerId: config.fundRelayerId } : {}),
       });
       if (!result.hash) {
-        throw new Error(
+        throw new SubRosaSubmitError(
           `OZ Channels accepted the transaction but returned no hash (status=${result.status ?? "unknown"})`,
         );
       }

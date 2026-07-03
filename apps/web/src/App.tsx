@@ -3,6 +3,7 @@ import { getUseCase } from "./config/useCases";
 import type { UseCaseId } from "./config/useCases";
 import { hashFor, routeFromHash, type RouteState } from "./config/routing";
 import { ArchitecturePage } from "./pages/ArchitecturePage";
+import { ConfigBanner } from "./components/ConfigBanner";
 import { DemoPage } from "./pages/DemoPage";
 import { LandingPage } from "./pages/LandingPage";
 import { ToastProvider } from "./ui/Toast";
@@ -30,14 +31,19 @@ export default function App() {
           onDemo={() => navigate("demo", "grants")}
           onCase={(id) => navigate("demo", id)}
         />
-      ) : route.page === "architecture" ? (
-        <ArchitecturePage goHome={() => navigate("landing")} />
       ) : (
-        <DemoPage
-          active={active}
-          setActive={(id) => navigate("demo", id)}
-          goHome={() => navigate("landing")}
-        />
+        <>
+          <ConfigBanner />
+          {route.page === "architecture" ? (
+            <ArchitecturePage goHome={() => navigate("landing")} />
+          ) : (
+            <DemoPage
+              active={active}
+              setActive={(id) => navigate("demo", id)}
+              goHome={() => navigate("landing")}
+            />
+          )}
+        </>
       )}
     </ToastProvider>
   );

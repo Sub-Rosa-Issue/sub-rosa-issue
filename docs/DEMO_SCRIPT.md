@@ -2,6 +2,24 @@
 
 Walkthrough for `pnpm web:dev` (default http://localhost:5173).
 
+## Canonical trace health check
+
+Before running or deploying the recorded evidence view, verify that its
+generated trace still contains every field required by the UI:
+
+```bash
+pnpm web:test
+```
+
+The check runs locally without network access. If it reports a missing field,
+regenerate `apps/web/src/demo/demo-trace.generated.ts` from the canonical agent
+flow, then run the check again:
+
+```bash
+pnpm agents:e2e
+pnpm web:test
+```
+
 ## Primary narrative: verifiable grant allocation
 
 Open the **Grant Allocation** case first. Frame the product as allocation
@@ -49,6 +67,10 @@ evidence view proves the contract lifecycle, settlement, and public audit path.
 
 - Public table: escrow + revealed bids after R
 - Note: identities still auditor-encrypted
+- For public demos, generate a redacted receipt to share without leaking participant identities:
+  ```bash
+  pnpm --filter @sub-rosa/receipt-cli receipt redact round-1-receipt.json
+  ```
 
 ## 6. Auditor (60s)
 

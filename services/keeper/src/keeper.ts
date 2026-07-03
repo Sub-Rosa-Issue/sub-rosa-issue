@@ -151,7 +151,8 @@ export async function keepRound(
 
   // ── Phase B: decrypt every seal and reveal it ─────────────────────────
   if (round.status.tag === "Revealing") {
-    const bidders = await sdk.getBidders(rid);
+    const bidders: string[] = [];
+    for await (const addr of sdk.bidders(rid)) bidders.push(addr);
     log(`revealing ${bidders.length} bidder(s)`);
 
     for (const bidder of bidders) {

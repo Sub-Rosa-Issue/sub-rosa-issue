@@ -31,6 +31,10 @@ Mainnet does **not** replay 700 / 459 USDC demo amounts. Mainnet smoke uses **1 
 - Covers agents → x402 → sealed commits → keeper reveal → clear → settle on one testnet contract.
 - Optional live poll requires build-time `VITE_*` vars — see `docs/DEPLOY.md`.
 
+## Receipt verification
+
+Round receipts (`docs/RECEIPTS.md`) are **offline only** — the verifier checks internal consistency (commitment bindings, winner selection) but does **not** confirm the receipt matches current on-chain state. Trust the exporter; cross-check with multiple export runs.
+
 ## Operational
 
 - Drand quicknet must publish round R for reveal to open; keeper can void after grace if R never arrives.

@@ -10,13 +10,17 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test src/event-snapshot.test.ts"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^15.1.0",
     "buffer": "6.0.3"
   },
   "devDependencies": {
-    "typescript": "^5.6.2"
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   }
 }

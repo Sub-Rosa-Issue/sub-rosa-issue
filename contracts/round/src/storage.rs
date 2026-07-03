@@ -1,14 +1,33 @@
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, Vec};
 
 use crate::types::{BidState, DataKey, Error, GlobalConfig, Round, Seal};
 
 // TTL policy. Ledger close time on Stellar is ~5s, so these are generous for a
 // hackathon-scale round while keeping ephemeral seal data short-lived.
 const LEDGERS_PER_DAY: u32 = 17_280;
+const LEDGER_CLOSE_SECS: u64 = 5;
+/// Keep seals readable briefly after the reveal window for observer polling.
+const POST_REVEAL_SEAL_BUFFER_SECS: u64 = 86_400;
 pub const PERSISTENT_BUMP: u32 = 60 * LEDGERS_PER_DAY;
 pub const PERSISTENT_THRESHOLD: u32 = 50 * LEDGERS_PER_DAY;
-pub const TEMP_BUMP: u32 = 3 * LEDGERS_PER_DAY;
 pub const TEMP_THRESHOLD: u32 = 2 * LEDGERS_PER_DAY;
+
+/// Ledgers from the current ledger until seals should remain readable for a round.
+pub fn seal_ttl_for_reveal_deadline(reveal_deadline: u64, now: u64) -> u32 {
+    let secs = reveal_deadline
+        .saturating_sub(now)
+        .saturating_add(POST_REVEAL_SEAL_BUFFER_SECS);
+    let ledgers = (secs / LEDGER_CLOSE_SECS).max(u64::from(TEMP_THRESHOLD)) as u32;
+    ledgers.min(PERSISTENT_BUMP)
+}
+
+fn extend_seal_ttl(env: &Env, key: &DataKey, reveal_deadline: u64) {
+    let bump = seal_ttl_for_reveal_deadline(reveal_deadline, env.ledger().timestamp());
+    let threshold = bump.saturating_sub(LEDGERS_PER_DAY);
+    env.storage()
+        .temporary()
+        .extend_ttl(key, threshold, bump);
+}
 
 pub fn get_config(env: &Env) -> Result<GlobalConfig, Error> {
     env.storage()
@@ -90,16 +109,25 @@ pub fn set_state(env: &Env, round_id: u64, bidder: &Address, state: &BidState) {
         .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
 }
 
-pub fn set_seal(env: &Env, round_id: u64, bidder: &Address, seal: &Seal) {
+pub fn set_seal(env: &Env, round_id: u64, bidder: &Address, seal: &Seal, reveal_deadline: u64) {
     let key = DataKey::Seal(round_id, bidder.clone());
     env.storage().temporary().set(&key, seal);
-    env.storage()
-        .temporary()
-        .extend_ttl(&key, TEMP_THRESHOLD, TEMP_BUMP);
+    extend_seal_ttl(env, &key, reveal_deadline);
 }
 
-pub fn get_seal(env: &Env, round_id: u64, bidder: &Address) -> Option<Seal> {
-    env.storage()
-        .temporary()
-        .get(&DataKey::Seal(round_id, bidder.clone()))
+pub fn get_seal(env: &Env, round_id: u64, bidder: &Address, reveal_deadline: u64) -> Option<Seal> {
+    let key = DataKey::Seal(round_id, bidder.clone());
+    let seal = env.storage().temporary().get(&key)?;
+    extend_seal_ttl(env, &key, reveal_deadline);
+    Some(seal)
+}
+
+/// Re-extend every committed seal through the reveal window when reveal opens.
+pub fn extend_round_seals(env: &Env, round_id: u64, bidders: &Vec<Address>, reveal_deadline: u64) {
+    for bidder in bidders.iter() {
+        let key = DataKey::Seal(round_id, bidder.clone());
+        if env.storage().temporary().has(&key) {
+            extend_seal_ttl(env, &key, reveal_deadline);
+        }
+    }
 }
