@@ -77,6 +77,10 @@ export {
   RECEIPT_VERSION,
 } from "./receipt.js";
 export {
+  redactReceipt,
+  type RedactOptions,
+} from "./redact.js";
+export {
   verifyReceipt,
   type VerificationIssue,
   type VerificationResult,
