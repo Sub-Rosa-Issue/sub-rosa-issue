@@ -1,12 +1,23 @@
-import { StellarWalletsKit, WalletNetwork, allowAllModules } from "@creit.tech/stellar-wallets-kit";
 import {
-  getAddress,
+  StellarWalletsKit,
+  Networks,
+  type ModuleInterface,
+} from "@creit.tech/stellar-wallets-kit";
+import { FreighterModule } from "@creit.tech/stellar-wallets-kit/modules/freighter";
+import { AlbedoModule } from "@creit.tech/stellar-wallets-kit/modules/albedo";
+import { xBullModule } from "@creit.tech/stellar-wallets-kit/modules/xbull";
+import { LobstrModule } from "@creit.tech/stellar-wallets-kit/modules/lobstr";
+import {
   getNetworkDetails,
   isConnected,
   requestAccess,
   signAuthEntry,
   signTransaction,
 } from "@stellar/freighter-api";
+
+// ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
 
 export interface WalletNetworkDetails {
   network: string;
@@ -43,7 +54,38 @@ export interface WalletAdapter {
   ): Promise<{ signedAuthEntry: string; signerAddress: string }>;
 }
 
-export function normalizeAddress(access: WalletConnectionResult): string | undefined {
+// ---------------------------------------------------------------------------
+// Typed error classes — callers can instanceof-check these
+// ---------------------------------------------------------------------------
+
+export class WrongNetworkError extends Error {
+  readonly connectedPassphrase: string;
+  constructor(connectedPassphrase: string) {
+    super(
+      `Wallet is connected to the wrong network ("${connectedPassphrase}"). ` +
+        `Switch to Testnet to continue.`,
+    );
+    this.name = "WrongNetworkError";
+    this.connectedPassphrase = connectedPassphrase;
+  }
+}
+
+export class UnsupportedCapabilityError extends Error {
+  readonly capability: string;
+  constructor(capability: string) {
+    super(`Wallet does not support ${capability}.`);
+    this.name = "UnsupportedCapabilityError";
+    this.capability = capability;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Utility helpers (pure — safe to unit-test directly)
+// ---------------------------------------------------------------------------
+
+export function normalizeAddress(
+  access: WalletConnectionResult,
+): string | undefined {
   return access.address ?? access.publicKey;
 }
 
@@ -58,16 +100,22 @@ export function normalizeNetwork(
   };
 }
 
-export function walletError(result: { error?: unknown } | unknown): string | null {
+export function walletError(
+  result: { error?: unknown } | unknown,
+): string | null {
   if (!result || typeof result !== "object") return null;
   const error = (result as { error?: unknown }).error ?? undefined;
   if (!error) return null;
   return typeof error === "string"
     ? error
     : error instanceof Error
-    ? error.message
-    : String(error);
+      ? error.message
+      : String(error);
 }
+
+// ---------------------------------------------------------------------------
+// FreighterWalletAdapter — unchanged from original
+// ---------------------------------------------------------------------------
 
 export class FreighterWalletAdapter implements WalletAdapter {
   readonly name = "Freighter";
@@ -154,20 +202,52 @@ export class FreighterWalletAdapter implements WalletAdapter {
   }
 }
 
-const WALLET_KIT_NETWORK = WalletNetwork.TESTNET;
-let kitInstance: StellarWalletsKit | null = null;
+// ---------------------------------------------------------------------------
+// WalletsKitAdapter — uses the static v2.4.0 StellarWalletsKit API
+// ---------------------------------------------------------------------------
 
-function getWalletsKit(): StellarWalletsKit {
+/**
+ * The network passphrase that this app requires.
+ * All signing operations will be blocked if the connected wallet reports a
+ * different passphrase.
+ */
+export const REQUIRED_NETWORK_PASSPHRASE: string = Networks.TESTNET;
+
+/** True once StellarWalletsKit.init() has been called. */
+let kitInitialised = false;
+
+/**
+ * Initialise the static StellarWalletsKit singleton exactly once.
+ * Safe to call multiple times — subsequent calls are no-ops.
+ */
+function ensureKitInitialised(): void {
+  if (kitInitialised) return;
   if (typeof window === "undefined") {
     throw new Error("Wallets Kit is only available in the browser");
   }
-  if (!kitInstance) {
-    kitInstance = new StellarWalletsKit({
-      modules: allowAllModules(),
-      network: WALLET_KIT_NETWORK,
-    });
-  }
-  return kitInstance;
+  StellarWalletsKit.init({
+    modules: [
+      new FreighterModule(),
+      new AlbedoModule(),
+      new xBullModule(),
+      new LobstrModule(),
+    ],
+    network: Networks.TESTNET,
+  });
+  kitInitialised = true;
+}
+
+/**
+ * Derive capability flags from the currently selected module.
+ * We detect auth-entry support by checking whether the module exposes the
+ * method — every well-behaved ModuleInterface implementation has it, but some
+ * bridge wallets (e.g. Albedo in certain configurations) may not.
+ */
+function detectCapabilities(module: ModuleInterface): WalletCapabilities {
+  return {
+    signTransaction: typeof module.signTransaction === "function",
+    signAuthEntry: typeof module.signAuthEntry === "function",
+  };
 }
 
 export class WalletsKitAdapter implements WalletAdapter {
@@ -182,121 +262,154 @@ export class WalletsKitAdapter implements WalletAdapter {
   connected = false;
   lastError: string | null = null;
 
+  // -------------------------------------------------------------------------
+  // connect()
+  // -------------------------------------------------------------------------
+
   async connect(): Promise<void> {
-    if (this.connected) return;
+    // Allow re-connecting even when already connected (e.g. "Reconnect wallet"
+    // button). Reset state first so the modal opens fresh.
+    this.connected = false;
+    this.address = null;
+    this.network = null;
+    this.lastError = null;
 
-    const kit = getWalletsKit();
+    ensureKitInitialised();
 
-    return new Promise((resolve, reject) => {
-      kit.openModal({
-        onWalletSelected: async (option) => {
-          try {
-            kit.setWallet(option.id);
+    try {
+      // authModal() blocks until the user picks a wallet and grants access.
+      // It returns { address } directly — no need to call getAddress() after.
+      const { address } = await StellarWalletsKit.authModal();
 
-            let address: string | undefined;
-            try {
-              address = await kit.getPublicKey();
-            } catch {
-              throw new Error("Wallets Kit did not return an address");
-            }
+      if (!address) {
+        throw new Error("Wallets Kit did not return an address");
+      }
 
-            if (!address) {
-              throw new Error("Wallets Kit did not return an address");
-            }
+      // Fetch the connected network.
+      let networkDetails: { network: string; networkPassphrase: string };
+      try {
+        networkDetails = await StellarWalletsKit.getNetwork();
+      } catch {
+        // Fallback for wallets that don't expose network info.
+        networkDetails = {
+          network: "Testnet",
+          networkPassphrase: Networks.TESTNET,
+        };
+      }
 
-            let networkDetails: any;
-            try {
-              networkDetails = await kit.getNetwork();
-            } catch {
-              networkDetails = { network: WALLET_KIT_NETWORK, networkPassphrase: WALLET_KIT_NETWORK };
-            }
+      // Detect capabilities from the selected module.
+      const mod = StellarWalletsKit.selectedModule;
+      const capabilities = detectCapabilities(mod);
 
-            let networkPassphrase = networkDetails?.networkPassphrase || networkDetails?.network || WALLET_KIT_NETWORK;
+      // Derive a human-readable wallet name from the module.
+      const walletName =
+        mod.productName.length > 0 ? mod.productName : this.name;
 
-            this.name = option.name ?? option.id ?? this.name;
-            this.address = address;
-            this.network = {
-              network: networkPassphrase,
-              networkPassphrase: networkPassphrase,
-            };
-            this.connected = true;
-            this.lastError = null;
-
-            const support = option.id.toLowerCase();
-            if (support.includes("xbull") || support.includes("albedo")) {
-              this.capabilities.signAuthEntry = false;
-            } else {
-              this.capabilities.signAuthEntry = true;
-            }
-
-            resolve();
-          } catch (e) {
-            this.lastError = e instanceof Error ? e.message : String(e);
-            reject(e);
-          }
-        },
-      });
-    });
+      this.name = walletName;
+      this.address = address;
+      this.network = {
+        network: networkDetails.network,
+        networkPassphrase: networkDetails.networkPassphrase,
+      };
+      this.capabilities = capabilities;
+      this.connected = true;
+      this.lastError = null;
+    } catch (e: unknown) {
+      this.connected = false;
+      this.address = null;
+      this.network = null;
+      this.lastError = e instanceof Error ? e.message : String(e);
+      throw e;
+    }
   }
 
+  // -------------------------------------------------------------------------
+  // disconnect()
+  // -------------------------------------------------------------------------
+
   async disconnect(): Promise<void> {
-    if (typeof window === "undefined") return;
-    const kit = getWalletsKit();
-    // Some wallets don't support disconnect, but kit exposes disconnect
-    // wait, kit.disconnect() is not on the instance in some versions?
-    // In v2.4, it's just kit.disconnect() or nothing.
-    // If it throws we ignore
-    try {
-      if ((kit as any).disconnect) {
-        await (kit as any).disconnect();
+    if (typeof window !== "undefined" && kitInitialised) {
+      try {
+        await StellarWalletsKit.disconnect();
+      } catch {
+        // Ignore — some wallets don't implement disconnect.
       }
-    } catch {}
-    
+    }
     this.address = null;
     this.network = null;
     this.connected = false;
     this.lastError = null;
   }
 
+  // -------------------------------------------------------------------------
+  // Network guard (adapter-level — callers cannot bypass this)
+  // -------------------------------------------------------------------------
+
+  private assertCorrectNetwork(): void {
+    const passphrase = this.network?.networkPassphrase ?? "";
+    if (passphrase !== REQUIRED_NETWORK_PASSPHRASE) {
+      throw new WrongNetworkError(passphrase);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // signTransaction()
+  // -------------------------------------------------------------------------
+
   async signTransaction(
     xdr: string,
     opts?: { networkPassphrase?: string; address?: string },
   ): Promise<{ signedTxXdr: string; signerAddress: string }> {
+    // Wrong network → block immediately, strongly typed error.
+    this.assertCorrectNetwork();
+
     if (!this.capabilities.signTransaction) {
-      throw new Error("Wallet does not support transaction signing");
+      throw new UnsupportedCapabilityError("transaction signing");
     }
-    const kit = getWalletsKit();
-    const signed = await kit.signTransaction(xdr, opts);
+
+    const signed = await StellarWalletsKit.signTransaction(xdr, opts);
+
     if (!signed.signedTxXdr) {
       throw new Error("Wallets Kit returned an invalid signed transaction");
     }
+
     return {
       signedTxXdr: signed.signedTxXdr,
-      signerAddress:
-        signed.signerAddress ?? opts?.address ?? this.address ?? "",
+      signerAddress: signed.signerAddress ?? opts?.address ?? this.address ?? "",
     };
   }
+
+  // -------------------------------------------------------------------------
+  // signAuthEntry()
+  // -------------------------------------------------------------------------
 
   async signAuthEntry(
     entryXdr: string,
     opts?: { networkPassphrase?: string; address?: string },
   ): Promise<{ signedAuthEntry: string; signerAddress: string }> {
+    // Wrong network → block immediately, strongly typed error.
+    this.assertCorrectNetwork();
+
     if (!this.capabilities.signAuthEntry) {
-      throw new Error("Wallet does not support Soroban auth entry signing");
+      throw new UnsupportedCapabilityError("Soroban auth entry signing");
     }
-    const kit = getWalletsKit();
-    // Note: older Wallets Kit might not type signAuthEntry correctly, cast if needed
-    const signed = await (kit as any).signAuthEntry(entryXdr, opts);
-    if (!signed || !signed.signedAuthEntry) {
+
+    const signed = await StellarWalletsKit.signAuthEntry(entryXdr, opts);
+
+    if (!signed.signedAuthEntry) {
       throw new Error("Wallets Kit returned an invalid signed auth entry");
     }
+
     return {
       signedAuthEntry: signed.signedAuthEntry,
-      signerAddress:
-        signed.signerAddress ?? opts?.address ?? this.address ?? "",
+      signerAddress: signed.signerAddress ?? opts?.address ?? this.address ?? "",
     };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Module-level singleton helpers
+// ---------------------------------------------------------------------------
 
 let walletAdapterInstance: WalletAdapter | null = null;
 
@@ -308,4 +421,6 @@ export function getWalletAdapter(): WalletAdapter {
 
 export function resetWalletAdapter(): void {
   walletAdapterInstance = null;
+  // Also reset the kit init flag so tests can re-initialise cleanly.
+  kitInitialised = false;
 }
