@@ -14,6 +14,10 @@ const OPTIONAL_KEYS = [
   "VITE_ROUND_ID",
 ] as const;
 
+export function normalizeUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "");
+}
+
 const PLACEHOLDER_VALUES: Record<string, string[]> = {
   VITE_RPC_URL: ["https://soroban-testnet.stellar.org"],
   VITE_NETWORK_PASSPHRASE: ["Test SDF Network ; September 2015"],
@@ -51,13 +55,25 @@ export function validatePublicConfig(
   for (const key of CRITICAL_KEYS) {
     const value = env[key];
     if (value && value.trim() !== "") {
+      const trimmed = key === "VITE_RPC_URL" ? normalizeUrl(value) : value.trim();
       const placeholders = PLACEHOLDER_VALUES[key];
-      if (placeholders?.includes(value.trim())) {
+      if (placeholders?.includes(trimmed)) {
         issues.push({
           key,
           message: `${key} appears to be a default/example value (${value}). Update it to your own contract and network config.`,
         });
       }
+    }
+  }
+
+  const rpcUrl = env.VITE_RPC_URL;
+  if (rpcUrl && rpcUrl.trim() !== "") {
+    const normalized = normalizeUrl(rpcUrl);
+    if (!/^https?:\/\//.test(normalized)) {
+      issues.push({
+        key: "VITE_RPC_URL",
+        message: `VITE_RPC_URL is not a valid URL (${rpcUrl}). It must start with http:// or https://.`,
+      });
     }
   }
 

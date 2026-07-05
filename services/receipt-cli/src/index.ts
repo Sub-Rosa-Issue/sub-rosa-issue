@@ -3,17 +3,15 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt } from "@sub-rosa/sdk";
+import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt, redactReceipt } from "@sub-rosa/sdk";
 import { buildJsonOutput } from "./json-output.js";
 
 function usage(): never {
   console.error(`
 Usage:
-  receipt-cli export <roundId>                  Fetch receipt from RPC (uses env config)
-  receipt-cli verify <receipt.json>             Verify a local receipt file
-  receipt-cli verify <receipt.json> --json      Output verification result as JSON
-  receipt-cli verify <receipt.json> --verify-artifact-checksum <path>
-                                                Verify local artifact/binding checksum against receipt metadata
+  receipt-cli export <roundId>             Fetch receipt from RPC (uses env config)
+  receipt-cli verify <receipt.json>        Verify a local receipt file
+  receipt-cli redact <receipt.json> [out]  Redact sensitive fields for public demo
 
 Environment for "export":
   RPC_URL                  Soroban RPC endpoint (default: https://soroban-testnet.stellar.org)
@@ -145,6 +143,30 @@ async function cmdVerify(path: string, jsonMode: boolean, artifactPath?: string)
   process.exit(result.valid ? 0 : 1);
 }
 
+async function cmdRedact(inputPath: string, outputPath?: string) {
+  let json: string;
+  try {
+    json = readFileSync(inputPath, "utf-8");
+  } catch (e) {
+    console.error(`Cannot read ${inputPath}: ${e}`);
+    process.exit(1);
+  }
+
+  let receipt;
+  try {
+    receipt = parseReceipt(json);
+  } catch (e) {
+    console.error(`Invalid JSON: ${e}`);
+    process.exit(1);
+  }
+
+  const redacted = redactReceipt(receipt);
+  const out = serializeReceipt(redacted);
+  const outPath = outputPath ?? inputPath.replace(/\.json$/, ".redacted.json");
+  writeFileSync(outPath, out, "utf-8");
+  console.log(`Wrote redacted receipt to ${outPath}`);
+}
+
 async function main() {
   const cmd = process.argv[2];
   if (!cmd) usage();
@@ -174,6 +196,12 @@ async function main() {
       const path = filteredArgs.find((a) => !a.startsWith("--"));
       if (!path) usage();
       await cmdVerify(path, jsonMode, artifactPath);
+      break;
+    }
+    case "redact": {
+      const arg = process.argv[3];
+      if (!arg) usage();
+      await cmdRedact(arg, process.argv[4]);
       break;
     }
     default:

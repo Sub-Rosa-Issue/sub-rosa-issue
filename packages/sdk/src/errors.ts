@@ -44,6 +44,45 @@ export interface TimeoutErrorParams {
   pollIntervalMs: number;
 }
 
+export type PreflightFailureKind =
+  | "rpc_error"
+  | "simulation_error"
+  | "expired_state"
+  | "contract_error"
+  | "malformed_response";
+
+export interface SubRosaPreflightErrorParams {
+  kind: PreflightFailureKind;
+  operation: string;
+  message: string;
+  simulationError?: string;
+  contractErrorCode?: number;
+  contractErrorMessage?: string;
+  restoreMinResourceFee?: bigint;
+  cause?: unknown;
+}
+
+/** Typed error for preflight/simulation failures before transaction submission. */
+export class SubRosaPreflightError extends Error {
+  readonly name = "SubRosaPreflightError";
+  readonly kind: PreflightFailureKind;
+  readonly operation: string;
+  readonly simulationError?: string;
+  readonly contractErrorCode?: number;
+  readonly contractErrorMessage?: string;
+  readonly restoreMinResourceFee?: bigint;
+
+  constructor(params: SubRosaPreflightErrorParams) {
+    super(params.message, params.cause ? { cause: params.cause } : undefined);
+    this.kind = params.kind;
+    this.operation = params.operation;
+    this.simulationError = params.simulationError;
+    this.contractErrorCode = params.contractErrorCode;
+    this.contractErrorMessage = params.contractErrorMessage;
+    this.restoreMinResourceFee = params.restoreMinResourceFee;
+  }
+}
+
 export class SubRosaTimeoutError extends Error {
   readonly name = "SubRosaTimeoutError";
   readonly hash: string;

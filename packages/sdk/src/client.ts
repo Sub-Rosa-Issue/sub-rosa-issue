@@ -27,6 +27,12 @@ import { validateEncryptedBlob } from "./encrypted-blob.js";
 import { networkFingerprint } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
 import {
+  evaluatePreflight,
+  classifyPreflightBuildError,
+  type PreflightOperation,
+  type PreflightResult,
+} from "./preflight.js";
+import {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
   SubRosaSubmitError,
@@ -71,6 +77,10 @@ export interface SubRosaClientConfig {
    * @internal Testing hook: override the poll-loop sleep function.
    */
   _sleep?: (ms: number) => Promise<void>;
+  /**
+   * @internal Testing hook: inject a mock Soroban RPC server for simulation.
+   */
+  _server?: rpc.Server;
 }
 
 export type ClearingRuleTag = ClearingRule["tag"];
@@ -174,6 +184,7 @@ export class SubRosaClient {
       allowHttp,
       ...(source ? { publicKey: source } : {}),
       ...(signer ? { signTransaction: signer.signTransaction } : {}),
+      ...(config._server ? { server: config._server } : {}),
     });
   }
 
@@ -346,6 +357,117 @@ export class SubRosaClient {
   async void(roundId: number | bigint): Promise<void> {
     const tx = await this.contract.void({ round_id: normalizeRoundId(roundId) });
     await this.#sendUnwrap(tx);
+  }
+
+  // ── Preflight simulation (no signing/submission) ─────────────────────
+
+  async #preflight<T>(
+    operation: PreflightOperation,
+    buildTx: () => Promise<AssembledTransaction<Result<T>>>,
+  ): Promise<PreflightResult<T>> {
+    try {
+      const tx = await buildTx();
+      return evaluatePreflight(operation, tx);
+    } catch (error) {
+      if (error instanceof SubRosaClientConfigError) {
+        throw error;
+      }
+      return {
+        ok: false,
+        operation,
+        error: classifyPreflightBuildError(operation, error),
+      };
+    }
+  }
+
+  /** Simulate `createRound` without signing or submitting. */
+  preflightCreateRound(params: CreateRoundParams): Promise<PreflightResult<bigint>> {
+    return this.#preflight("create_round", () => {
+      const operator = params.operator ?? this.#requireSource("operator");
+      const clearing_rule = {
+        tag: params.clearingRule ?? "HighestBid",
+        values: undefined,
+      } as ClearingRule;
+      return this.contract.create_round({
+        operator,
+        item_ref: toBuffer(params.itemRef),
+        reveal_round: toBigInt(params.revealRound),
+        clearing_rule,
+        commit_deadline: toBigInt(params.commitDeadline),
+        reveal_deadline: toBigInt(params.revealDeadline),
+        auditor_pubkey: toBuffer(params.auditorPubkey),
+      });
+    });
+  }
+
+  /** Simulate `commit` without signing or submitting. */
+  preflightCommit(params: CommitParams): Promise<PreflightResult<void>> {
+    return this.#preflight("commit", () => {
+      const bidder = params.bidder ?? this.#requireSource("bidder");
+      return this.contract.commit({
+        round_id: toBigInt(params.roundId),
+        bidder,
+        commitment: toBuffer(params.sealed.commitment),
+        ciphertext: toBuffer(params.sealed.ciphertext),
+        escrow: params.escrow,
+        auditor_blob: toBuffer(params.sealed.auditorBlob),
+      });
+    });
+  }
+
+  /** Simulate `openReveal` without signing or submitting. */
+  preflightOpenReveal(
+    roundId: number | bigint,
+    drandSignature: Uint8Array,
+  ): Promise<PreflightResult<void>> {
+    return this.#preflight("open_reveal", () =>
+      this.contract.open_reveal({
+        round_id: toBigInt(roundId),
+        drand_signature: toBuffer(drandSignature),
+      }),
+    );
+  }
+
+  /** Simulate `reveal` without signing or submitting. */
+  preflightReveal(params: RevealParams): Promise<PreflightResult<void>> {
+    return this.#preflight("reveal", () =>
+      this.contract.reveal({
+        round_id: toBigInt(params.roundId),
+        bidder: params.bidder,
+        value: params.value,
+        nonce: toBuffer(params.nonce),
+      }),
+    );
+  }
+
+  /** Simulate `clear` without signing or submitting. */
+  async preflightClear(
+    roundId: number | bigint,
+  ): Promise<PreflightResult<string | undefined>> {
+    const result = await this.#preflight<string | null | undefined>("clear", () =>
+      this.contract.clear({ round_id: toBigInt(roundId) }),
+    );
+    if (!result.ok) {
+      return result;
+    }
+    return {
+      ...result,
+      result: result.result ?? undefined,
+    };
+  }
+
+  /** Simulate `settle` without signing or submitting. */
+  preflightSettle(roundId: number | bigint): Promise<PreflightResult<void>> {
+    return this.#preflight("settle", () =>
+      this.contract.settle({ round_id: toBigInt(roundId) }),
+    );
+  }
+
+  /** Simulate `void` without signing or submitting. */
+  preflightVoid(roundId: number | bigint): Promise<PreflightResult<void>> {
+    return this.#preflight("void", () =>
+      this.contract.void({ round_id: toBigInt(roundId) }),
+    );
   }
 
   // ── Read-only views (simulation only; no signing/submission) ───────────

@@ -1,0 +1,24 @@
+name: Docs link check
+
+on:
+  push:
+    paths:
+      - '**.md'
+      - 'scripts/check-links.js'
+      - '.github/workflows/docs-links.yml'
+  pull_request:
+    paths:
+      - '**.md'
+      - 'scripts/check-links.js'
+      - '.github/workflows/docs-links.yml'
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check local markdown links
+        run: node scripts/check-links.js

@@ -8,6 +8,16 @@ export {
 } from "./client.js";
 export { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 export {
+  type PreflightOperation,
+  type PreflightResult,
+  type PreflightSuccess,
+  type PreflightFailureResult,
+  type PreflightFeeEstimate,
+  type PreflightResourceEstimate,
+  evaluatePreflight,
+  contractErrorCode,
+} from "./preflight.js";
+export {
   createOzChannelsSubmitter,
   createOzChannelsSubmitterFromEnv,
   type OzChannelsSubmitterConfig,
@@ -18,11 +28,16 @@ export {
 export {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
+  SubRosaPreflightError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
 } from "./errors.js";
-export type { TimeoutErrorParams } from "./errors.js";
+export type {
+  PreflightFailureKind,
+  SubRosaPreflightErrorParams,
+  TimeoutErrorParams,
+} from "./errors.js";
 
 export {
   validateEncryptedBlob,
@@ -76,6 +91,10 @@ export {
   type BidReceiptEntry,
   RECEIPT_VERSION,
 } from "./receipt.js";
+export {
+  redactReceipt,
+  type RedactOptions,
+} from "./redact.js";
 export {
   verifyReceipt,
   type VerificationIssue,

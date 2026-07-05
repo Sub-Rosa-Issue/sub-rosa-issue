@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/demo/trace-health-check.test.ts src/lib/config.test.ts",
+    "test": "node --import tsx --test src/demo/trace-health-check.test.ts src/lib/config.test.ts src/dashboard/fixture-health-check.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -18,7 +18,9 @@
     "@sub-rosa/sdk": "workspace:*",
     "@sub-rosa/tlock": "workspace:*",
     "buffer": "^6.0.3",
+    "commander": "^11.1.0",
     "crypto-browserify": "^3.12.1",
+    "dotenv": "^16.3.1",
     "events": "^3.3.0",
     "framer-motion": "^12.40.0",
     "passkey-kit": "^0.12.0",
@@ -35,6 +37,7 @@
     "@vitejs/plugin-react": "^4.4.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^1.4.0"
   }
 }
