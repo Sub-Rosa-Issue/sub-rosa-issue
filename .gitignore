@@ -26,7 +26,7 @@ identities/
 
 # Build artifacts
 /artifacts
-/.tmp-bindings
+/tmp-bindings
 deployments/*.local.json
 
 # Stellar CLI local identities/config (smoke keys live here — never commit)

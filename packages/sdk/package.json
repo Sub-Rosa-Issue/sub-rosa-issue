@@ -24,7 +24,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "node --import tsx --test src/client.test.ts src/encoding.test.ts src/errors.test.ts src/mainnet-readiness.test.ts src/redact.test.ts",
+    "test": "node --import tsx --test src/client.test.ts src/encoding.test.ts src/errors.test.ts src/ids.test.ts src/mainnet-readiness.test.ts src/preflight.test.ts src/public-api-snapshot.test.ts src/redact.test.ts src/verify.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -9,12 +9,22 @@
     "node": ">=22"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "packageExtensions": {
+      "drand-client": {
+        "dependencies": {
+          "@noble/hashes": "^1.8.0"
+        }
+      }
+    }
   },
   "scripts": {
     "contract:build": "stellar contract build",
     "contract:test": "cargo test -p sub-rosa-round",
-    "bindings:generate": "stellar contract build --out-dir artifacts && rm -rf .tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir .tmp-bindings --overwrite && cp .tmp-bindings/src/index.ts packages/round-bindings/src/index.ts && rm -rf .tmp-bindings",
+    "bindings:generate": "stellar contract build --out-dir artifacts && rm -rf tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir tmp-bindings --overwrite && cp tmp-bindings/src/index.ts packages/round-bindings/src/index.ts && rm -rf tmp-bindings",
+    "bindings:check": "stellar contract build --out-dir artifacts && rm -rf tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir tmp-bindings --overwrite && (diff tmp-bindings/src/index.ts packages/round-bindings/src/index.ts; diff_exit=$?; rm -rf tmp-bindings; if [ $diff_exit -ne 0 ]; then echo '❌ Round bindings are stale. Run pnpm bindings:generate to update them.'; exit 1; else echo '✅ Round bindings are up to date.'; fi)",
     "sdk:test": "pnpm --filter @sub-rosa/sdk test",
     "sdk:typecheck": "pnpm --filter @sub-rosa/sdk typecheck",
     "bindings:test": "pnpm --filter @sub-rosa/round-bindings test",
