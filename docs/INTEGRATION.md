@@ -57,6 +57,66 @@ await client.commit({
 After Drand round `R` is published, any keeper or participant can submit the
 Drand signature, reveal valid entries, clear the round, and settle escrow.
 
+## Preflight simulation
+
+Before signing and submitting a state-changing call, integrators can simulate
+the transaction against Soroban RPC to see whether it is likely to succeed:
+
+```ts
+const preflight = await client.preflightCommit({
+  roundId,
+  sealed,
+  escrow,
+});
+
+if (!preflight.ok) {
+  if (preflight.error.kind === "contract_error") {
+    console.error(
+      "Contract rejected commit:",
+      preflight.error.contractErrorMessage,
+    );
+  } else {
+    console.error("Preflight failed:", preflight.error.message);
+  }
+  return;
+}
+
+console.log("Estimated fee (stroops):", preflight.fee.transactionFee);
+console.log("Min resource fee:", preflight.fee.minResourceFee?.toString());
+
+await client.commit({ roundId, sealed, escrow });
+```
+
+Each mutating `SubRosaClient` method has a matching `preflight*` helper:
+
+| Submit | Preflight |
+| --- | --- |
+| `createRound` | `preflightCreateRound` |
+| `commit` | `preflightCommit` |
+| `openReveal` | `preflightOpenReveal` |
+| `reveal` | `preflightReveal` |
+| `clear` | `preflightClear` |
+| `settle` | `preflightSettle` |
+| `void` | `preflightVoid` |
+
+Preflight results include:
+
+- `ok` — whether simulation indicates the call would succeed
+- `fee` — estimated transaction and minimum resource fees when available
+- `resources` — CPU/memory footprint estimates when available
+- `error` — typed `SubRosaPreflightError` for RPC failures, simulation errors,
+  expired contract state, or decoded Round contract error codes
+
+Existing submit methods are unchanged; preflight is optional and does not
+require live signing credentials beyond a source `publicKey` (or `secretKey`).
+
+## Grant scoring pilot template
+
+For SCF-style sealed grant scoring (multiple projects, panel judges, ranked
+receipt output), see [`examples/grant-scoring`](../examples/grant-scoring/README.md).
+It uses the same `@sub-rosa/sdk` + `@sub-rosa/tlock` commit path as above but
+models the full grant lifecycle separately from the jury demo trace.
+
 ## Auditor identity recovery CLI
 
 For pilots that need machine-readable selective-disclosure evidence, recover
@@ -107,3 +167,18 @@ non-zero.
 Sub Rosa does not ask integrators to trust a reveal operator. Before Drand R,
 values are timelock-encrypted. After R, the Drand BLS signature is public and
 the Soroban contract verifies it before opening reveal.
+
+## Contract error codes
+
+Every failure mode from the round contract is returned (or reserved) as a
+defined code with no silent fallbacks. When a transaction surfaces a
+`soroban_sdk::Error::Contract(code)`, the canonical mapping — variant name,
+trigger condition, user-facing message, and suggested next action — lives in:
+
+[`contracts/round/ERRORS.md`](../contracts/round/ERRORS.md)
+
+UI layers, receipt exporters, and keeper triage logic should consult that
+table to translate on-chain failures into actionable messages. The contract
+test suite (`cargo test -p sub-rosa-round ::error_codes`) keeps the table in
+lock-step with the exported `Error` enum, so a divergent code is a test
+failure, not a silent docs bug.

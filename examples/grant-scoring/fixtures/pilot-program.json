@@ -1,0 +1,13 @@
+{
+  "programId": "scf-pilot-2026-q2",
+  "title": "Sealed Grant Scoring Pilot",
+  "judges": 2,
+  "projects": 3,
+  "criteria": ["impact", "feasibility", "team"],
+  "expectedRanking": [
+    "proj-wallet-kit",
+    "proj-stellar-finance",
+    "proj-oracle-bridge"
+  ],
+  "note": "Run pnpm --filter @sub-rosa/grant-scoring-pilot start for the full receipt JSON."
+}

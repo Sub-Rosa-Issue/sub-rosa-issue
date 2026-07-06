@@ -67,6 +67,10 @@ evidence view proves the contract lifecycle, settlement, and public audit path.
 
 - Public table: escrow + revealed bids after R
 - Note: identities still auditor-encrypted
+- For public demos, generate a redacted receipt to share without leaking participant identities:
+  ```bash
+  pnpm --filter @sub-rosa/receipt-cli receipt redact round-1-receipt.json
+  ```
 
 ## 6. Auditor (60s)
 
