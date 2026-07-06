@@ -57,6 +57,59 @@ await client.commit({
 After Drand round `R` is published, any keeper or participant can submit the
 Drand signature, reveal valid entries, clear the round, and settle escrow.
 
+## Preflight simulation
+
+Before signing and submitting a state-changing call, integrators can simulate
+the transaction against Soroban RPC to see whether it is likely to succeed:
+
+```ts
+const preflight = await client.preflightCommit({
+  roundId,
+  sealed,
+  escrow,
+});
+
+if (!preflight.ok) {
+  if (preflight.error.kind === "contract_error") {
+    console.error(
+      "Contract rejected commit:",
+      preflight.error.contractErrorMessage,
+    );
+  } else {
+    console.error("Preflight failed:", preflight.error.message);
+  }
+  return;
+}
+
+console.log("Estimated fee (stroops):", preflight.fee.transactionFee);
+console.log("Min resource fee:", preflight.fee.minResourceFee?.toString());
+
+await client.commit({ roundId, sealed, escrow });
+```
+
+Each mutating `SubRosaClient` method has a matching `preflight*` helper:
+
+| Submit | Preflight |
+| --- | --- |
+| `createRound` | `preflightCreateRound` |
+| `commit` | `preflightCommit` |
+| `openReveal` | `preflightOpenReveal` |
+| `reveal` | `preflightReveal` |
+| `clear` | `preflightClear` |
+| `settle` | `preflightSettle` |
+| `void` | `preflightVoid` |
+
+Preflight results include:
+
+- `ok` — whether simulation indicates the call would succeed
+- `fee` — estimated transaction and minimum resource fees when available
+- `resources` — CPU/memory footprint estimates when available
+- `error` — typed `SubRosaPreflightError` for RPC failures, simulation errors,
+  expired contract state, or decoded Round contract error codes
+
+Existing submit methods are unchanged; preflight is optional and does not
+require live signing credentials beyond a source `publicKey` (or `secretKey`).
+
 ## Grant scoring pilot template
 
 For SCF-style sealed grant scoring (multiple projects, panel judges, ranked

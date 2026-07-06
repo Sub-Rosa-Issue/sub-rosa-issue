@@ -9,7 +9,16 @@
     "node": ">=22"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "packageExtensions": {
+      "drand-client": {
+        "dependencies": {
+          "@noble/hashes": "^1.8.0"
+        }
+      }
+    }
   },
   "scripts": {
     "contract:build": "stellar contract build",

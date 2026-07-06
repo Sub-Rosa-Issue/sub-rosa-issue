@@ -8,10 +8,10 @@
   },
   "build": {
     "wasmFile": "artifacts/sub_rosa_round.wasm",
-    "wasmHash": "be040c2b80af958ca9eb688a0aa80d34d565c2888ecf049c9a761236cd239776",
+    "wasmHash": "67f33c23d71fbc20aededa15f06cefae168d2be2e5baaa85d3394825261bfc8e",
     "bindingsPath": "packages/round-bindings/src/index.ts",
     "specHash": "ab172f38614140d08ed1df7a993dab46582b8ca4bb1e983860ec16978b312102",
-    "generatedAt": "2026-07-01T02:07:14.470Z",
+    "generatedAt": "2026-07-06T00:10:11.364Z",
     "sourceCommand": "pnpm bindings:generate",
     "toolchain": {
       "stellarCli": "stellar 27.0.0 (5a7c5fe76530bf4248477ac812fc757146b98cc4)"
