@@ -50,6 +50,7 @@
     "grant-scoring:start": "pnpm --filter @sub-rosa/grant-scoring-pilot start",
     "snapshot:check": "node scripts/check-snapshots.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
-    "docs:check-links": "node scripts/check-links.js"
+    "docs:check-links": "node scripts/check-links.js",
+    "check:env-docs": "node scripts/env-docs-check.mjs"
   }
 }
