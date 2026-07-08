@@ -4,7 +4,8 @@
 // Env:
 //   ROUND_CONTRACT_ID   deployed Round contract id (C…)
 //   ROUND_ID            round to keep (default 1)
-//   KEEPER_SECRET       funded signer secret (S…); permissionless role
+//   KEEPER_DRY_RUN      true prints a read-only preflight summary and exits
+//   KEEPER_SECRET       funded signer secret (S…); not required for dry-run
 //   MAX_WAIT_SECONDS    how long to wait for round R (default 0)
 //   RPC_URL             default https://soroban-testnet.stellar.org
 //   NETWORK_PASSPHRASE  default testnet
@@ -12,21 +13,32 @@
 import { SubRosaClient } from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
 
+import {
+  buildKeeperDryRunSummary,
+  parseKeeperRunConfig,
+} from "./dry-run.js";
 import { keepRound } from "./keeper.js";
 
-function reqEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`missing required env var ${name}`);
-  return v;
-}
-
 async function main() {
+  const config = parseKeeperRunConfig();
+
+  if (config.dryRun) {
+    const reader = new SubRosaClient({
+      rpcUrl: config.rpcUrl,
+      networkPassphrase: config.networkPassphrase,
+      contractId: config.contractId,
+    });
+    const summary = await buildKeeperDryRunSummary(reader, config.roundId);
+    console.log("keeper dry-run summary:");
+    console.log(JSON.stringify(summary, bigintReplacer, 2));
+    return;
+  }
+
   const sdk = new SubRosaClient({
-    rpcUrl: process.env.RPC_URL ?? "https://soroban-testnet.stellar.org",
-    networkPassphrase:
-      process.env.NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015",
-    contractId: reqEnv("ROUND_CONTRACT_ID"),
-    secretKey: reqEnv("KEEPER_SECRET"),
+    rpcUrl: config.rpcUrl,
+    networkPassphrase: config.networkPassphrase,
+    contractId: config.contractId,
+    secretKey: config.keeperSecret!,
   });
 
   const result = await keepRound(
@@ -34,9 +46,9 @@ async function main() {
       sdk,
       drand: quicknet(),
       log: (m) => console.log(`· ${m}`),
-      maxWaitSeconds: Number(process.env.MAX_WAIT_SECONDS ?? "0"),
+      maxWaitSeconds: config.maxWaitSeconds,
     },
-    BigInt(process.env.ROUND_ID ?? "1"),
+    config.roundId,
   );
 
   console.log("\nkeeper result:", JSON.stringify(result, bigintReplacer, 2));

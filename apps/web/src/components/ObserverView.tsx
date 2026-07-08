@@ -1,17 +1,42 @@
 import type { DemoTrace } from "../demo/trace";
 import { isTraceSettled } from "../demo/trace";
 import type { LiveSnapshot } from "../hooks/useLiveRound";
+import { getRoundStatusInfo } from "../lib/round-status";
 import { shortAddr, usdc } from "../lib/format";
+import { RoundStatusBadge } from "./RoundStatusBadge";
 
 export function ObserverView({
   trace,
   live,
+  liveError,
+  livePolledAt,
+  expectLive,
+  onRefresh,
 }: {
   trace: DemoTrace;
   live: LiveSnapshot | null;
+  liveError?: string | null;
+  livePolledAt?: number | null;
+  expectLive?: boolean;
+  onRefresh?: () => void;
 }) {
   const settled = isTraceSettled(trace);
-  const status = live?.round.status.tag ?? trace.meta.roundStatus;
+
+  // When live polling is expected (Live mode) use full state detection;
+  // otherwise (Evidence mode) show trace fallback as "found".
+  const statusInfo = expectLive
+    ? getRoundStatusInfo({
+        live,
+        error: liveError ?? null,
+        configured: true,
+        stale: livePolledAt != null && Date.now() - livePolledAt > 30_000,
+      })
+    : { state: "found" as const, tag: trace.meta.roundStatus, message: trace.meta.roundStatus };
+
+  const statusTag = statusInfo.state === "found" || statusInfo.state === "stale"
+    ? live?.round.status.tag ?? trace.meta.roundStatus
+    : null;
+
   const winner = live?.round.winner ?? trace.keeper.clearWinner;
 
   return (
@@ -24,9 +49,15 @@ export function ObserverView({
       <div className="observer-grid">
         <div className="card">
           <h3>Round status</h3>
-          <p className="big">{status}</p>
+          <RoundStatusBadge
+            state={statusInfo.state}
+            tag={statusTag}
+            message={statusInfo.message}
+            error={statusInfo.state === "error" ? statusInfo.message : undefined}
+            onRetry={onRefresh}
+          />
           {winner && (
-            <p className="muted">
+            <p className="muted" style={{ marginTop: 8 }}>
               Winner: <code>{shortAddr(String(winner), 8)}</code>
             </p>
           )}

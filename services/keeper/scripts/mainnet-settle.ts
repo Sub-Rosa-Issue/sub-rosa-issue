@@ -1,8 +1,17 @@
 // Mainnet settlement — keepRound (wait R → open → reveal) + closeRound (clear → settle).
 // Env: KEEPER_SECRET, ROUND_CONTRACT_ID, ROUND_ID (default 1)
+// Requires MAINNET_CONFIRM=SUB_ROSA_MAINNET before submitting transactions.
 
 import { Keypair } from "@stellar/stellar-sdk";
-import { SubRosaClient } from "@sub-rosa/sdk";
+import {
+  assertMainnetConfirmed,
+  assertReadinessForExecute,
+  createSacBalanceReader,
+  defaultMainnetReadinessInput,
+  nativeXlmSacId,
+  runMainnetReadiness,
+  SubRosaClient,
+} from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
 
 import { closeRound, keepRound } from "../src/keeper.js";
@@ -23,10 +32,30 @@ const bigintReplacer = (_k: string, v: unknown) =>
   typeof v === "bigint" ? v.toString() : v;
 
 async function main() {
+  assertMainnetConfirmed();
+
   const keeperSecret = reqEnv("KEEPER_SECRET");
   const contractId = reqEnv("ROUND_CONTRACT_ID");
   const roundId = BigInt(process.env.ROUND_ID ?? "1");
   const keeperKp = Keypair.fromSecret(keeperSecret);
+
+  const reader = new SubRosaClient({
+    rpcUrl: RPC_URL,
+    networkPassphrase: NETWORK,
+    contractId,
+    publicKey: keeperKp.publicKey(),
+  });
+
+  const readiness = await runMainnetReadiness(
+    defaultMainnetReadinessInput({
+      rpcUrl: RPC_URL,
+      networkPassphrase: NETWORK,
+      contractId,
+      withBalances: false,
+    }),
+    { reader },
+  );
+  assertReadinessForExecute(readiness.checks);
 
   const sdk = new SubRosaClient({
     rpcUrl: RPC_URL,
@@ -36,13 +65,6 @@ async function main() {
   });
   const drand = quicknet();
   const log = (m: string) => console.log("    ·", m);
-
-  const reader = new SubRosaClient({
-    rpcUrl: RPC_URL,
-    networkPassphrase: NETWORK,
-    contractId,
-    publicKey: keeperKp.publicKey(),
-  });
 
   console.log("· contract:", contractId);
   console.log("· round:   ", roundId.toString());
@@ -102,6 +124,20 @@ async function main() {
   for (const b of bidders) {
     const st = await reader.getBidState(roundId, b);
     console.log(`    bid ${b.slice(0, 8)}… value=${st.revealed_value?.toString()} valid=${st.valid} settled=${st.settled}`);
+  }
+
+  const tokenSacId = nativeXlmSacId(NETWORK);
+  const balanceOf = createSacBalanceReader(
+    RPC_URL,
+    NETWORK,
+    tokenSacId,
+    keeperKp.publicKey(),
+  );
+  const contractBalance = await balanceOf(contractId);
+  if (contractBalance !== 0n) {
+    throw new Error(
+      `contract escrow balance guardrail failed: expected 0, got ${contractBalance.toString()} stroops`,
+    );
   }
 
   console.log("\n✅ MAINNET SETTLEMENT COMPLETE");

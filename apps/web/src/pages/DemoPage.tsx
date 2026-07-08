@@ -24,7 +24,9 @@ import {
 } from "../lib/chain";
 import { formatCountdown, useDrandCountdown } from "../hooks/useDrandCountdown";
 import { useRoundSession, type ActionStatus } from "../hooks/useRoundSession";
+import { getRoundStatusInfo } from "../lib/round-status";
 import { shortAddr } from "../lib/format";
+import { RoundStatusBadge } from "../components/RoundStatusBadge";
 import { LOGO_SRC } from "../lib/chain";
 import { ConfettiBurst } from "../ui/Confetti";
 import { CountUp } from "../ui/CountUp";
@@ -712,7 +714,22 @@ function LivePanel({
       <section className="live-state">
         <div>
           <span>Status</span>
-          <strong>{live?.round.status.tag ?? "—"}</strong>
+          {(() => {
+            const info = getRoundStatusInfo({
+              live,
+              error: null,
+              configured: Boolean(roundId),
+              stale: false,
+            });
+            return (
+              <RoundStatusBadge
+                state={live ? "found" : roundId ? "loading" : "empty"}
+                tag={live?.round.status.tag ?? null}
+                message={info.message}
+                onRetry={roundId ? () => void refresh() : undefined}
+              />
+            );
+          })()}
         </div>
         <div>
           <span>Round R</span>

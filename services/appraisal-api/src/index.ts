@@ -10,7 +10,11 @@ export {
 } from "./appraisal.js";
 
 export { buildAppraisalServer } from "./server.js";
-export { configFromEnv, type AppraisalServerConfig } from "./config.js";
+export {
+  AppraisalConfigError,
+  configFromEnv,
+  type AppraisalServerConfig,
+} from "./config.js";
 export {
   createPaidFetch,
   X402PaymentError,

@@ -20,8 +20,18 @@ import {
   type Round,
   type Seal,
 } from "@sub-rosa/round-bindings";
+import { toHex } from "@sub-rosa/tlock";
 import type { SealedBid } from "@sub-rosa/tlock";
+import type { RoundReceipt } from "./receipt.js";
+import { validateEncryptedBlob } from "./encrypted-blob.js";
+import { networkFingerprint } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
+import {
+  evaluatePreflight,
+  classifyPreflightBuildError,
+  type PreflightOperation,
+  type PreflightResult,
+} from "./preflight.js";
 import {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
@@ -29,6 +39,7 @@ import {
   SubRosaTimeoutError,
   SubRosaTransactionError,
 } from "./errors.js";
+import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 
 export interface SubRosaClientConfig {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
@@ -66,6 +77,10 @@ export interface SubRosaClientConfig {
    * @internal Testing hook: override the poll-loop sleep function.
    */
   _sleep?: (ms: number) => Promise<void>;
+  /**
+   * @internal Testing hook: inject a mock Soroban RPC server for simulation.
+   */
+  _server?: rpc.Server;
 }
 
 export type ClearingRuleTag = ClearingRule["tag"];
@@ -124,6 +139,27 @@ export class SubRosaClient {
   readonly #pollInterval: number;
 
   constructor(config: SubRosaClientConfig) {
+    const allowHttp = config.allowHttp ?? false;
+    if (/^http:\/\//i.test(config.rpcUrl) && !allowHttp) {
+      throw new SubRosaClientConfigError(
+        "rpcUrl must use https unless allowHttp is explicitly enabled",
+      );
+    }
+
+    const confirmTimeout = config.confirmTimeout ?? 60_000;
+    if (!Number.isFinite(confirmTimeout) || confirmTimeout < 1_000) {
+      throw new SubRosaClientConfigError(
+        `confirmTimeout must be a finite number at least 1000ms, got ${confirmTimeout}`,
+      );
+    }
+
+    const pollInterval = config.pollInterval ?? 1_500;
+    if (!Number.isFinite(pollInterval) || pollInterval < 100) {
+      throw new SubRosaClientConfigError(
+        `pollInterval must be a finite number at least 100ms, got ${pollInterval}`,
+      );
+    }
+
     const keypair = config.secretKey
       ? Keypair.fromSecret(config.secretKey)
       : undefined;
@@ -132,32 +168,23 @@ export class SubRosaClient {
       ? basicNodeSigner(keypair, config.networkPassphrase)
       : undefined;
 
-    this.contractId = config.contractId;
+    this.contractId = normalizeSorobanContractId(config.contractId);
     this.networkPassphrase = config.networkPassphrase;
     this.#source = source;
     this.#rpcUrl = config.rpcUrl;
-    this.#allowHttp = config.allowHttp ?? false;
+    this.#allowHttp = allowHttp;
     this.#submitter = config.submitter;
-    this.#confirmTimeout = config.confirmTimeout ?? 60_000;
-    this.#pollInterval = config.pollInterval ?? 1_500;
-    if (this.#confirmTimeout < 1_000) {
-      throw new SubRosaClientConfigError(
-        `confirmTimeout must be at least 1000ms, got ${this.#confirmTimeout}`,
-      );
-    }
-    if (this.#pollInterval < 100) {
-      throw new SubRosaClientConfigError(
-        `pollInterval must be at least 100ms, got ${this.#pollInterval}`,
-      );
-    }
+    this.#confirmTimeout = confirmTimeout;
+    this.#pollInterval = pollInterval;
     if (config._sleep) this.#sleep = config._sleep;
     this.contract = new RoundContract({
-      contractId: config.contractId,
+      contractId: this.contractId,
       networkPassphrase: config.networkPassphrase,
       rpcUrl: config.rpcUrl,
-      allowHttp: config.allowHttp ?? false,
+      allowHttp,
       ...(source ? { publicKey: source } : {}),
       ...(signer ? { signTransaction: signer.signTransaction } : {}),
+      ...(config._server ? { server: config._server } : {}),
     });
   }
 
@@ -260,9 +287,30 @@ export class SubRosaClient {
   }
 
   async commit(params: CommitParams): Promise<void> {
+    // Validate encrypted blobs before submitting — catches size/encoding
+    // issues early, before paying gas for an on-chain revert (PayloadTooLarge).
+    const ciphertextResult = validateEncryptedBlob(
+      params.sealed.ciphertext,
+      "ciphertext",
+    );
+    if (!ciphertextResult.valid) {
+      throw new SubRosaClientConfigError(
+        ciphertextResult.issues.map((i) => i.message).join("; "),
+      );
+    }
+    const auditorBlobResult = validateEncryptedBlob(
+      params.sealed.auditorBlob,
+      "auditor_blob",
+    );
+    if (!auditorBlobResult.valid) {
+      throw new SubRosaClientConfigError(
+        auditorBlobResult.issues.map((i) => i.message).join("; "),
+      );
+    }
+
     const bidder = params.bidder ?? this.#requireSource("bidder");
     const tx = await this.contract.commit({
-      round_id: toBigInt(params.roundId),
+      round_id: normalizeRoundId(params.roundId),
       bidder,
       commitment: toBuffer(params.sealed.commitment),
       ciphertext: toBuffer(params.sealed.ciphertext),
@@ -277,7 +325,7 @@ export class SubRosaClient {
     drandSignature: Uint8Array,
   ): Promise<void> {
     const tx = await this.contract.open_reveal({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       drand_signature: toBuffer(drandSignature),
     });
     await this.#sendUnwrap(tx);
@@ -285,7 +333,7 @@ export class SubRosaClient {
 
   async reveal(params: RevealParams): Promise<void> {
     const tx = await this.contract.reveal({
-      round_id: toBigInt(params.roundId),
+      round_id: normalizeRoundId(params.roundId),
       bidder: params.bidder,
       value: params.value,
       nonce: toBuffer(params.nonce),
@@ -296,25 +344,136 @@ export class SubRosaClient {
   /** Clear a round. Returns the winning address, or undefined if the round was
    *  voided for having no valid bids. */
   async clear(roundId: number | bigint): Promise<string | undefined> {
-    const tx = await this.contract.clear({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.clear({ round_id: normalizeRoundId(roundId) });
     const winner = await this.#sendUnwrap(tx);
     return winner ?? undefined;
   }
 
   async settle(roundId: number | bigint): Promise<void> {
-    const tx = await this.contract.settle({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.settle({ round_id: normalizeRoundId(roundId) });
     await this.#sendUnwrap(tx);
   }
 
   async void(roundId: number | bigint): Promise<void> {
-    const tx = await this.contract.void({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.void({ round_id: normalizeRoundId(roundId) });
     await this.#sendUnwrap(tx);
+  }
+
+  // ── Preflight simulation (no signing/submission) ─────────────────────
+
+  async #preflight<T>(
+    operation: PreflightOperation,
+    buildTx: () => Promise<AssembledTransaction<Result<T>>>,
+  ): Promise<PreflightResult<T>> {
+    try {
+      const tx = await buildTx();
+      return evaluatePreflight(operation, tx);
+    } catch (error) {
+      if (error instanceof SubRosaClientConfigError) {
+        throw error;
+      }
+      return {
+        ok: false,
+        operation,
+        error: classifyPreflightBuildError(operation, error),
+      };
+    }
+  }
+
+  /** Simulate `createRound` without signing or submitting. */
+  preflightCreateRound(params: CreateRoundParams): Promise<PreflightResult<bigint>> {
+    return this.#preflight("create_round", () => {
+      const operator = params.operator ?? this.#requireSource("operator");
+      const clearing_rule = {
+        tag: params.clearingRule ?? "HighestBid",
+        values: undefined,
+      } as ClearingRule;
+      return this.contract.create_round({
+        operator,
+        item_ref: toBuffer(params.itemRef),
+        reveal_round: toBigInt(params.revealRound),
+        clearing_rule,
+        commit_deadline: toBigInt(params.commitDeadline),
+        reveal_deadline: toBigInt(params.revealDeadline),
+        auditor_pubkey: toBuffer(params.auditorPubkey),
+      });
+    });
+  }
+
+  /** Simulate `commit` without signing or submitting. */
+  preflightCommit(params: CommitParams): Promise<PreflightResult<void>> {
+    return this.#preflight("commit", () => {
+      const bidder = params.bidder ?? this.#requireSource("bidder");
+      return this.contract.commit({
+        round_id: toBigInt(params.roundId),
+        bidder,
+        commitment: toBuffer(params.sealed.commitment),
+        ciphertext: toBuffer(params.sealed.ciphertext),
+        escrow: params.escrow,
+        auditor_blob: toBuffer(params.sealed.auditorBlob),
+      });
+    });
+  }
+
+  /** Simulate `openReveal` without signing or submitting. */
+  preflightOpenReveal(
+    roundId: number | bigint,
+    drandSignature: Uint8Array,
+  ): Promise<PreflightResult<void>> {
+    return this.#preflight("open_reveal", () =>
+      this.contract.open_reveal({
+        round_id: toBigInt(roundId),
+        drand_signature: toBuffer(drandSignature),
+      }),
+    );
+  }
+
+  /** Simulate `reveal` without signing or submitting. */
+  preflightReveal(params: RevealParams): Promise<PreflightResult<void>> {
+    return this.#preflight("reveal", () =>
+      this.contract.reveal({
+        round_id: toBigInt(params.roundId),
+        bidder: params.bidder,
+        value: params.value,
+        nonce: toBuffer(params.nonce),
+      }),
+    );
+  }
+
+  /** Simulate `clear` without signing or submitting. */
+  async preflightClear(
+    roundId: number | bigint,
+  ): Promise<PreflightResult<string | undefined>> {
+    const result = await this.#preflight<string | null | undefined>("clear", () =>
+      this.contract.clear({ round_id: toBigInt(roundId) }),
+    );
+    if (!result.ok) {
+      return result;
+    }
+    return {
+      ...result,
+      result: result.result ?? undefined,
+    };
+  }
+
+  /** Simulate `settle` without signing or submitting. */
+  preflightSettle(roundId: number | bigint): Promise<PreflightResult<void>> {
+    return this.#preflight("settle", () =>
+      this.contract.settle({ round_id: toBigInt(roundId) }),
+    );
+  }
+
+  /** Simulate `void` without signing or submitting. */
+  preflightVoid(roundId: number | bigint): Promise<PreflightResult<void>> {
+    return this.#preflight("void", () =>
+      this.contract.void({ round_id: toBigInt(roundId) }),
+    );
   }
 
   // ── Read-only views (simulation only; no signing/submission) ───────────
 
   async getRound(roundId: number | bigint): Promise<Round> {
-    const tx = await this.contract.get_round({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.get_round({ round_id: normalizeRoundId(roundId) });
     return tx.result.unwrap();
   }
 
@@ -323,7 +482,7 @@ export class SubRosaClient {
     bidder: string,
   ): Promise<BidState> {
     const tx = await this.contract.get_bid_state({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       bidder,
     });
     return tx.result.unwrap();
@@ -332,7 +491,7 @@ export class SubRosaClient {
   /** The deterministic, ordered bidder index — the keeper's reveal set. Reading
    *  this is how the keeper knows exactly which seals to open and reveal. */
   async getBidders(roundId: number | bigint): Promise<string[]> {
-    const tx = await this.contract.get_bidders({ round_id: toBigInt(roundId) });
+    const tx = await this.contract.get_bidders({ round_id: normalizeRoundId(roundId) });
     return tx.result.unwrap();
   }
 
@@ -344,7 +503,7 @@ export class SubRosaClient {
     limit: number,
   ): Promise<BiddersPage> {
     const tx = await this.contract.get_bidders_page({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       cursor,
       limit,
     });
@@ -364,13 +523,15 @@ export class SubRosaClient {
   }
 
   /** The sealed payload while it is still in Temporary storage; undefined once
-   *  it has expired (the visible "sealed → gone" lifecycle). */
+   *  its TTL expires (by design shortly after the reveal window). Persistent
+   *  bid state from `getBidState` remains for settlement either way. Seal TTL
+   *  is extended on commit, when reveal opens, and on each observer read. */
   async getSeal(
     roundId: number | bigint,
     bidder: string,
   ): Promise<Seal | undefined> {
     const tx = await this.contract.get_seal({
-      round_id: toBigInt(roundId),
+      round_id: normalizeRoundId(roundId),
       bidder,
     });
     return tx.result ?? undefined;
@@ -379,5 +540,65 @@ export class SubRosaClient {
   async getConfig(): Promise<GlobalConfig> {
     const tx = await this.contract.get_config();
     return tx.result.unwrap();
+  }
+
+  /** Export a versioned canonical receipt for a round. Collects all on-chain
+   *  state — round params, bidders, commitments, reveal validity, seal evidence
+   *  (may be null if expired) — into a single portable document. */
+  async exportReceipt(roundId: number | bigint): Promise<RoundReceipt> {
+    const rid = normalizeRoundId(roundId);
+    const [round, config] = await Promise.all([
+      this.getRound(rid),
+      this.getConfig(),
+    ]);
+
+    const bidders: string[] = [];
+    for await (const addr of this.bidders(rid)) bidders.push(addr);
+
+    const bids: RoundReceipt["bids"] = {};
+    for (const bidder of bidders) {
+      const [state, seal] = await Promise.all([
+        this.getBidState(rid, bidder),
+        this.getSeal(rid, bidder),
+      ]);
+      const commitment = toHex(state.commitment);
+      // The nonce is now persisted on-chain at reveal time (revealed_nonce),
+      // enabling offline receipt verifiers to recompute sha256(be16(value)‖nonce).
+      const nonce = state.revealed_nonce ? toHex(state.revealed_nonce) : null;
+      bids[bidder] = {
+        commitment,
+        escrow: state.escrow.toString(),
+        revealedValue: state.revealed_value?.toString() ?? null,
+        nonce,
+        hashValid: null,
+        valid: state.valid,
+        settled: state.settled,
+        evidence: {
+          ciphertext: seal ? toHex(seal.ciphertext) : null,
+          auditorBlob: seal ? toHex(seal.auditor_blob) : null,
+        },
+      };
+    }
+
+    return {
+      version: 1,
+      network: this.networkPassphrase,
+      networkFingerprint: networkFingerprint(this.networkPassphrase),
+      contractId: this.contractId,
+      exportedAt: new Date().toISOString(),
+      roundId: rid.toString(),
+      itemRef: toHex(round.item_ref),
+      revealRound: Number(round.reveal_round),
+      clearingRule: round.clearing_rule.tag,
+      commitDeadline: round.commit_deadline.toString(),
+      revealDeadline: round.reveal_deadline.toString(),
+      operator: round.operator,
+      auditorPubkey: toHex(round.auditor_pubkey),
+      bidders,
+      bids,
+      winner: round.winner ?? null,
+      winningValue: round.winning_bid?.toString() ?? null,
+      status: round.status.tag,
+    };
   }
 }

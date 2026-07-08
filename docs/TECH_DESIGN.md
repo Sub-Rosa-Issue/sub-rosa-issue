@@ -57,11 +57,18 @@ Deploy constants validated via `services/drand-tools` against live quicknet. Con
 
 ## Storage model
 
-| Tier | Contents | Rationale |
-| --- | --- | --- |
-| Instance | Drand pubkey, DST, genesis, period, USDC SAC | Global config |
-| Persistent | Round record, per-bidder state (escrow, revealed value) | Survives until settle/void |
-| Temporary | Ciphertext + auditor blob | Auto-expire after reveal window |
+| Tier | Key | Contents | TTL policy |
+| --- | --- | --- | --- |
+| Instance | `Config`, `RoundCounter` | Drand pubkey, DST, genesis, period, USDC SAC | Extended on every mutating call (~60 days bump) |
+| Persistent | `Round(id)`, `State(id, bidder)` | Round record, escrow, revealed value, settlement flags | Extended on read/write (~60 days bump); required for clear/settle/void |
+| Temporary | `Seal(id, bidder)` | Ciphertext + auditor blob | Extended on commit, `open_reveal`, and `get_seal` reads to cover `reveal_deadline + 1 day`; auto-expires afterward |
+
+### Cleanup semantics
+
+- **Seals (Temporary)** are intentionally ephemeral. After the reveal window plus a one-day observer buffer, `get_seal` returns `None`. This is by design — observers see the sealed → gone lifecycle.
+- **Settlement data (Persistent)** is never dropped silently. `clear`, `settle`, and `void` operate only on persistent bid state and escrow; they remain available even after seals expire.
+- **`open_reveal`** re-extends every committed seal through the reveal window so keeper/observer reads stay available during the revealing phase.
+- Seal TTL is computed from `reveal_deadline`, not a fixed constant, so long pre-reveal commit windows do not lose ciphertext before Drand round R.
 
 ## Settlement rails
 

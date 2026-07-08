@@ -92,6 +92,16 @@ Or one line:
 KEEPER_SECRET=S… ROUND_CONTRACT_ID=C… pnpm keeper:watch
 ```
 
+For a read-only preflight of one round, no signing secret is required:
+
+```bash
+KEEPER_DRY_RUN=true ROUND_CONTRACT_ID=C… ROUND_ID=1 pnpm --filter @sub-rosa/keeper start
+```
+
+The command prints a structured JSON summary with the round status, Drand
+round, bidder/revealed counts, current phase, and next action. It exits without
+submitting open, reveal, clear, settle, or void transactions.
+
 On Fly.io / Railway / GitHub Actions: put the same names in **Secrets**, not in the web build.
 
 See root `.env.example` for the full keeper variable list.
@@ -123,9 +133,39 @@ Runtime env for `pnpm appraisal:start`:
 | --- | --- |
 | `FACILITATOR_SECRET` | Signs/submits x402 settle txs |
 | `PAY_TO` / server key | Receives USDC |
-| `RPC_URL` | Soroban RPC |
+| `X402_NETWORK` | `stellar:testnet` (default) or `stellar:pubnet` |
+| `NETWORK_PASSPHRASE` | Optional; when set, must match `X402_NETWORK` |
+| `RPC_URL` | Soroban RPC; required for pubnet |
+| `PAYMENT_ASSET` | SEP-41 contract; defaults to USDC for the selected network |
 | `PRICE` | Appraisal price (default 0.10) |
 | `PORT` | HTTP port (default 4021) |
+
+Minimal local/testnet configuration:
+
+```bash
+export FACILITATOR_SECRET="S…"
+export PAY_TO="G…"
+export X402_NETWORK="stellar:testnet"
+export NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+
+pnpm appraisal:start
+```
+
+Testnet defaults to the canonical testnet USDC contract, Soroban testnet RPC,
+price `0.10`, and port `4021`. For pubnet, set
+`X402_NETWORK=stellar:pubnet`, the public-network passphrase, and an explicit
+`RPC_URL`; the default payment asset then changes to pubnet USDC.
+
+Configuration errors fail before the HTTP server starts and name the affected
+variable, for example:
+
+```text
+FACILITATOR_SECRET: missing required env var
+PRICE: must be a finite number greater than 0
+X402_NETWORK: unsupported network "stellar:mainnet"
+NETWORK_PASSPHRASE: does not match X402_NETWORK=stellar:testnet
+RPC_URL: is required when X402_NETWORK=stellar:pubnet
+```
 
 Agents point at the public URL via `X402_APPRAISAL_URL` — not baked into the web UI.
 
@@ -150,11 +190,22 @@ Deploying new contract round?
 ## Mainnet scripts
 
 ```bash
+pnpm mainnet:ready -- --strict       # consolidated read-only readiness
 pnpm mainnet:verify              # read-only — no secrets
 pnpm mainnet:micro               # dry-run checklist
 MAINNET_CONFIRM=SUB_ROSA_MAINNET OPERATOR_SECRET=S… BIDDER_SECRET=S… \
   pnpm mainnet:micro -- --execute   # optional micro commit (≤1 XLM escrow)
+MAINNET_CONFIRM=SUB_ROSA_MAINNET KEEPER_SECRET=S… ROUND_CONTRACT_ID=C… \
+  pnpm mainnet:settle               # keeper settle (requires readiness + confirm)
 ```
+
+### Mainnet launch checklist
+
+1. Run `pnpm mainnet:ready -- --strict` (no secrets required for baseline checks).
+2. Run `pnpm mainnet:verify` to confirm settled round 1 matches frozen artifacts.
+3. Optional balance review: `pnpm mainnet:ready -- --with-balances` with funded operator/keeper secrets in env.
+4. For value-moving commands, set `MAINNET_CONFIRM=SUB_ROSA_MAINNET` and re-run readiness implicitly via deploy/micro/settle guards.
+5. After settlement, confirm contract native XLM SAC balance is **0** (settle script enforces this).
 
 ## Security
 
