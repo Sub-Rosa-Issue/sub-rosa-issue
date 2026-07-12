@@ -1,5 +1,5 @@
 > [!NOTE]
-> This repository is the Drips Network contribution workspace for Sub Rosa,
+> This repository is the ecosystem contribution workspace for Sub Rosa,
 > created specifically for participation in the Stellar Wave program. The main
 > Sub Rosa repository is maintained separately.
 
