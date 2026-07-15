@@ -1,9 +1,29 @@
 import type { DemoTrace } from "../demo/trace";
-import { isTraceSettled } from "../demo/trace";
 import type { LiveSnapshot } from "../hooks/useLiveRound";
 import { getRoundStatusInfo } from "../lib/round-status";
 import { shortAddr, usdc } from "../lib/format";
 import { RoundStatusBadge } from "./RoundStatusBadge";
+import { DrandCountdownChip } from "./DrandCountdownChip";
+
+function classifyJuryPhase(lifecycle: DemoTrace["lifecycle"]): {
+  phase: "Open" | "Reveal" | "Settled";
+  label: string;
+  color: string;
+} {
+  const active = lifecycle.find((s) => s.status === "active");
+  if (!active) return { phase: "Settled", label: "Settled", color: "var(--green)" };
+
+  switch (active.phase) {
+    case "open_reveal":
+    case "reveal_all":
+    case "clear":
+      return { phase: "Reveal", label: "Reveal", color: "var(--orange)" };
+    case "settle":
+      return { phase: "Settled", label: "Settled", color: "var(--green)" };
+    default:
+      return { phase: "Open", label: "Open", color: "var(--blue)" };
+  }
+}
 
 export function ObserverView({
   trace,
@@ -20,8 +40,6 @@ export function ObserverView({
   expectLive?: boolean;
   onRefresh?: () => void;
 }) {
-  const settled = isTraceSettled(trace);
-
   // When live polling is expected (Live mode) use full state detection;
   // otherwise (Evidence mode) show trace fallback as "found".
   const statusInfo = expectLive
@@ -38,6 +56,8 @@ export function ObserverView({
     : null;
 
   const winner = live?.round.winner ?? trace.keeper.clearWinner;
+  const juryPhase = classifyJuryPhase(trace.lifecycle);
+  const targetRound = trace.meta.revealRound;
 
   return (
     <section className="panel">
@@ -63,12 +83,46 @@ export function ObserverView({
           )}
         </div>
         <div className="card">
-          <h3>Sealed phase</h3>
+          <h3>
+            Phase
+            <span
+              className="jury-phase-badge"
+              style={{
+                display: "inline-block",
+                marginLeft: 8,
+                padding: "2px 10px",
+                borderRadius: 12,
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                background: juryPhase.color + "20",
+                color: juryPhase.color,
+                border: `1px solid ${juryPhase.color}40`,
+              }}
+            >
+              {juryPhase.phase === "Open" ? "🔓" : juryPhase.phase === "Reveal" ? "👁" : "✅"}{" "}
+              {juryPhase.label}
+            </span>
+          </h3>
           <p>
-            {settled
+            {juryPhase.phase === "Settled"
               ? "Round complete — bids were sealed until Drand R, then revealed for all."
-              : "Commitments H and escrow are public. Ciphertext is on-chain but undecryptable until Drand R."}
+              : juryPhase.phase === "Reveal"
+                ? "Commitments are open. Bid values are being revealed on-chain."
+                : "Commitments H and escrow are public. Ciphertext is on-chain but undecryptable until Drand R."}
           </p>
+        </div>
+        <div className="card">
+          <h3>Countdown</h3>
+          {targetRound ? (
+            <DrandCountdownChip
+              targetRound={targetRound}
+              mode={juryPhase.phase === "Settled" ? "idle" : "live-round"}
+            />
+          ) : (
+            <p className="muted">No Drand round configured for this trace.</p>
+          )}
         </div>
         <div className="card">
           <h3>After reveal</h3>
