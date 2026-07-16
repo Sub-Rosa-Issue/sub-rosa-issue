@@ -1,5 +1,6 @@
 import { useDrandCountdown, formatCountdown } from "../../hooks/useDrandCountdown";
 import { shortAddr } from "../../lib/format";
+import { classifyRoundPhase, type RoundPhase } from "../../lib/round-phase";
 import type { DashboardData, RoundStatus } from "../../dashboard/types";
 
 function StatusPill({ status }: { status: RoundStatus }) {
@@ -13,6 +14,13 @@ function StatusPill({ status }: { status: RoundStatus }) {
           : "warning";
 
   return <span className={`dashboard-status-pill ${tone}`}>{status}</span>;
+}
+
+function PhasePill({ phase }: { phase: RoundPhase }) {
+  const tone =
+    phase === "Settled" ? "success" : phase === "Reveal" ? "warning" : "info";
+
+  return <span className={`dashboard-phase-badge ${tone}`}>{phase}</span>;
 }
 
 function DeadlineRow({
@@ -52,12 +60,22 @@ export function RoundStatusCard({ data }: { data: DashboardData }) {
   const now = Math.floor(Date.now() / 1000);
   const commitPast = now > data.round.commitDeadline;
   const revealPast = now > data.round.revealDeadline;
+  const phase = classifyRoundPhase({
+    status: data.round.status,
+    drandPublished: drand.published,
+  });
+  const drandDetail = drand.published
+    ? `R ${data.round.revealRound.toLocaleString()} has already published`
+    : `${formatCountdown(drand.secondsRemaining)} until R ${data.round.revealRound.toLocaleString()}`;
 
   return (
     <section className="dashboard-card round-status-card">
       <header className="dashboard-card-header">
         <h2>Round Status</h2>
-        <StatusPill status={data.round.status} />
+        <div className="dashboard-card-badges">
+          <PhasePill phase={phase} />
+          <StatusPill status={data.round.status} />
+        </div>
       </header>
 
       <div className="dashboard-card-body">
@@ -84,13 +102,18 @@ export function RoundStatusCard({ data }: { data: DashboardData }) {
         </div>
 
         <div className="dashboard-kv-row">
+          <span className="dashboard-kv-label">Phase</span>
+          <span className="dashboard-kv-value highlight">{phase}</span>
+        </div>
+
+        <div className="dashboard-kv-row">
           <span className="dashboard-kv-label">Drand Round</span>
           <span className="dashboard-kv-value">
             R = {data.round.revealRound.toLocaleString()}
-            {drand.loading ? (
-              <em className="dashboard-drand-status"> (syncing...)</em>
-            ) : drand.published ? (
+            {drand.published ? (
               <em className="dashboard-drand-status published"> (published)</em>
+            ) : drand.loading ? (
+              <em className="dashboard-drand-status"> (syncing...)</em>
             ) : (
               <em className="dashboard-drand-status">
                 {" "}
@@ -98,6 +121,11 @@ export function RoundStatusCard({ data }: { data: DashboardData }) {
               </em>
             )}
           </span>
+        </div>
+
+        <div className="dashboard-kv-row">
+          <span className="dashboard-kv-label">Reveal countdown</span>
+          <span className="dashboard-kv-value">{drandDetail}</span>
         </div>
 
         <div className="dashboard-deadlines">

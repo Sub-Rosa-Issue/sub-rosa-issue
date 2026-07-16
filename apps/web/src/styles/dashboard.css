@@ -82,6 +82,14 @@
   margin: 0;
 }
 
+.dashboard-card-badges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .dashboard-card-body {
   padding: 1.25rem;
 }

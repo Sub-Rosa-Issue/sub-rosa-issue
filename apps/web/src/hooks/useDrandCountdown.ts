@@ -20,15 +20,26 @@ function timeOfRound(round: number): number {
   return QUICKNET_GENESIS + QUICKNET_PERIOD * round;
 }
 
+function localCountdown(targetRound: number): Omit<DrandCountdown, "loading" | "error"> {
+  const now = Math.floor(Date.now() / 1000);
+  const targetTime = timeOfRound(targetRound);
+  const currentRound = Math.floor((now - QUICKNET_GENESIS) / QUICKNET_PERIOD);
+  const published = currentRound >= targetRound;
+
+  return {
+    currentRound,
+    targetRound,
+    secondsRemaining: published ? 0 : Math.max(0, targetTime - now),
+    targetTime,
+    published,
+  };
+}
+
 export function useDrandCountdown(targetRound: number, pollMs = 1000): DrandCountdown {
   const [state, setState] = useState<DrandCountdown>(() => ({
-    loading: true,
+    loading: false,
     error: null,
-    currentRound: null,
-    targetRound,
-    secondsRemaining: 0,
-    targetTime: timeOfRound(targetRound),
-    published: false,
+    ...localCountdown(targetRound),
   }));
 
   useEffect(() => {
@@ -36,6 +47,8 @@ export function useDrandCountdown(targetRound: number, pollMs = 1000): DrandCoun
     const client = quicknet();
 
     async function tick() {
+      const fallback = localCountdown(targetRound);
+
       try {
         const info = await client.chain().info();
         const genesis = info.genesis_time;
@@ -59,11 +72,11 @@ export function useDrandCountdown(targetRound: number, pollMs = 1000): DrandCoun
         }
       } catch (e) {
         if (!cancelled) {
-          setState((s) => ({
-            ...s,
+          setState({
+            ...fallback,
             loading: false,
             error: e instanceof Error ? e.message : String(e),
-          }));
+          });
         }
       }
     }
