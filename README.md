@@ -80,6 +80,7 @@ const client = new SubRosaClient({
   networkPassphrase,
   contractId,
   secretKey,
+  retryOptions: { maxAttempts: 3, baseDelay: 500, maxDelay: 2000 },
 });
 
 const sealed = await sealBid({

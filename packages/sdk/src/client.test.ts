@@ -156,3 +156,108 @@ describe("SubRosaClient external submitter failures", () => {
     });
   });
 });
+
+describe("SubRosaClient retry policy", () => {
+  it("retries transient errors with exponential backoff and jitter", async () => {
+    const sleeps: number[] = [];
+    let attempts = 0;
+
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      publicKey: PUBLIC_KEY,
+      retryOptions: { maxAttempts: 3, baseDelay: 100, maxDelay: 500 },
+      _sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+      _random: () => 0.5, // 0.5 * 2 - 1 = 0 (no jitter)
+    });
+
+    const fakeTransaction = {
+      async signAndSend() {
+        attempts++;
+        if (attempts < 3) {
+          throw new Error("RPC Error 503");
+        }
+        return { result: { unwrap: () => "success" } };
+      },
+    };
+
+    Object.defineProperty(client.contract, "clear", {
+      configurable: true,
+      value: async () => fakeTransaction,
+    });
+
+    const result = await client.clear(1);
+    assert.equal(result, "success");
+    assert.equal(attempts, 3);
+    assert.deepEqual(sleeps, [100, 200]); // 1st retry: 100ms, 2nd retry: 200ms
+  });
+
+  it("fails immediately on non-transient errors", async () => {
+    const sleeps: number[] = [];
+    let attempts = 0;
+
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      publicKey: PUBLIC_KEY,
+      retryOptions: { maxAttempts: 3, baseDelay: 100, maxDelay: 500 },
+      _sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+
+    const fakeTransaction = {
+      async signAndSend() {
+        attempts++;
+        throw new Error("Bad Request 400"); // non-transient
+      },
+    };
+
+    Object.defineProperty(client.contract, "clear", {
+      configurable: true,
+      value: async () => fakeTransaction,
+    });
+
+    await assert.rejects(client.clear(1), (error: unknown) => {
+      assert.ok(error instanceof SubRosaSubmitError);
+      assert.match(error.message, /direct RPC submission failed/);
+      assert.equal((error.cause as Error).message, "Bad Request 400");
+      return true;
+    });
+    assert.equal(attempts, 1);
+    assert.deepEqual(sleeps, []);
+  });
+
+  it("throws after max retry attempts", async () => {
+    let attempts = 0;
+
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      publicKey: PUBLIC_KEY,
+      retryOptions: { maxAttempts: 2, baseDelay: 10, maxDelay: 50 },
+      _sleep: async () => {},
+      _random: () => 0.5,
+    });
+
+    const fakeTransaction = {
+      async signAndSend() {
+        attempts++;
+        throw new Error("fetch failed"); // transient
+      },
+    };
+
+    Object.defineProperty(client.contract, "clear", {
+      configurable: true,
+      value: async () => fakeTransaction,
+    });
+
+    await assert.rejects(client.clear(1), (error: unknown) => {
+      assert.ok(error instanceof SubRosaSubmitError);
+      assert.equal((error.cause as Error).message, "fetch failed");
+      return true;
+    });
+    
+    // maxAttempts: 2 means 2 retries, so 3 total attempts
+    assert.equal(attempts, 3);
+  });
+});

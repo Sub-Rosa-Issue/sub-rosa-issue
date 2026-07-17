@@ -41,6 +41,15 @@ import {
 } from "./errors.js";
 import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 
+export interface SubRosaRetryOptions {
+  /** Maximum number of retry attempts for transient errors. Default: 3. */
+  maxAttempts?: number;
+  /** Base delay in milliseconds for exponential backoff. Default: 500. */
+  baseDelay?: number;
+  /** Maximum delay in milliseconds for exponential backoff. Default: 2000. */
+  maxDelay?: number;
+}
+
 export interface SubRosaClientConfig {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
   rpcUrl: string;
@@ -73,10 +82,16 @@ export interface SubRosaClientConfig {
    * using an external submitter. Must be at least 100. Default: 1_500.
    */
   pollInterval?: number;
+  /** Retry policy for transient RPC/network errors. */
+  retryOptions?: SubRosaRetryOptions;
   /**
    * @internal Testing hook: override the poll-loop sleep function.
    */
   _sleep?: (ms: number) => Promise<void>;
+  /**
+   * @internal Testing hook: override the RNG for jitter.
+   */
+  _random?: () => number;
   /**
    * @internal Testing hook: inject a mock Soroban RPC server for simulation.
    */
@@ -127,6 +142,28 @@ const toBigInt = (v: number | bigint): bigint =>
 
 const toBuffer = (b: Uint8Array): Buffer => Buffer.from(b);
 
+function isTransientError(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false;
+  const message = e instanceof Error ? e.message : String(e);
+  if (
+    message.includes("fetch failed") ||
+    message.includes("ECONNRESET") ||
+    message.includes("ETIMEDOUT") ||
+    message.includes("timeout") ||
+    message.includes("500") ||
+    message.includes("502") ||
+    message.includes("503") ||
+    message.includes("504")
+  ) {
+    return true;
+  }
+  const status = (e as any).status || (e as any).response?.status;
+  if (typeof status === "number" && status >= 500 && status < 600) {
+    return true;
+  }
+  return false;
+}
+
 export class SubRosaClient {
   readonly contract: RoundContract;
   readonly contractId: string;
@@ -137,6 +174,8 @@ export class SubRosaClient {
   readonly #submitter?: TransactionSubmitter;
   readonly #confirmTimeout: number;
   readonly #pollInterval: number;
+  readonly #retryOptions: Required<SubRosaRetryOptions>;
+  readonly #random: () => number;
 
   constructor(config: SubRosaClientConfig) {
     const allowHttp = config.allowHttp ?? false;
@@ -176,6 +215,12 @@ export class SubRosaClient {
     this.#submitter = config.submitter;
     this.#confirmTimeout = confirmTimeout;
     this.#pollInterval = pollInterval;
+    this.#retryOptions = {
+      maxAttempts: config.retryOptions?.maxAttempts ?? 3,
+      baseDelay: config.retryOptions?.baseDelay ?? 500,
+      maxDelay: config.retryOptions?.maxDelay ?? 2000,
+    };
+    this.#random = config._random ?? (() => Math.random());
     if (config._sleep) this.#sleep = config._sleep;
     this.contract = new RoundContract({
       contractId: this.contractId,
@@ -203,10 +248,30 @@ export class SubRosaClient {
     return this.#source;
   }
 
+  async #withRetry<T>(operation: () => Promise<T>): Promise<T> {
+    let attempts = 0;
+    while (true) {
+      try {
+        return await operation();
+      } catch (e) {
+        if (attempts >= this.#retryOptions.maxAttempts || !isTransientError(e)) {
+          throw e;
+        }
+        attempts++;
+        const backoff = Math.min(
+          this.#retryOptions.maxDelay,
+          this.#retryOptions.baseDelay * 2 ** (attempts - 1)
+        );
+        const jitter = backoff * 0.2 * (this.#random() * 2 - 1); // +/- 20%
+        await this.#sleep(Math.max(0, backoff + jitter));
+      }
+    }
+  }
+
   async #sendUnwrap<T>(tx: AssembledTransaction<Result<T>>): Promise<T> {
     if (!this.#submitter) {
       try {
-        const sent = await tx.signAndSend();
+        const sent = await this.#withRetry(() => tx.signAndSend());
         return sent.result.unwrap();
       } catch (e) {
         throw new SubRosaSubmitError("direct RPC submission failed", { cause: e });
@@ -217,6 +282,8 @@ export class SubRosaClient {
     if (!tx.signed) throw new SubRosaSubmitError("transaction was not signed");
     let submitted;
     try {
+      // Submitting through external submitter is likely non-idempotent
+      // unless specifically built for it; we only retry the polling part below.
       submitted = await this.#submitter.submitSignedTransaction({
         signedTransactionXdr: tx.signed.toXDR(),
         contractId: this.contractId,
@@ -235,7 +302,7 @@ export class SubRosaClient {
     while (Date.now() < deadline) {
       let res;
       try {
-        res = await server.getTransaction(submitted.hash);
+        res = await this.#withRetry(() => server.getTransaction(submitted.hash));
       } catch (e) {
         throw new SubRosaSubmitError(
           `RPC getTransaction failed for ${submitted.hash}`,
