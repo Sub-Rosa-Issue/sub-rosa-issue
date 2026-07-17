@@ -2,6 +2,7 @@ import http from "node:http";
 
 import type { DrandClient } from "@sub-rosa/tlock";
 
+import type { MetricsCollector } from "./metrics.js";
 import type { StatusReader } from "./status.js";
 import { buildKeeperStatus, type BuildStatusSource } from "./status.js";
 
@@ -15,6 +16,8 @@ export interface StatusServerConfig {
   storeRounds: () => import("./store.js").WatchedRound[];
   settleIndicator?: (roundId: bigint) => import("./status.js").SettlementIndicator;
   epochMs?: number;
+  /** Optional Prometheus-style metrics collector. When set, exposes GET /metrics. */
+  metricsCollector?: MetricsCollector;
 }
 
 interface Route {
@@ -27,6 +30,7 @@ interface Route {
 }
 
 const JSON_CONTENT = { "content-type": "application/json" };
+const TEXT_CONTENT = { "content-type": "text/plain; charset=utf-8" };
 
 function send(
   res: http.ServerResponse,
@@ -36,6 +40,15 @@ function send(
   const payload = JSON.stringify(body, bigintReplacer, 2);
   res.writeHead(status, JSON_CONTENT);
   res.end(payload);
+}
+
+function sendText(
+  res: http.ServerResponse,
+  status: number,
+  text: string,
+): void {
+  res.writeHead(status, TEXT_CONTENT);
+  res.end(text);
 }
 
 export function bigintReplacer(_k: string, v: unknown): unknown {
@@ -108,7 +121,7 @@ function makeRoutes(src: BuildStatusSource): Route[] {
           status: 200,
           body: {
             service: "sub-rosa-keeper-status",
-            endpoints: ["GET /status", "GET /status/rounds/:id", "GET /healthz", "GET /status/health"],
+            endpoints: ["GET /status", "GET /status/rounds/:id", "GET /healthz", "GET /status/health", "GET /metrics"],
           },
         };
       },
@@ -165,14 +178,26 @@ export function createStatusServer(config: StatusServerConfig): http.Server {
 
   const dynamic = makeRoutes(source);
   const fastHealth = healthzHandler(source);
+  const metricsCollector = config.metricsCollector;
 
   const server = http.createServer((req, res) => {
     try {
       const baseHost = req.headers.host ?? `${host}:${port}`;
       const url = new URL(req.url ?? "/", `http://${baseHost}`);
 
+      // Fast-path: /healthz (liveness probe, no JSON parsing)
       if (req.method === "GET" && url.pathname === "/healthz") {
         void fastHealth(url).then((r) => send(res, r.status, r.body));
+        return;
+      }
+
+      // Fast-path: /metrics (Prometheus text format, no JSON parsing)
+      if (req.method === "GET" && url.pathname === "/metrics") {
+        if (metricsCollector) {
+          sendText(res, 200, metricsCollector.render());
+        } else {
+          sendText(res, 404, "metrics collector not enabled");
+        }
         return;
       }
 
@@ -183,7 +208,13 @@ export function createStatusServer(config: StatusServerConfig): http.Server {
         send(res, 404, {
           error: "not found",
           path: url.pathname,
-          available: ["GET /status", "GET /status/rounds/:id", "GET /healthz", "GET /status/health"],
+          available: [
+            "GET /status",
+            "GET /status/rounds/:id",
+            "GET /healthz",
+            "GET /status/health",
+            ...(metricsCollector ? ["GET /metrics"] : []),
+          ],
         });
         return;
       }

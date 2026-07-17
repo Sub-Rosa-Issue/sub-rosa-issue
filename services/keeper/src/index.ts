@@ -55,3 +55,7 @@ export {
   type KeeperStatusResponse,
 } from "./status.js";
 export { runWatchLoop, type RunWatchLoopParams } from "./watch-loop.js";
+export {
+  createMetricsCollector,
+  type MetricsCollector,
+} from "./metrics.js";

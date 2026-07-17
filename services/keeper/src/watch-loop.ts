@@ -18,6 +18,7 @@ import {
   type WatchTickResult,
   watchRound,
 } from "./keeper.js";
+import type { MetricsCollector } from "./metrics.js";
 import type { SettlementGuard } from "./settlement-guard.js";
 import type { KeeperLogger } from "./keeper.js";
 import { KeeperStore } from "./store.js";
@@ -31,6 +32,8 @@ export interface RunWatchLoopParams {
   network: string;
   store: KeeperStore;
   settlementGuard: SettlementGuard;
+  /** Optional Prometheus-style metrics collector. */
+  metricsCollector?: MetricsCollector;
   isStopping: () => boolean;
 }
 
@@ -70,6 +73,7 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
     network,
     store,
     settlementGuard,
+    metricsCollector,
     isStopping,
   } = params;
 
@@ -108,7 +112,26 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
           // The keep phase may still open/reveal; we let watchRound proceed but
           // settle manipulation is avoided by the guard's skip marker.
         }
+        const settleStartMs = Date.now();
         const tick = await watchRound(deps, roundId);
+        const settleDurationS = (Date.now() - settleStartMs) / 1000;
+
+        // Record metrics
+        metricsCollector?.incRoundsSeen();
+        if (
+          tick.keep?.openedReveal ||
+          (tick.keep?.revealed.length ?? 0) > 0
+        ) {
+          metricsCollector?.incRoundsRevealed();
+        }
+        if (tick.close?.settled) {
+          metricsCollector?.incRoundsSettled();
+          metricsCollector?.observeSettleLatency(settleDurationS);
+        }
+        if (tick.finalStatus === "Settled" || tick.finalStatus === "Voided") {
+          // Round completed — no further metrics needed.
+        }
+
         const active =
           tick.finalStatus !== "Settled" && tick.finalStatus !== "Voided";
         const acted =
@@ -139,6 +162,7 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
         }
       } catch (e) {
         log(`[round ${roundId}] tick failed: ${e instanceof Error ? e.message : String(e)}`);
+        metricsCollector?.incRoundsFailed();
         settlementGuard.markRetryable(
           roundId,
           e instanceof Error ? e.message : String(e),

@@ -18,11 +18,13 @@
 //   KEEPER_STATUS_HOST  status API bind host (default 127.0.0.1)
 //   KEEPER_STATUS_PORT  status API port (default 8090)
 //   KEEPER_STATUS_ENABLE set to "false" to disable the status API (default true)
+//   KEEPER_METRICS_ENABLE set to "true" to enable the /metrics endpoint (default false)
 
 import { Keypair } from "@stellar/stellar-sdk";
 import { SubRosaClient } from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
 
+import { createMetricsCollector } from "./metrics.js";
 import { createSettlementGuard } from "./settlement-guard.js";
 import { createStatusServer, withGracefulShutdown } from "./status-server.js";
 import { KeeperStore } from "./store.js";
@@ -72,6 +74,8 @@ async function main() {
   const statusEnabled = (process.env.KEEPER_STATUS_ENABLE ?? "true").toLowerCase() !== "false";
   const statusHost = process.env.KEEPER_STATUS_HOST ?? "127.0.0.1";
   const statusPort = Number(process.env.KEEPER_STATUS_PORT ?? "8090");
+  const metricsEnabled = (process.env.KEEPER_METRICS_ENABLE ?? "false").toLowerCase() === "true";
+  const metricsCollector = metricsEnabled ? createMetricsCollector() : undefined;
 
   let statusHandle: ReturnType<typeof withGracefulShutdown> | undefined;
   if (statusEnabled) {
@@ -90,11 +94,18 @@ async function main() {
         if (entry.status === "submitted") return "submitted";
         return "terminal";
       },
+      metricsCollector,
     });
     statusHandle = withGracefulShutdown(server);
-    console.log(`· status API: http://${statusHost}:${statusPort} (GET /status, /status/rounds/:id, /healthz, /status/health)`);
+    const endpoints = ["GET /status", "GET /status/rounds/:id", "GET /healthz", "GET /status/health"];
+    if (metricsCollector) endpoints.push("GET /metrics");
+    console.log(`· status API: http://${statusHost}:${statusPort} (${endpoints.join(", ")})`);
   } else {
     console.log("· status API disabled (KEEPER_STATUS_ENABLE=false)");
+  }
+
+  if (metricsEnabled && metricsCollector) {
+    console.log("· Prometheus metrics enabled at /metrics (opt-in via KEEPER_METRICS_ENABLE=true)");
   }
 
   console.log("Sub Rosa keeper (watch + status)");
@@ -111,6 +122,7 @@ async function main() {
     network: networkPassphrase,
     store,
     settlementGuard,
+    metricsCollector,
     isStopping: () => stopping,
   });
 

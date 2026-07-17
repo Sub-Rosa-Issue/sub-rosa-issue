@@ -32,6 +32,7 @@ The status API is served by `npm run serve` (or any process that calls `createSt
 | `GET` | `/status/rounds/:id` | Single-round status view |
 | `GET` | `/status/health` | Health only (RPC + Drand) |
 | `GET` | `/healthz` | Liveness probe — cheap, suitable for load balancers |
+| `GET` | `/metrics` | Prometheus-style metrics (opt-in via `KEEPER_METRICS_ENABLE=true`) |
 | `GET` | `/` | Service info + endpoint list |
 
 ### Configuration
@@ -41,6 +42,7 @@ The status API is served by `npm run serve` (or any process that calls `createSt
 | `KEEPER_STATUS_HOST` | `127.0.0.1` | Bind address for the status API |
 | `KEEPER_STATUS_PORT` | `8090` | Port for the status API |
 | `KEEPER_STATUS_ENABLE` | `true` | Set to `false` to disable the status API in `serve` |
+| `KEEPER_METRICS_ENABLE` | `false` | Set to `true` to enable the Prometheus `/metrics` endpoint |
 
 ### Example
 
@@ -97,6 +99,27 @@ Response shape (typed in `@sub-rosa/sdk` as `KeeperStatusResponse`):
 - `settlement`: `pending | submitted | terminal | none` — reflects the in-memory settlement guard.
 - `lastKeeperAction`: human-readable summary of the last mutation the keeper performed for this round.
 - `lastError`, `retryCount`: tick failure tracking.
+
+### Prometheus Metrics
+
+When `KEEPER_METRICS_ENABLE=true`, the status server exposes a Prometheus-style `/metrics` endpoint returning scrapeable text (content-type `text/plain`).
+
+**Counters:**
+
+| Metric name | Description |
+|-------------|-------------|
+| `keeper_rounds_seen_total` | Total number of rounds observed by the keeper on each tick |
+| `keeper_rounds_revealed_total` | Total number of rounds on which the keeper performed reveals |
+| `keeper_rounds_settled_total` | Total number of rounds settled by the keeper |
+| `keeper_rounds_failed_total` | Total number of rounds where a keeper tick failed |
+
+**Histograms:**
+
+| Metric name | Description |
+|-------------|-------------|
+| `keeper_settle_duration_seconds` | Latency of settle operations in seconds (buckets: 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300) |
+
+Only non-zero metrics appear in the response, keeping the payload minimal.
 
 ### Health
 
