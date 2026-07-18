@@ -97,6 +97,10 @@ await client.commit({ roundId, sealed, escrow });
 The app layer can be a DAO tool, grants platform, auction UI, RFP workflow, or
 allocation dashboard. Sub Rosa supplies the sealed round state machine.
 
+**For a complete, copy-paste walkthrough covering install → create round →
+commit sealed bid → open reveal → settle → export receipt, see
+[`docs/INTEGRATION.md`](./docs/INTEGRATION.md).**
+
 ---
 
 ## Deployed artifacts
