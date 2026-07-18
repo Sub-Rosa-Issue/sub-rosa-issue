@@ -1,0 +1,21 @@
+{
+  "$comment": "Cross-implementation golden vector for sealBid. See src/seal.vectors.test.ts for the checks that consume this file and the documented regeneration steps.",
+  "version": 1,
+  "input": {
+    "value": "700",
+    "nonce_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+    "round": 29174905,
+    "identity_utf8": "GBIDDER...alice"
+  },
+  "auditor": {
+    "$comment": "secret_key_hex = sha256('sub-rosa/tlock/seal-bid/vector/v1/auditor'); public_key_hex = x25519.getPublicKey(secret_key_hex). Fixed so the auditor-blob roundtrip is deterministic across machines.",
+    "seed": "sub-rosa/tlock/seal-bid/vector/v1/auditor",
+    "secret_key_hex": "4e3639c14fb6656ce499b0717614a93dc61063ef5b1fe21f08d9cc3a958df3c2",
+    "public_key_hex": "ad381b6ce3451c899a16e018c69a5c85f78ab83544d6a4ff9ccfb5521d93012d"
+  },
+  "expected": {
+    "$comment": "preimage_hex = i128_be(value) || nonce (48 bytes). commitment_hex = sha256(preimage). This commitment is the on-chain H the Round contract stores and checks at reveal — identical to the frozen vector in contracts/round tests (commitment_matches_offchain_vector).",
+    "preimage_hex": "000000000000000000000000000002bc1111111111111111111111111111111111111111111111111111111111111111",
+    "commitment_hex": "3d4c2d3604b23250687f0344a9474e3c748742a4fba4616d308d529121a8dec4"
+  }
+}
