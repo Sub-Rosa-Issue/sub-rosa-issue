@@ -45,6 +45,7 @@ const EXPECTED_EXPORTS = [
   "parseReceipt",
   "redactReceipt",
   "runMainnetReadiness",
+  "serializeCanonicalJson",
   "serializeReceipt",
   "tryDecodeBase64",
   "tryDecodeHex",

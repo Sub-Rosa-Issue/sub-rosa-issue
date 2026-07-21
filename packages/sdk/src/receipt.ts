@@ -170,7 +170,19 @@ function validateBidEntry(value: unknown, field: string): BidReceiptEntry {
   assertNullableHexString(evidence.ciphertext, `${field}.evidence.ciphertext`);
   assertNullableHexString(evidence.auditorBlob, `${field}.evidence.auditorBlob`);
 
-  return entry as BidReceiptEntry;
+  return {
+    commitment: entry.commitment as string,
+    escrow: entry.escrow as string,
+    revealedValue: entry.revealedValue as string | null,
+    nonce: entry.nonce as string | null,
+    hashValid: entry.hashValid as boolean | null,
+    valid: entry.valid as boolean,
+    settled: entry.settled as boolean,
+    evidence: {
+      ciphertext: evidence.ciphertext as string | null,
+      auditorBlob: evidence.auditorBlob as string | null,
+    },
+  };
 }
 
 /** Validate a parsed or in-memory receipt before export/serialize. */
@@ -224,11 +236,12 @@ export function validateReceipt(value: unknown): RoundReceipt {
   }
 
   const bids = receipt.bids as Record<string, unknown>;
+  const validatedBids: Record<string, BidReceiptEntry> = {};
   for (const bidder of receipt.bidders as string[]) {
     if (!(bidder in bids)) {
       validationError(`missing bid entry for bidder ${bidder}`, `bids.${bidder}`);
     }
-    validateBidEntry(bids[bidder], `bids.${bidder}`);
+    validatedBids[bidder] = validateBidEntry(bids[bidder], `bids.${bidder}`);
   }
 
   if (receipt.winner !== null) {
@@ -240,14 +253,44 @@ export function validateReceipt(value: unknown): RoundReceipt {
     assertNonEmptyString(receipt.artifactChecksum, "artifactChecksum");
   }
 
-  return receipt as RoundReceipt;
+  const validated: RoundReceipt = {
+    version: RECEIPT_VERSION,
+    network: receipt.network as string,
+    networkFingerprint: receipt.networkFingerprint as string,
+    contractId: receipt.contractId as string,
+    exportedAt: receipt.exportedAt as string,
+    roundId: receipt.roundId as string,
+    itemRef: receipt.itemRef as string,
+    revealRound: receipt.revealRound as number,
+    clearingRule: receipt.clearingRule as string,
+    commitDeadline: receipt.commitDeadline as string,
+    revealDeadline: receipt.revealDeadline as string,
+    operator: receipt.operator as string,
+    auditorPubkey: receipt.auditorPubkey as string,
+    bidders: [...(receipt.bidders as string[])],
+    bids: validatedBids,
+    winner: receipt.winner as string | null,
+    winningValue: receipt.winningValue as string | null,
+    status: receipt.status as string,
+  };
+  if (receipt.artifactChecksum !== undefined) {
+    validated.artifactChecksum = receipt.artifactChecksum as string;
+  }
+  return validated;
+}
+
+/** Canonical JSON (deep-sorted keys, trailing newline) without schema checks.
+ *  Use for redacted / partial artifacts that are not valid RoundReceipt values.
+ *  Verifiable receipts must go through {@link serializeReceipt}. */
+export function serializeCanonicalJson(value: unknown): string {
+  return JSON.stringify(value, sortKeys) + "\n";
 }
 
 /** Serialise a receipt to canonical JSON (deep-sorted keys, no whitespace).
  *  This is the format the CLI writes and the verifier reads. */
 export function serializeReceipt(receipt: RoundReceipt): string {
   validateReceipt(receipt);
-  return JSON.stringify(receipt, sortKeys) + "\n";
+  return serializeCanonicalJson(receipt);
 }
 
 /** Parse a receipt from its canonical JSON form. */

@@ -1,21 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { serializeReceipt, parseReceipt, type RoundReceipt } from "./receipt.js";
+import {
+  serializeReceipt,
+  serializeCanonicalJson,
+  type RoundReceipt,
+} from "./receipt.js";
+import { SubRosaReceiptValidationError } from "./errors.js";
 import { redactReceipt, type BidReceiptEntry } from "./redact.js";
 import { verifyReceipt } from "./verify.js";
-
-function canonicalJson(value: unknown): string {
-  const sortKeys = (_: string, v: unknown): unknown => {
-    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
-      return Object.fromEntries(
-        Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-      );
-    }
-    return v;
-  };
-  return JSON.stringify(value, sortKeys) + "\n";
-}
 
 function makeReceipt(): RoundReceipt {
   return {
@@ -148,9 +141,20 @@ test("preserves network and verification metadata", () => {
 
 test("redaction output is deterministic", () => {
   const receipt = makeReceipt();
-  const first = canonicalJson(redactReceipt(receipt));
-  const second = canonicalJson(redactReceipt(receipt));
+  const first = serializeCanonicalJson(redactReceipt(receipt));
+  const second = serializeCanonicalJson(redactReceipt(receipt));
   assert.equal(first, second);
+});
+
+test("serializeReceipt rejects redacted receipts; serializeCanonicalJson accepts them", () => {
+  const redacted = redactReceipt(makeReceipt());
+  assert.throws(
+    () => serializeReceipt(redacted),
+    (err: unknown) => err instanceof SubRosaReceiptValidationError,
+  );
+  const canonical = serializeCanonicalJson(redacted);
+  assert.match(canonical, /"<redacted>"/);
+  assert.equal(canonical, serializeCanonicalJson(JSON.parse(canonical)));
 });
 
 test("keep-list preserves specified top-level field", () => {
@@ -289,5 +293,5 @@ test("idempotent on nested structures", () => {
   };
   const once = redactReceipt(receipt);
   const twice = redactReceipt(once);
-  assert.equal(canonicalJson(once), canonicalJson(twice));
+  assert.equal(serializeCanonicalJson(once), serializeCanonicalJson(twice));
 });

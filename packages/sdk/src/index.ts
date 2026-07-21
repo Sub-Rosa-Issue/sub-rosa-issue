@@ -86,6 +86,7 @@ export {
 
 export {
   serializeReceipt,
+  serializeCanonicalJson,
   parseReceipt,
   validateReceipt,
   networkFingerprint,
