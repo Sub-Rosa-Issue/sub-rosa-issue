@@ -72,14 +72,14 @@ Stellar is a core part of the product, not superficial storage:
 
 | Proof | Network | Status |
 | --- | --- | --- |
-| Round contract + tests | Local/Soroban | 14 Rust tests |
-| tlock package + auditor blob | Local | 13 tests |
-| SDK | Local/Testnet | Contract bindings + direct RPC submitter |
+| Round contract + tests | Local/Soroban | `pnpm contract:test` |
+| tlock package + auditor blob | Local | `pnpm tlock:test` |
+| SDK | Local/Testnet | Contract bindings + direct RPC submitter; `pnpm sdk:test` |
 | Full lifecycle | Testnet | `pnpm lifecycle:e2e`: 2 bidders, USDC SAC, settle to 0 |
 | Multi-agent + x402 | Testnet | `pnpm agents:e2e`: x402 appraisal, sealed commits, keeper reveal, settle |
-| UI trace | Testnet | Canonical generated trace in `apps/web/src/demo/demo-trace.generated.ts` |
+| UI trace | Testnet | Canonical generated trace in `apps/web/src/demo/demo-trace.generated.ts`; `pnpm web:test` |
 | Mainnet smoke | Mainnet | Real XLM deployment, BLS open, settle, read-only verify |
-| Keeper | Testnet-ready | Permissionless reveal + watch mode |
+| Keeper | Testnet-ready | Permissionless reveal + watch mode; `pnpm keeper:test` |
 
 Mainnet currently proves the primitive with native XLM SAC. The full USDC
 multi-agent product proof is on testnet; this boundary is intentional and
