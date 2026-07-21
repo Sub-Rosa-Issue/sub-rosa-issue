@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { rpc, StrKey } from "@stellar/stellar-sdk";
 
 import { SubRosaClient } from "./client.js";
 import {
@@ -14,7 +15,17 @@ import type {
 const BASE_CONFIG = {
   rpcUrl: "https://example.com",
   networkPassphrase: "Test SDF Network ; September 2015",
-  contractId: "CCW67TSA3JH6KABMZAWOS6J2GKY6BKBJ5TKQAMM6P3EXZ7OAFM2TJ5BQ",
+  contractId: StrKey.encodeContract(Buffer.alloc(32)),
+  _server: {
+    getNetwork: async () => ({
+      passphrase: "Test SDF Network ; September 2015",
+      protocolVersion: "23",
+    }),
+    getLedgerEntries: async () => ({
+      entries: [{}],
+      latestLedger: 123,
+    }),
+  } as unknown as rpc.Server,
 };
 
 const PUBLIC_KEY =
@@ -64,6 +75,61 @@ describe("SubRosaClient network configuration", () => {
           allowHttp: true,
         }),
     );
+  });
+
+  it("rejects a mismatched RPC before building a contract call", async () => {
+    let contractCalls = 0;
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      _server: {
+        getNetwork: async () => ({
+          passphrase: "Public Global Stellar Network ; September 2015",
+          protocolVersion: "23",
+        }),
+        getLedgerEntries: async () => ({ entries: [], latestLedger: 123 }),
+      } as unknown as rpc.Server,
+    });
+    Object.defineProperty(client.contract, "get_round", {
+      configurable: true,
+      value: async () => {
+        contractCalls += 1;
+        throw new Error("must not be reached");
+      },
+    });
+
+    await assert.rejects(client.getRound(1), /same deployment/);
+    assert.equal(contractCalls, 0);
+  });
+
+  it("caches successful first-use validation", async () => {
+    let networkLookups = 0;
+    let contractLookups = 0;
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      _server: {
+        getNetwork: async () => {
+          networkLookups += 1;
+          return {
+            passphrase: BASE_CONFIG.networkPassphrase,
+            protocolVersion: "23",
+          };
+        },
+        getLedgerEntries: async () => {
+          contractLookups += 1;
+          return { entries: [{}], latestLedger: 123 };
+        },
+      } as unknown as rpc.Server,
+    });
+    Object.defineProperty(client.contract, "get_round", {
+      configurable: true,
+      value: async () => ({ result: { unwrap: () => ({}) } }),
+    });
+
+    await client.getRound(1);
+    await client.getRound(2);
+
+    assert.equal(networkLookups, 1);
+    assert.equal(contractLookups, 1);
   });
 });
 

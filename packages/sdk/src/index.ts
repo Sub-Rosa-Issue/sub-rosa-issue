@@ -28,16 +28,23 @@ export {
 export {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
+  SubRosaNetworkMismatchError,
   SubRosaPreflightError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
 } from "./errors.js";
 export type {
+  NetworkMismatchErrorParams,
   PreflightFailureKind,
   SubRosaPreflightErrorParams,
   TimeoutErrorParams,
 } from "./errors.js";
+export {
+  validateContractNetwork,
+  type ContractNetworkValidationConfig,
+  type NetworkValidationServer,
+} from "./network.js";
 
 export {
   validateEncryptedBlob,

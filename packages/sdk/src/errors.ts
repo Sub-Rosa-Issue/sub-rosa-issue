@@ -6,6 +6,37 @@ export class SubRosaClientConfigError extends Error {
   }
 }
 
+export interface NetworkMismatchErrorParams {
+  contractId: string;
+  configuredPassphrase: string;
+  rpcPassphrase: string;
+  rpcUrl: string;
+  reason: "passphrase" | "contract_not_found";
+}
+
+/** Raised before contract simulation/signing when network configuration conflicts. */
+export class SubRosaNetworkMismatchError extends Error {
+  readonly name = "SubRosaNetworkMismatchError";
+  readonly contractId: string;
+  readonly configuredPassphrase: string;
+  readonly rpcPassphrase: string;
+  readonly rpcUrl: string;
+  readonly reason: NetworkMismatchErrorParams["reason"];
+
+  constructor(params: NetworkMismatchErrorParams) {
+    const message =
+      params.reason === "passphrase"
+        ? `networkPassphrase ${JSON.stringify(params.configuredPassphrase)} does not match RPC network ${JSON.stringify(params.rpcPassphrase)} at ${params.rpcUrl}; use the passphrase and contract ID from the same deployment`
+        : `contract ${params.contractId} was not found on RPC network ${JSON.stringify(params.rpcPassphrase)} at ${params.rpcUrl}; check that contractId and networkPassphrase refer to the same deployment`;
+    super(message);
+    this.contractId = params.contractId;
+    this.configuredPassphrase = params.configuredPassphrase;
+    this.rpcPassphrase = params.rpcPassphrase;
+    this.rpcUrl = params.rpcUrl;
+    this.reason = params.reason;
+  }
+}
+
 export class SubRosaSubmitError extends Error {
   readonly name = "SubRosaSubmitError";
 

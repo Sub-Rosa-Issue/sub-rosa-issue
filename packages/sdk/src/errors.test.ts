@@ -5,6 +5,7 @@ import {
   SubRosaSubmitError,
   SubRosaTransactionError,
   SubRosaMissingReturnValueError,
+  SubRosaNetworkMismatchError,
   SubRosaTimeoutError,
 } from "./errors.js";
 import { SubRosaClient } from "./client.js";
@@ -20,6 +21,24 @@ describe("SubRosaClientConfigError", () => {
     const cause = new Error("root");
     const err = new SubRosaClientConfigError("msg", { cause });
     assert.equal(err.cause, cause);
+  });
+});
+
+describe("SubRosaNetworkMismatchError", () => {
+  it("exposes conflicting network details", () => {
+    const err = new SubRosaNetworkMismatchError({
+      contractId: "C123",
+      configuredPassphrase: "testnet",
+      rpcPassphrase: "public",
+      rpcUrl: "https://rpc.example",
+      reason: "passphrase",
+    });
+    assert.equal(err.name, "SubRosaNetworkMismatchError");
+    assert.equal(err.contractId, "C123");
+    assert.equal(err.configuredPassphrase, "testnet");
+    assert.equal(err.rpcPassphrase, "public");
+    assert.equal(err.reason, "passphrase");
+    assert.match(err.message, /same deployment/);
   });
 });
 

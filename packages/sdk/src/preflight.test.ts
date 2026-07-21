@@ -20,6 +20,16 @@ const BASE_CONFIG = {
   rpcUrl: "https://example.com",
   networkPassphrase: "Test SDF Network ; September 2015",
   contractId: "CAPTODBCDEVIK23ALBJBS2TXRTIK47ZA5MBTHYF4XLHG2BK7JPYUCU2Y",
+  _server: {
+    getNetwork: async () => ({
+      passphrase: "Test SDF Network ; September 2015",
+      protocolVersion: "23",
+    }),
+    getLedgerEntries: async () => ({
+      entries: [{}],
+      latestLedger: 123,
+    }),
+  } as unknown as rpc.Server,
 };
 
 const PUBLIC_KEY =
