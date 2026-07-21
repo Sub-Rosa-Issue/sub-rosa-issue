@@ -1,0 +1,36 @@
+name: Contract tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  round-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "contracts/round"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run round contract unit tests
+        run: cargo test -p sub-rosa-round
+
+      - name: Check ERRORS.md stays in sync with enum Error
+        run: node scripts/check-round-errors.mjs
+
+      - name: Run error drift script tests
+        run: node --test scripts/check-round-errors.test.mjs

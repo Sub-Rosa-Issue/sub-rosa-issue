@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
-    token, Address, Bytes, BytesN, Env, Vec,
+    token, Address, Bytes, BytesN, ConversionError, Env, InvokeError, Vec,
 };
 use soroban_sdk::testutils::storage::Temporary as TemporaryStorageTest;
 
@@ -51,7 +51,7 @@ fn setup() -> Fixture {
 
 // ── Real Drand constants (quicknet round 29155653) ───────────────────────────
 // All tests that go through open_reveal must use this fixture + VEC_SIG.
-const VEC_ROUND: u64 = 29_155_653;
+pub(super) const VEC_ROUND: u64 = 29_155_653;
 const VEC_SIG_G1: &str = "0f74ee9ea1bc8ab52cc375ec82e70b6fed483a2618e90eeaef5631555733554f8bb3ec7c8563341af525d09b3702cae7181d281dbcb68e4779e93184eea8f879301f980708c26e488b5417f9c257b6b9cee7f9a2d6981fb65b7bcd6bcc15d3ac";
 const VEC_PUBKEY_C1C0: &str = "03cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a01a714f2edb74119a2f2b0d5a7c75ba902d163700a61bc224ededd8e63aef7be1aaf8e93d7a9718b047ccddb3eb5d68b0e5db2b6bfbb01c867749cadffca88b36c24f3012ba09fc4d3022c5c37dce0f977d3adb5d183c7477c442b1f04515273";
 const VEC_NEGGEN_C1C0: &str = "13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb813fa4d4a0ad8b1ce186ed5061789213d993923066dddaf1040bc3ff59f825c78df74f2d75467e25e0f55f8a00fa030ed0d1b3cc2c7027888be51d9ef691d77bcb679afda66c73f17f9ee3837a55024f78c71363275a75d75d86bab79f74782aa";
@@ -191,6 +191,86 @@ fn commit_bid(f: &Fixture, round_id: u64, bidder: &Address, value: i128, escrow:
     );
     nonce
 }
+
+fn assert_try_contract_err<T>(
+    result: Result<Result<T, ConversionError>, Result<Error, InvokeError>>,
+    expected: Error,
+) {
+    match result {
+        Err(Ok(got)) => {
+            assert_eq!(
+                got, expected,
+                "expected {} ({})",
+                variant_name(expected),
+                expected as u32,
+            );
+        }
+        Err(Err(InvokeError::Contract(code))) => {
+            assert_eq!(
+                code,
+                expected as u32,
+                "expected {} ({})",
+                variant_name(expected),
+                expected as u32,
+            );
+        }
+        Err(Err(other)) => panic!(
+            "expected {} ({}), got invoke error {:?}",
+            variant_name(expected),
+            expected as u32,
+            other,
+        ),
+        Ok(Ok(_)) => panic!(
+            "expected contract error {} ({}), call succeeded",
+            variant_name(expected),
+            expected as u32,
+        ),
+        Ok(Err(conv)) => panic!("argument conversion error: {:?}", conv),
+    }
+}
+
+fn assert_try_create_round_err(
+    result: Result<
+        Result<u64, soroban_sdk::Error>,
+        Result<Error, InvokeError>,
+    >,
+    expected: Error,
+) {
+    match result {
+        Err(Ok(got)) => {
+            assert_eq!(
+                got, expected,
+                "expected {} ({})",
+                variant_name(expected),
+                expected as u32,
+            );
+        }
+        Err(Err(InvokeError::Contract(code))) => {
+            assert_eq!(
+                code,
+                expected as u32,
+                "expected {} ({})",
+                variant_name(expected),
+                expected as u32,
+            );
+        }
+        Err(Err(other)) => panic!(
+            "expected {} ({}), got invoke error {:?}",
+            variant_name(expected),
+            expected as u32,
+            other,
+        ),
+        Ok(Ok(_)) => panic!(
+            "expected contract error {} ({}), call succeeded",
+            variant_name(expected),
+            expected as u32,
+        ),
+        Ok(Err(conv)) => panic!("return value conversion error: {:?}", conv),
+    }
+}
+
+#[path = "error_paths.rs"]
+mod error_paths;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EXISTING TESTS (preserved verbatim)
@@ -1271,7 +1351,7 @@ fn observer_reads_round_and_bid_state_after_lifecycle_completion() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ISSUE #85 — ERROR CODE DOCUMENTATION CONSISTENCY
+// ISSUE #160 — ERROR CODE DOCUMENTATION CONSISTENCY
 //
 // These tests make sure contracts/round/ERRORS.md never drifts away from the
 // exported enum Error in src/types.rs. Two complementary guards:
@@ -1290,7 +1370,7 @@ fn observer_reads_round_and_bid_state_after_lifecycle_completion() {
 
 /// Authoritative (name, code) mapping for every variant of [`Error`]. Keep in
 /// sync with `contracts/round/ERRORS.md`.
-const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
+pub(super) const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
     // ── 1–4: initialization & lookup ──
     (Error::NotInitialized, 1),
     (Error::AlreadyInitialized, 2),
@@ -1326,11 +1406,11 @@ const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
 /// Convert an `Error` to its on-chain discriminant using the [`repr(u32)`]
 /// representation declared in `src/types.rs`. This is the same value that is
 /// embedded in `soroban_sdk::Error::Contract(...)` instances seen by callers.
-fn discriminant(e: Error) -> u32 {
+pub(super) fn discriminant(e: Error) -> u32 {
     e as u32
 }
 
-fn variant_name(e: Error) -> &'static str {
+pub(super) fn variant_name(e: Error) -> &'static str {
     match e {
         Error::NotInitialized => "NotInitialized",
         Error::AlreadyInitialized => "AlreadyInitialized",
