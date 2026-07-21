@@ -78,8 +78,11 @@ export function toHex(bytes: Uint8Array): string {
 }
 
 export function fromHex(hex: string): Uint8Array {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  const clean = /^0x/i.test(hex) ? hex.slice(2) : hex;
   if (clean.length % 2 !== 0) throw new Error("odd hex length");
+  if (!/^[0-9a-fA-F]*$/.test(clean)) {
+    throw new Error("invalid hex characters");
+  }
   const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) {
     out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);

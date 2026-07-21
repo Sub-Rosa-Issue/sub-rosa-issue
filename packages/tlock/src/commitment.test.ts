@@ -6,6 +6,7 @@ import {
   commitment,
   decodeBidPreimage,
   encodeBidPreimage,
+  fromHex,
   i128ToBeBytes,
   toHex,
 } from "./commitment.js";
@@ -50,4 +51,24 @@ test("rejects out-of-range and malformed inputs", () => {
   assert.throws(() => i128ToBeBytes(1n << 127n)); // > i128 max
   assert.throws(() => encodeBidPreimage(1n, new Uint8Array(31)));
   assert.throws(() => decodeBidPreimage(new Uint8Array(47)));
+});
+
+test("fromHex decodes lowercase, uppercase, and prefixed values", () => {
+  const expected = [0xab, 0xcd, 0xef];
+  assert.deepEqual([...fromHex("abcdef")], expected);
+  assert.deepEqual([...fromHex("ABCDEF")], expected);
+  assert.deepEqual([...fromHex("0xAbCdEf")], expected);
+  assert.deepEqual([...fromHex("0XABCDEF")], expected);
+});
+
+test("fromHex accepts empty input as an empty byte array", () => {
+  assert.deepEqual([...fromHex("")], []);
+  assert.deepEqual([...fromHex("0x")], []);
+});
+
+test("fromHex rejects odd-length and non-hex input", () => {
+  assert.throws(() => fromHex("abc"), /odd hex length/);
+  assert.throws(() => fromHex("zz"), /invalid hex characters/);
+  assert.throws(() => fromHex("12 3"), /invalid hex characters/);
+  assert.throws(() => fromHex("0x12gg"), /invalid hex characters/);
 });
