@@ -24,7 +24,7 @@ import { toHex } from "@sub-rosa/tlock";
 import type { SealedBid } from "@sub-rosa/tlock";
 import type { RoundReceipt } from "./receipt.js";
 import { validateEncryptedBlob } from "./encrypted-blob.js";
-import { networkFingerprint } from "./receipt.js";
+import { networkFingerprint, validateReceipt } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
 import {
   evaluatePreflight,
@@ -580,7 +580,7 @@ export class SubRosaClient {
       };
     }
 
-    return {
+    return validateReceipt({
       version: 1,
       network: this.networkPassphrase,
       networkFingerprint: networkFingerprint(this.networkPassphrase),
@@ -599,6 +599,6 @@ export class SubRosaClient {
       winner: round.winner ?? null,
       winningValue: round.winning_bid?.toString() ?? null,
       status: round.status.tag,
-    };
+    });
   }
 }

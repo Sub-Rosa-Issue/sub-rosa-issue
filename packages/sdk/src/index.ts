@@ -29,6 +29,7 @@ export {
   SubRosaClientConfigError,
   SubRosaMissingReturnValueError,
   SubRosaPreflightError,
+  SubRosaReceiptValidationError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,
@@ -86,6 +87,7 @@ export {
 export {
   serializeReceipt,
   parseReceipt,
+  validateReceipt,
   networkFingerprint,
   type RoundReceipt,
   type BidReceiptEntry,

@@ -5,6 +5,18 @@ import { serializeReceipt, parseReceipt, type RoundReceipt } from "./receipt.js"
 import { redactReceipt, type BidReceiptEntry } from "./redact.js";
 import { verifyReceipt } from "./verify.js";
 
+function canonicalJson(value: unknown): string {
+  const sortKeys = (_: string, v: unknown): unknown => {
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+      return Object.fromEntries(
+        Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+      );
+    }
+    return v;
+  };
+  return JSON.stringify(value, sortKeys) + "\n";
+}
+
 function makeReceipt(): RoundReceipt {
   return {
     version: 1,
@@ -136,8 +148,8 @@ test("preserves network and verification metadata", () => {
 
 test("redaction output is deterministic", () => {
   const receipt = makeReceipt();
-  const first = serializeReceipt(redactReceipt(receipt));
-  const second = serializeReceipt(redactReceipt(receipt));
+  const first = canonicalJson(redactReceipt(receipt));
+  const second = canonicalJson(redactReceipt(receipt));
   assert.equal(first, second);
 });
 
@@ -277,5 +289,5 @@ test("idempotent on nested structures", () => {
   };
   const once = redactReceipt(receipt);
   const twice = redactReceipt(once);
-  assert.equal(serializeReceipt(once), serializeReceipt(twice));
+  assert.equal(canonicalJson(once), canonicalJson(twice));
 });

@@ -102,3 +102,14 @@ export class SubRosaTimeoutError extends Error {
     this.pollIntervalMs = params.pollIntervalMs;
   }
 }
+
+/** Typed error when a receipt is missing required fields or fails schema checks. */
+export class SubRosaReceiptValidationError extends Error {
+  readonly name = "SubRosaReceiptValidationError";
+  readonly field?: string;
+
+  constructor(message: string, field?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.field = field;
+  }
+}

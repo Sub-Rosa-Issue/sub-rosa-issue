@@ -5,6 +5,7 @@
 // ciphertext, auditor blob) are honestly marked null when unavailable.
 
 import { createHash } from "node:crypto";
+import { SubRosaReceiptValidationError } from "./errors.js";
 
 export const RECEIPT_VERSION = 1;
 
@@ -96,13 +97,168 @@ function sortKeys(_: string, value: unknown): unknown {
   return value;
 }
 
+function validationError(message: string, field?: string): never {
+  throw new SubRosaReceiptValidationError(message, field);
+}
+
+function assertNonEmptyString(value: unknown, field: string): asserts value is string {
+  if (typeof value !== "string" || value.trim() === "") {
+    validationError(`${field} must be a non-empty string`, field);
+  }
+}
+
+function assertDecimalString(value: unknown, field: string): void {
+  assertNonEmptyString(value, field);
+  if (!/^\d+$/.test(value)) {
+    validationError(`${field} must be a decimal string`, field);
+  }
+}
+
+function assertHexString(value: unknown, field: string): void {
+  assertNonEmptyString(value, field);
+  if (!/^[0-9a-fA-F]+$/.test(value) || value.length % 2 !== 0) {
+    validationError(`${field} must be even-length hex`, field);
+  }
+}
+
+function assertNullableDecimalString(value: unknown, field: string): void {
+  if (value === null) return;
+  assertDecimalString(value, field);
+}
+
+function assertNullableHexString(value: unknown, field: string): void {
+  if (value === null) return;
+  assertHexString(value, field);
+}
+
+function assertBoolean(value: unknown, field: string): asserts value is boolean {
+  if (typeof value !== "boolean") {
+    validationError(`${field} must be a boolean`, field);
+  }
+}
+
+function assertNullableBoolean(
+  value: unknown,
+  field: string,
+): asserts value is boolean | null {
+  if (value !== null && typeof value !== "boolean") {
+    validationError(`${field} must be boolean or null`, field);
+  }
+}
+
+function validateBidEntry(value: unknown, field: string): BidReceiptEntry {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    validationError(`${field} must be an object`, field);
+  }
+  const entry = value as Record<string, unknown>;
+  assertHexString(entry.commitment, `${field}.commitment`);
+  assertDecimalString(entry.escrow, `${field}.escrow`);
+  assertNullableDecimalString(entry.revealedValue, `${field}.revealedValue`);
+  assertNullableHexString(entry.nonce, `${field}.nonce`);
+  assertNullableBoolean(entry.hashValid, `${field}.hashValid`);
+  assertBoolean(entry.valid, `${field}.valid`);
+  assertBoolean(entry.settled, `${field}.settled`);
+
+  if (
+    entry.evidence === null ||
+    typeof entry.evidence !== "object" ||
+    Array.isArray(entry.evidence)
+  ) {
+    validationError(`${field}.evidence must be an object`, `${field}.evidence`);
+  }
+  const evidence = entry.evidence as Record<string, unknown>;
+  assertNullableHexString(evidence.ciphertext, `${field}.evidence.ciphertext`);
+  assertNullableHexString(evidence.auditorBlob, `${field}.evidence.auditorBlob`);
+
+  return entry as BidReceiptEntry;
+}
+
+/** Validate a parsed or in-memory receipt before export/serialize. */
+export function validateReceipt(value: unknown): RoundReceipt {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    validationError("receipt must be an object");
+  }
+
+  const receipt = value as Record<string, unknown>;
+
+  if (receipt.version !== RECEIPT_VERSION) {
+    validationError(`version must be ${RECEIPT_VERSION}`, "version");
+  }
+
+  assertNonEmptyString(receipt.network, "network");
+  assertHexString(receipt.networkFingerprint, "networkFingerprint");
+  const expectedFingerprint = networkFingerprint(receipt.network);
+  if (receipt.networkFingerprint !== expectedFingerprint) {
+    validationError("networkFingerprint does not match network", "networkFingerprint");
+  }
+
+  assertNonEmptyString(receipt.contractId, "contractId");
+  assertNonEmptyString(receipt.exportedAt, "exportedAt");
+  assertDecimalString(receipt.roundId, "roundId");
+  assertHexString(receipt.itemRef, "itemRef");
+
+  if (typeof receipt.revealRound !== "number" || !Number.isFinite(receipt.revealRound)) {
+    validationError("revealRound must be a finite number", "revealRound");
+  }
+
+  assertNonEmptyString(receipt.clearingRule, "clearingRule");
+  assertDecimalString(receipt.commitDeadline, "commitDeadline");
+  assertDecimalString(receipt.revealDeadline, "revealDeadline");
+  assertNonEmptyString(receipt.operator, "operator");
+  assertHexString(receipt.auditorPubkey, "auditorPubkey");
+  assertNonEmptyString(receipt.status, "status");
+
+  if (!Array.isArray(receipt.bidders)) {
+    validationError("bidders must be an array", "bidders");
+  }
+  for (const [index, bidder] of receipt.bidders.entries()) {
+    assertNonEmptyString(bidder, `bidders[${index}]`);
+  }
+
+  if (
+    receipt.bids === null ||
+    typeof receipt.bids !== "object" ||
+    Array.isArray(receipt.bids)
+  ) {
+    validationError("bids must be an object", "bids");
+  }
+
+  const bids = receipt.bids as Record<string, unknown>;
+  for (const bidder of receipt.bidders as string[]) {
+    if (!(bidder in bids)) {
+      validationError(`missing bid entry for bidder ${bidder}`, `bids.${bidder}`);
+    }
+    validateBidEntry(bids[bidder], `bids.${bidder}`);
+  }
+
+  if (receipt.winner !== null) {
+    assertNonEmptyString(receipt.winner, "winner");
+  }
+  assertNullableDecimalString(receipt.winningValue, "winningValue");
+
+  if (receipt.artifactChecksum !== undefined) {
+    assertNonEmptyString(receipt.artifactChecksum, "artifactChecksum");
+  }
+
+  return receipt as RoundReceipt;
+}
+
 /** Serialise a receipt to canonical JSON (deep-sorted keys, no whitespace).
  *  This is the format the CLI writes and the verifier reads. */
 export function serializeReceipt(receipt: RoundReceipt): string {
+  validateReceipt(receipt);
   return JSON.stringify(receipt, sortKeys) + "\n";
 }
 
 /** Parse a receipt from its canonical JSON form. */
 export function parseReceipt(json: string): RoundReceipt {
-  return JSON.parse(json) as RoundReceipt;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (error) {
+    throw new SubRosaReceiptValidationError("receipt JSON is invalid", undefined, {
+      cause: error,
+    });
+  }
+  return validateReceipt(parsed);
 }
