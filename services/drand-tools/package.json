@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Risk-2 harness: validate tlock <-> Drand <-> on-chain BLS and generate Soroban constants",
   "scripts": {
-    "validate": "tsx src/index.ts"
+    "validate": "tsx src/index.ts",
+    "test": "node --import tsx --test src/encode.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@noble/curves": "^2.2.0",
