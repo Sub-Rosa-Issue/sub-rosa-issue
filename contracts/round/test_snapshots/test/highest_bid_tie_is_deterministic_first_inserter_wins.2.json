@@ -731,6 +731,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": {
+                        "bytes": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": {
@@ -825,6 +833,14 @@
                           "hi": 0,
                           "lo": 500
                         }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": {
+                        "bytes": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                       }
                     },
                     {

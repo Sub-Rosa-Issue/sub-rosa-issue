@@ -1,53 +1,50 @@
 //! Integration tests that exercise every custom contract error code.
-//!
-//! Reserved enum variants (documented in ERRORS.md but not returned by current
-//! code paths) are covered by the drift registry instead of runtime triggers.
 
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
-    Address, Bytes, BytesN, Env,
+    Address, Bytes, Env, IntoVal, Symbol,
 };
 
 use crate::storage::{get_round, set_round};
 use crate::types::{ClearingRule, DataKey, Error, Status};
 
 use super::{
-    assert_try_create_round_err, assert_try_contract_err, b32, commit_bid, drand_round,
-    funded_bidder, open_round, real_sig, setup, setup_drand, Fixture, VEC_ROUND,
+    assert_try_create_round_err, assert_try_contract_err, b32, commit_bid, commitment,
+    drand_round, funded_bidder, open_round, real_sig, setup, setup_drand, Fixture, GENESIS,
+    PERIOD, VEC_ROUND,
 };
 
 const MAX_BIDDERS: u32 = 500;
 
-/// Every variant must appear here exactly once. Reserved entries use
-/// `trigger: None`; exercised paths name their test function.
-const ERROR_PATH_REGISTRY: &[(Error, Option<&'static str>)] = &[
-    (Error::NotInitialized, Some("error_path_not_initialized")),
-    (Error::AlreadyInitialized, None),
-    (Error::RoundNotFound, Some("error_path_round_not_found")),
-    (Error::BidNotFound, Some("error_path_bid_not_found")),
-    (Error::CommitClosed, Some("error_path_commit_closed")),
-    (Error::CommitNotClosed, Some("error_path_commit_not_closed")),
-    (Error::CommitDeadlineAfterReveal, Some("error_path_commit_deadline_after_reveal")),
-    (Error::RevealNotOpen, Some("error_path_reveal_not_open")),
-    (Error::RevealAlreadyOpen, Some("error_path_reveal_already_open")),
-    (Error::RevealWindowClosed, Some("error_path_reveal_window_closed")),
-    (Error::RevealStillOpen, Some("error_path_reveal_still_open")),
-    (Error::NotCleared, Some("error_path_not_cleared")),
-    (Error::AlreadyCleared, None),
-    (Error::AlreadySettled, None),
-    (Error::RoundVoided, None),
-    (Error::NotVoidable, Some("error_path_not_voidable")),
-    (Error::WrongStatus, Some("error_path_wrong_status")),
-    (Error::InvalidDrandSignature, Some("error_path_invalid_drand_signature")),
-    (Error::HashMismatch, Some("error_path_hash_mismatch")),
-    (Error::AlreadyRevealed, Some("error_path_already_revealed")),
-    (Error::PayloadTooLarge, Some("error_path_payload_too_large")),
-    (Error::InvalidAmount, Some("error_path_invalid_amount")),
-    (Error::BidExceedsEscrow, None),
-    (Error::DeadlineInPast, Some("error_path_deadline_in_past")),
-    (Error::NoValidBids, Some("error_path_no_valid_bids")),
-    (Error::RoundFull, Some("error_path_round_full")),
-    (Error::InvalidLimit, Some("error_path_invalid_limit")),
+/// Every variant must appear here exactly once with the test that triggers it.
+const ERROR_PATH_REGISTRY: &[(Error, &'static str)] = &[
+    (Error::NotInitialized, "error_path_not_initialized"),
+    (Error::AlreadyInitialized, "error_path_already_initialized_constructor_boundary"),
+    (Error::RoundNotFound, "error_path_round_not_found"),
+    (Error::BidNotFound, "error_path_bid_not_found"),
+    (Error::CommitClosed, "error_path_commit_closed"),
+    (Error::CommitNotClosed, "error_path_commit_not_closed"),
+    (Error::CommitDeadlineAfterReveal, "error_path_commit_deadline_after_reveal"),
+    (Error::RevealNotOpen, "error_path_reveal_not_open"),
+    (Error::RevealAlreadyOpen, "error_path_reveal_already_open"),
+    (Error::RevealWindowClosed, "error_path_reveal_window_closed"),
+    (Error::RevealStillOpen, "error_path_reveal_still_open"),
+    (Error::NotCleared, "error_path_not_cleared"),
+    (Error::AlreadyCleared, "error_path_already_cleared"),
+    (Error::AlreadySettled, "error_path_already_settled"),
+    (Error::RoundVoided, "error_path_round_voided"),
+    (Error::NotVoidable, "error_path_not_voidable"),
+    (Error::WrongStatus, "error_path_wrong_status"),
+    (Error::InvalidDrandSignature, "error_path_invalid_drand_signature"),
+    (Error::HashMismatch, "error_path_hash_mismatch"),
+    (Error::AlreadyRevealed, "error_path_already_revealed"),
+    (Error::PayloadTooLarge, "error_path_payload_too_large"),
+    (Error::InvalidAmount, "error_path_invalid_amount"),
+    (Error::BidExceedsEscrow, "error_path_bid_exceeds_escrow"),
+    (Error::DeadlineInPast, "error_path_deadline_in_past"),
+    (Error::NoValidBids, "error_path_no_valid_bids"),
+    (Error::RoundFull, "error_path_round_full"),
+    (Error::InvalidLimit, "error_path_invalid_limit"),
 ];
 
 fn oversized_bytes(env: &Env, len: u32) -> Bytes {
@@ -66,6 +63,26 @@ fn fill_bidder_cap(f: &Fixture, round_id: u64) {
     });
 }
 
+fn settle_happy_path(f: &Fixture, t_reveal: u64, commit_deadline: u64, reveal_deadline: u64) -> u64 {
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+    let alice = funded_bidder(f, 1_000);
+    let a_nonce = commit_bid(f, id, &alice, 500, 500, 0x01);
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &500, &a_nonce);
+    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+    f.client.settle(&id);
+    id
+}
+
 #[test]
 fn error_paths_registry_covers_every_variant() {
     assert_eq!(
@@ -73,6 +90,13 @@ fn error_paths_registry_covers_every_variant() {
         27,
         "update ERROR_PATH_REGISTRY when adding/removing Error variants"
     );
+    for (variant, name) in ERROR_PATH_REGISTRY {
+        assert!(
+            !name.is_empty(),
+            "{} must name a trigger test",
+            super::variant_name(*variant)
+        );
+    }
 }
 
 #[test]
@@ -93,28 +117,6 @@ fn error_paths_registry_matches_documented_codes() {
 }
 
 #[test]
-fn error_paths_without_runtime_trigger_are_documented() {
-    let documented_only = [
-        Error::AlreadyInitialized,
-        Error::AlreadyCleared,
-        Error::AlreadySettled,
-        Error::RoundVoided,
-        Error::BidExceedsEscrow,
-    ];
-    for variant in documented_only {
-        let entry = ERROR_PATH_REGISTRY
-            .iter()
-            .find(|(v, _)| *v == variant)
-            .unwrap_or_else(|| panic!("{variant:?} missing from registry"));
-        assert!(
-            entry.1.is_none(),
-            "{} should be documented-only (no current return path or deploy-only)",
-            super::variant_name(variant),
-        );
-    }
-}
-
-#[test]
 fn error_path_not_initialized() {
     let f = setup();
     f.env.as_contract(&f.client.address, || {
@@ -123,25 +125,33 @@ fn error_path_not_initialized() {
     assert_try_contract_err(f.client.try_get_config(), Error::NotInitialized);
 }
 
+/// Deploy-only boundary: `__constructor` uses `panic_with_error!(AlreadyInitialized)`
+/// when Config already exists. Re-invoking the constructor after deploy is rejected
+/// by the host (Abort) rather than a `Result`-shaped contract error, so this test
+/// asserts that boundary and pins the discriminant used in the panic path.
 #[test]
-fn error_path_invalid_drand_signature() {
-    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
-    let operator = Address::generate(&f.env);
-    let id = f.client.create_round(
-        &operator,
-        &b32(&f.env, 0xAB),
-        &(VEC_ROUND + 1),
-        &ClearingRule::HighestBid,
-        &commit_deadline,
-        &reveal_deadline,
-        &Bytes::from_array(&f.env, b"auditor"),
+fn error_path_already_initialized_constructor_boundary() {
+    let f = setup();
+    assert_eq!(super::discriminant(Error::AlreadyInitialized), 2);
+
+    let usdc = f.usdc_token.address.clone();
+    let args = soroban_sdk::vec![
+        &f.env,
+        soroban_sdk::BytesN::from_array(&f.env, &[0u8; 192]).into_val(&f.env),
+        soroban_sdk::BytesN::from_array(&f.env, &[0u8; 192]).into_val(&f.env),
+        Bytes::from_array(&f.env, b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_").into_val(&f.env),
+        GENESIS.into_val(&f.env),
+        PERIOD.into_val(&f.env),
+        usdc.into_val(&f.env),
+    ];
+    let res = f.env.try_invoke_contract::<(), Error>(
+        &f.client.address,
+        &Symbol::new(&f.env, "__constructor"),
+        args,
     );
-    let bidder = funded_bidder(&f, 1_000);
-    commit_bid(&f, id, &bidder, 100, 100, 0x01);
-    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
-    assert_try_contract_err(
-        f.client.try_open_reveal(&id, &real_sig(&f.env)),
-        Error::InvalidDrandSignature,
+    assert!(
+        res.is_err(),
+        "re-invoking __constructor after deploy must fail (AlreadyInitialized boundary)"
     );
 }
 
@@ -231,13 +241,10 @@ fn error_path_reveal_already_open() {
     let operator = Address::generate(&f.env);
     let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
     let alice = funded_bidder(&f, 1_000);
-    let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
+    commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
-    f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
-    f.client.clear(&id);
-    f.client.settle(&id);
+    // Status is Revealing (not Cleared/Settled/Voided) → RevealAlreadyOpen.
     assert_try_contract_err(
         f.client.try_open_reveal(&id, &real_sig(&f.env)),
         Error::RevealAlreadyOpen,
@@ -288,6 +295,40 @@ fn error_path_not_cleared() {
 }
 
 #[test]
+fn error_path_already_cleared() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let alice = funded_bidder(&f, 1_000);
+    let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &500, &a_nonce);
+    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+    assert_try_contract_err(f.client.try_clear(&id), Error::AlreadyCleared);
+}
+
+#[test]
+fn error_path_already_settled() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let id = settle_happy_path(&f, t_reveal, commit_deadline, reveal_deadline);
+    assert_try_contract_err(f.client.try_settle(&id), Error::AlreadySettled);
+}
+
+#[test]
+fn error_path_round_voided() {
+    let f = setup();
+    let operator = Address::generate(&f.env);
+    let id = open_round(&f, &operator);
+    let alice = funded_bidder(&f, 500);
+    commit_bid(&f, id, &alice, 500, 500, 0x01);
+    f.env.ledger().with_mut(|l| l.timestamp = 2_500 + 3_600 + 1);
+    f.client.void(&id);
+    assert_try_contract_err(f.client.try_void(&id), Error::RoundVoided);
+}
+
+#[test]
 fn error_path_not_voidable() {
     let f = setup();
     let operator = Address::generate(&f.env);
@@ -302,13 +343,9 @@ fn error_path_wrong_status() {
     let operator = Address::generate(&f.env);
     let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
     let alice = funded_bidder(&f, 1_000);
-    let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
+    commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
-    f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
-    f.client.clear(&id);
-    f.client.settle(&id);
     let late = funded_bidder(&f, 1_000);
     assert_try_contract_err(
         f.client.try_commit(
@@ -320,6 +357,28 @@ fn error_path_wrong_status() {
             &Bytes::from_array(&f.env, b"id"),
         ),
         Error::WrongStatus,
+    );
+}
+
+#[test]
+fn error_path_invalid_drand_signature() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = f.client.create_round(
+        &operator,
+        &b32(&f.env, 0xAB),
+        &(VEC_ROUND + 1),
+        &ClearingRule::HighestBid,
+        &commit_deadline,
+        &reveal_deadline,
+        &Bytes::from_array(&f.env, b"auditor"),
+    );
+    let bidder = funded_bidder(&f, 1_000);
+    commit_bid(&f, id, &bidder, 100, 100, 0x01);
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    assert_try_contract_err(
+        f.client.try_open_reveal(&id, &real_sig(&f.env)),
+        Error::InvalidDrandSignature,
     );
 }
 
@@ -388,6 +447,31 @@ fn error_path_invalid_amount() {
             &Bytes::from_array(&f.env, b"id"),
         ),
         Error::InvalidAmount,
+    );
+}
+
+#[test]
+fn error_path_bid_exceeds_escrow() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let alice = funded_bidder(&f, 1_000);
+    // Commit H for value=600 while locking only 500 escrow.
+    let nonce = b32(&f.env, 0x01);
+    let h = commitment(&f.env, 600, &nonce);
+    f.client.commit(
+        &id,
+        &alice,
+        &h,
+        &Bytes::from_array(&f.env, b"sealed"),
+        &500,
+        &Bytes::from_array(&f.env, b"id-blob"),
+    );
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    assert_try_contract_err(
+        f.client.try_reveal(&id, &alice, &600, &nonce),
+        Error::BidExceedsEscrow,
     );
 }
 

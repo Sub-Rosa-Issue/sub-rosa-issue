@@ -145,6 +145,12 @@ impl SubRosaRound {
         let config = get_config(&env)?;
         let mut round = get_round(&env, round_id)?;
 
+        if round.status == Status::Voided {
+            return Err(Error::RoundVoided);
+        }
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
         if round.status != Status::Open {
             return Err(Error::WrongStatus);
         }
@@ -217,6 +223,15 @@ impl SubRosaRound {
         let config = get_config(&env)?;
         let mut round = get_round(&env, round_id)?;
 
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
+        if round.status == Status::Voided {
+            return Err(Error::RoundVoided);
+        }
+        if round.status == Status::Cleared {
+            return Err(Error::AlreadyCleared);
+        }
         if round.status != Status::Open {
             return Err(Error::RevealAlreadyOpen);
         }
@@ -247,6 +262,12 @@ impl SubRosaRound {
         nonce: BytesN<32>,
     ) -> Result<(), Error> {
         let round = get_round(&env, round_id)?;
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
+        if round.status == Status::Voided {
+            return Err(Error::RoundVoided);
+        }
         if round.status != Status::Revealing {
             return Err(Error::RevealNotOpen);
         }
@@ -274,12 +295,15 @@ impl SubRosaRound {
             return Err(Error::HashMismatch);
         }
 
-        // The committed value is canonical, but it is still excluded from
-        // clearing if the bidder committed to a non-positive value or one above
-        // their escrow (a self-inflicted invalid bid; escrow refunded at settle).
+        // The committed value is canonical, but a reveal above escrow is rejected
+        // outright so integrators see BidExceedsEscrow instead of a silent invalid bid.
+        if value > state.escrow {
+            return Err(Error::BidExceedsEscrow);
+        }
+
         state.revealed_value = Some(value);
         state.revealed_nonce = Some(nonce.clone());
-        state.valid = value > 0 && value <= state.escrow;
+        state.valid = value > 0;
         set_state(&env, round_id, &bidder, &state);
 
         env.events().publish(
@@ -294,6 +318,15 @@ impl SubRosaRound {
     /// refundable.
     pub fn clear(env: Env, round_id: u64) -> Result<Option<Address>, Error> {
         let mut round = get_round(&env, round_id)?;
+        if round.status == Status::Cleared {
+            return Err(Error::AlreadyCleared);
+        }
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
+        if round.status == Status::Voided {
+            return Err(Error::RoundVoided);
+        }
         if round.status != Status::Revealing {
             return Err(Error::RevealNotOpen);
         }
@@ -356,6 +389,12 @@ impl SubRosaRound {
     pub fn settle(env: Env, round_id: u64) -> Result<(), Error> {
         let config = get_config(&env)?;
         let mut round = get_round(&env, round_id)?;
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
+        if round.status == Status::Voided {
+            return Err(Error::RoundVoided);
+        }
         if round.status != Status::Cleared {
             return Err(Error::NotCleared);
         }
@@ -400,6 +439,12 @@ impl SubRosaRound {
     /// round opening, anyone can void it and all escrow is refunded.
     pub fn void(env: Env, round_id: u64) -> Result<(), Error> {
         let mut round = get_round(&env, round_id)?;
+        if round.status == Status::Voided {
+            return Err(Error::RoundVoided);
+        }
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
         if round.status != Status::Open {
             return Err(Error::NotVoidable);
         }

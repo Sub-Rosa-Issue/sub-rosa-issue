@@ -15,10 +15,10 @@ the SDK and bindings expose. **Both are part of the public API** and must
 stay in sync with `contracts/round/src/types.rs`.
 
 > Guardrail: no error codes are invented here. Every row corresponds to one
-> variant of `enum Error` in [`src/types.rs`](src/types.rs). Variants marked
-> **reserved** are present in the enum but not currently returned by any code
-> path; they are documented because they are exported and integrators may
-> see them in future protocol versions.
+> variant of `enum Error` in [`src/types.rs`](src/types.rs). Every variant has
+> an integration test in [`src/error_paths.rs`](src/error_paths.rs) that
+> triggers the live return path (or, for deploy-only `AlreadyInitialized`,
+> documents the constructor host boundary).
 
 ## Categories
 
@@ -49,9 +49,9 @@ stay in sync with `contracts/round/src/types.rs`.
 | 15 | `RevealWindowClosed` | `reveal` | `env.ledger().timestamp() > round.reveal_deadline`. | The reveal window has closed for this round. | Do not retry the reveal. Any bid whose commit nobody successfully revealed stays marked `valid = false` and contributes no bid. After the deadline, anyone can call `clear`: if a valid reveal won, follow with `settle`; if no valid reveal existed, the round transitions to `Voided` and escrow is refunded via `void`/`refund_all` rather than `settle`. |
 | 16 | `RevealStillOpen` | `clear` | `env.ledger().timestamp() <= round.reveal_deadline`. | The reveal window is still open; the round cannot be cleared yet. | Retry `clear` after `now > reveal_deadline`. |
 | 17 | `NotCleared` | `settle` | `round.status != Status::Cleared`. | The round has not been cleared yet. | Call `clear` after `reveal_deadline`. If `clear` returned `Some(winner)` the round is now `Cleared` and `settle` is the right next step. If `clear` returned `None` the round has already transitioned to `Voided` with escrow refunded; do not call `settle` again — it will keep returning `NotCleared`. |
-| 18 | `AlreadyCleared` | (reserved) | Not currently returned by any code path. | Reserved — the round is already in the Cleared state. | Reserved. If surfaced by a future version: do not retry `clear`. |
-| 19 | `AlreadySettled` | (reserved) | Not currently returned by any code path. | Reserved — the round has already been settled. | Reserved. If surfaced by a future version: settlement funds have already moved; do not retry `settle`. |
-| 20 | `RoundVoided` | (reserved) | Not currently returned by any code path. | Reserved — the round has been voided. | Reserved. If surfaced by a future version: all escrow has already been refunded; the round is terminal. |
+| 18 | `AlreadyCleared` | `clear`, `open_reveal` | `round.status == Status::Cleared`. | The round has already been cleared. | Do not retry `clear`. Call `settle` if a winner exists. |
+| 19 | `AlreadySettled` | `settle`, `commit`, `reveal`, `open_reveal`, `void`, `clear` | `round.status == Status::Settled`. | The round has already been settled. | Settlement funds have already moved; do not retry. |
+| 20 | `RoundVoided` | `void`, `commit`, `reveal`, `open_reveal`, `clear`, `settle` | `round.status == Status::Voided`. | The round has been voided. | All escrow has already been refunded; the round is terminal. |
 | 21 | `NotVoidable` | `void` | Round is past the `Open` status, or `now <= reveal_deadline + VOID_GRACE` (3600 s). | The round cannot be voided from its current state, or the grace window has not elapsed yet. | Either complete the normal lifecycle, or wait until `reveal_deadline + 1 hour` and try `void` again. |
 | 22 | `WrongStatus` | `commit` | `round.status != Status::Open`. | A bid can only be submitted to a round in the Open status. | Start a new round; a Revealing/Cleared/Settled/Voided round no longer accepts commits. |
 
@@ -64,7 +64,7 @@ stay in sync with `contracts/round/src/types.rs`.
 | 32 | `AlreadyRevealed` | `reveal` | `state.revealed_value.is_some()`. | A reveal has already been recorded for this bidder on this round. | No action — the recorded reveal stands. Repeated reveals are rejected on purpose to prevent front-running by a third party. |
 | 33 | `PayloadTooLarge` | `create_round`, `commit` | One of: `auditor_pubkey.len() > 1024`, `ciphertext.len() > 4096`, `auditor_blob.len() > 2048`. | One of the submitted payloads is larger than the contract's size limit. | Shrink the offending payload: ciphertext ≤ 4096 B, auditor public key ≤ 1024 B, auditor blob ≤ 2048 B. |
 | 34 | `InvalidAmount` | `create_round`, `commit` | `reveal_round == 0` (in `create_round`) or `escrow <= 0` (in `commit`). | The amount or value supplied is not positive. | Pass a positive integer; for `create_round`, use `reveal_round != 0` and a future `commit_deadline`. |
-| 35 | `BidExceedsEscrow` | (reserved) | Not currently returned by any code path. | Reserved — the revealed bid would exceed the escrowed amount. | Reserved. The current contract already marks a bid invalid if `revealed_value > escrow` (see `BidState::valid`), so escrow refunds at settle. |
+| 35 | `BidExceedsEscrow` | `reveal` | `value > state.escrow` after the commitment hash matches. | The revealed bid exceeds the escrowed amount. | Re-commit with escrow ≥ the sealed bid before the commit deadline, or reveal the exact committed value that fits under escrow. |
 | 36 | `DeadlineInPast` | `create_round` | `commit_deadline <= now` (ledger time at submission). | The commit deadline is in the past. | Use a future timestamp; check ledger time at submission, since Drand round R must be strictly after `commit_deadline`. |
 | 37 | `NoValidBids` | `settle` | `round.winner` is `None` on a round whose status is `Cleared`. | Round has no winner to settle against. | Investigate: under current behavior the contract transitions to `Voided` (with all escrow refunded) when no valid bid is revealed, so this code should not appear in normal flow. If it does, the round is in an inconsistent state and warrants a manual review. |
 | 38 | `RoundFull` | `commit` | `round.bidders.len() >= MAX_BIDDERS` (500). | The round has reached its bidder cap. | Start a new round to accept further bidders. |

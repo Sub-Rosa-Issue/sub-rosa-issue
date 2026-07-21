@@ -727,6 +727,12 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": "void"
@@ -817,6 +823,12 @@
                           "lo": 500
                         }
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {

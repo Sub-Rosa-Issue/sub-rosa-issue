@@ -539,6 +539,12 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": "void"

@@ -922,6 +922,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": {
+                        "bytes": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": {
@@ -1020,6 +1028,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": {
+                        "bytes": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": {
@@ -1114,6 +1130,14 @@
                           "hi": 0,
                           "lo": 2000
                         }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": {
+                        "bytes": "0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c"
                       }
                     },
                     {
