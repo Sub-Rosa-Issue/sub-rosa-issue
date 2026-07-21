@@ -1,0 +1,13 @@
+{
+  "lineThresholdPercent": 80,
+  "workspaces": [
+    "packages/sdk",
+    "packages/tlock",
+    "packages/round-bindings",
+    "services/receipt-cli",
+    "services/keeper",
+    "services/auction-template",
+    "services/appraisal-api",
+    "services/agent"
+  ]
+}
