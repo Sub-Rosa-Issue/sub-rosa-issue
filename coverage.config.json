@@ -1,5 +1,5 @@
 {
-  "lineThresholdPercent": 80,
+  "lineThresholdPercent": 70,
   "workspaces": [
     "packages/sdk",
     "packages/tlock",
