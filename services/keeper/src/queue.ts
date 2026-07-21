@@ -1,4 +1,4 @@
-import { KeeperStore } from "./store.js";
+import { KeeperStore, normalizeRoundId } from "./store.js";
 
 function usage() {
   console.log(`
@@ -22,11 +22,12 @@ function main() {
   const store = new KeeperStore();
 
   if (cmd === "add") {
-    const roundId = args[1];
-    if (!roundId) {
+    const rawRoundId = args[1];
+    if (!rawRoundId) {
       console.error("Error: missing roundId");
       usage();
     }
+    const roundId = normalizeRoundId(rawRoundId);
     const contractId = process.env.ROUND_CONTRACT_ID;
     const network = process.env.NETWORK_PASSPHRASE;
     store.addRound(roundId, { contractId, network });
@@ -45,11 +46,12 @@ function main() {
       console.log(`- Round ${r.roundId}${contract}: ${r.lastStatus}${extra}${err} [retries: ${r.retryCount}]`);
     }
   } else if (cmd === "remove") {
-    const roundId = args[1];
-    if (!roundId) {
+    const rawRoundId = args[1];
+    if (!rawRoundId) {
       console.error("Error: missing roundId");
       usage();
     }
+    const roundId = normalizeRoundId(rawRoundId);
     store.removeRound(roundId);
     console.log(`Removed round ${roundId} from the queue.`);
   } else {
@@ -58,4 +60,9 @@ function main() {
   }
 }
 
-main();
+try {
+  main();
+} catch (error) {
+  console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
