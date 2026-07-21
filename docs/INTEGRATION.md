@@ -61,7 +61,7 @@ import { SubRosaClient } from "@sub-rosa/sdk";
 const client = new SubRosaClient({
   rpcUrl: "https://soroban-testnet.stellar.org",
   networkPassphrase: "Test SDF Network ; September 2015",
-  contractId: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+  contractId: "<DEPLOYED_CONTRACT_ID>", // testnet: deploy your own (see §3); mainnet: CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX
   secretKey: "S…",
 });
 ```
@@ -106,7 +106,7 @@ const deployTx = await RoundContract.deploy(
     dst: Buffer.from(DST, "utf8"),
     drand_genesis: BigInt(DRAND_GENESIS),
     drand_period: BigInt(DRAND_PERIOD),
-    usdc: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5", // testnet USDC SAC
+    usdc: "CAPTODBCDEVIK23ALBJBS2TXRTIK47ZA5MBTHYF4XLHG2BK7JPYUCU2Y", // testnet USDC SAC (C-prefix contract ID, not the G-prefix issuer)
   },
   {
     wasmHash: "<WASM_HASH>",
@@ -377,17 +377,15 @@ USDC transfers.
 ## Using the keeper service
 
 For production, run the keeper as a long-lived service that watches configured
-rounds and automatically opens, reveals, and closes them:
+rounds and automatically opens, reveals, and closes them from inside the
+monorepo:
 
 ```bash
-# Install the keeper package
-npm install @sub-rosa/keeper
-
-# Run in watch mode (polls Drand + contract every 15s)
+# From the monorepo root, run in watch mode (polls Drand + contract every 15s)
 KEEPER_SECRET=S… \
   ROUND_CONTRACT_ID=C… \
   WATCH_ROUND_IDS=1,2,5 \
-  npx sub-rosa-keeper watch
+  pnpm keeper:watch
 ```
 
 The keeper is **permissionless** — it cannot read sealed values and only acts
@@ -426,8 +424,8 @@ console.log(`Round ${tick.roundId}: ${tick.finalStatus}`);
 
 | Network | USDC SAC |
 | --- | --- |
-| Testnet | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` |
-| Mainnet | Use the native XLM SAC or a real USDC issuer address |
+| Testnet | `CAPTODBCDEVIK23ALBJBS2TXRTIK47ZA5MBTHYF4XLHG2BK7JPYUCU2Y` |
+| Mainnet | Native XLM SAC (used by the mainnet smoke round) |
 
 ### Drand quicknet (always public)
 
