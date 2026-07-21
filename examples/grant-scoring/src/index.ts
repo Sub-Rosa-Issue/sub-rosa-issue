@@ -7,6 +7,12 @@ export {
   PILOT_PROJECTS,
 } from "./fixtures.js";
 export {
+  PilotFixtureError,
+  validatePilotFixture,
+  type PilotFixture,
+} from "./fixture-schema.js";
+export { loadPilotFixture, PILOT_FIXTURE_PATH } from "./load-pilot-fixture.js";
+export {
   commitSealedJudgeScore,
   createProjectRound,
   generatePilotAuditor,

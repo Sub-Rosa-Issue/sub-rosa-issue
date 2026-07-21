@@ -25,7 +25,9 @@ The default **fixture mode** runs the full sealed-score lifecycle offline:
 4. Open reveal, decrypt scores, and reveal on-chain
 5. Settle nominal escrows and emit a ranked organizer receipt
 
-Fixture data lives in `src/fixtures.ts` (`PILOT_FIXTURE_PROGRAM`).
+Runtime fixture data lives in `src/fixtures.ts` (`PILOT_FIXTURE_PROGRAM`).
+The onboarding catalog under `fixtures/` is validated against a shared schema
+before the example entrypoint runs (see [Fixture schema](#fixture-schema)).
 
 ## Model
 
@@ -112,6 +114,26 @@ Key exports:
 - `assessRevealReadiness` — commit progress and phase tracking
 - `buildGrantReceipt` — organizer-facing ranked output
 - `PILOT_FIXTURE_PROGRAM` — 2 judges × 3 projects with weighted criteria
+- `validatePilotFixture` / `loadPilotFixture` — shared schema for `fixtures/*.json`
+
+## Fixture schema
+
+Pilot onboarding JSON under `fixtures/` must match the shared
+`PilotFixture` shape (`src/fixture-schema.ts`). Malformed data fails fast with a
+clear `field: message` (`PilotFixtureError`) instead of a late scoring error.
+
+| File | Role | Expected result |
+| --- | --- | --- |
+| `fixtures/pilot-program.json` | Canonical valid catalog | Accepts; counts/ids align with `PILOT_FIXTURE_PROGRAM` |
+| `fixtures/missing-fields.json` | Omits `programId` / `expectedRanking` | Rejects — `programId: must be a non-empty string` |
+| `fixtures/wrong-types.json` | Wrong JSON types throughout | Rejects — `programId: must be a non-empty string, got object` |
+
+`pnpm --filter @sub-rosa/grant-scoring-pilot start` loads and validates
+`pilot-program.json` at startup via `loadPilotFixture()`.
+
+Required fields: `programId`, `title`, `judges`, `projects`, `criteria`,
+`expectedRanking`. Optional: `note`. `expectedRanking.length` must equal
+`projects`.
 
 ## Tests
 
@@ -119,5 +141,6 @@ Key exports:
 pnpm --filter @sub-rosa/grant-scoring-pilot test
 ```
 
-Covers the full fixture lifecycle, reveal readiness, ranking, and tlock
-commitment verification at reveal time.
+Covers the full fixture lifecycle, reveal readiness, ranking, tlock
+commitment verification at reveal time, and schema validation for one valid
+plus two invalid catalog fixtures.

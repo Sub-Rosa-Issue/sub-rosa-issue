@@ -1,0 +1,7 @@
+{
+  "title": "Sealed Grant Scoring Pilot",
+  "judges": 2,
+  "projects": 3,
+  "criteria": ["impact", "feasibility", "team"],
+  "note": "Missing programId and expectedRanking — used by schema tests."
+}

@@ -1,11 +1,18 @@
 import { GrantScoringPilot } from "./pilot.js";
+import { loadPilotFixture } from "./load-pilot-fixture.js";
 
 async function main() {
+  // Fail fast if the onboarding catalog fixture is malformed.
+  const catalog = loadPilotFixture();
+
   const pilot = new GrantScoringPilot();
   const receipt = await pilot.runFixtureLifecycle();
 
   console.log("Sub Rosa — sealed grant scoring pilot (fixture mode)\n");
   console.log(`Program: ${receipt.title} (${receipt.programId})`);
+  console.log(
+    `Catalog fixture: ${catalog.programId} · criteria [${catalog.criteria.join(", ")}]`,
+  );
   console.log(`Judges: ${receipt.judges.length} · Projects: ${receipt.projects.length}`);
   console.log(`Reveal round R: ${receipt.revealRound}\n`);
 

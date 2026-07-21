@@ -7,7 +7,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "node --import tsx src/run-fixture-pilot.ts",
-    "test": "node --import tsx --test src/pilot.test.ts src/scoring.test.ts src/reveal-readiness.test.ts",
+    "test": "node --import tsx --test src/pilot.test.ts src/scoring.test.ts src/reveal-readiness.test.ts src/fixture-schema.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
