@@ -356,6 +356,9 @@ impl SubRosaRound {
     pub fn settle(env: Env, round_id: u64) -> Result<(), Error> {
         let config = get_config(&env)?;
         let mut round = get_round(&env, round_id)?;
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
         if round.status != Status::Cleared {
             return Err(Error::NotCleared);
         }

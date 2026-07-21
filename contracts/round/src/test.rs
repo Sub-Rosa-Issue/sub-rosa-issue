@@ -716,7 +716,11 @@ fn double_settle_rejected() {
     f.client.clear(&id);
     f.client.settle(&id);
 
-    assert!(f.client.try_settle(&id).is_err(), "double settle must be rejected");
+    assert_eq!(
+        f.client.try_settle(&id),
+        Err(Ok(Error::AlreadySettled)),
+        "double settle must return AlreadySettled",
+    );
     assert_eq!(f.usdc_token.balance(&operator), 500, "operator must not receive funds twice");
 }
 
@@ -790,8 +794,35 @@ fn reveal_on_settled_round_rejected() {
     f.client.clear(&id);
     f.client.settle(&id);
 
-    assert!(f.client.try_reveal(&id, &bob, &300, &b_nonce).is_err(),
-        "reveal on settled round must be rejected");
+    assert_eq!(
+        f.client.try_reveal(&id, &bob, &300, &b_nonce),
+        Err(Ok(Error::RevealNotOpen)),
+        "reveal on settled round must return RevealNotOpen",
+    );
+}
+
+#[test]
+fn void_after_settle_rejected() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+
+    let alice = funded_bidder(&f, 1_000);
+    let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &500, &a_nonce);
+    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+    f.client.settle(&id);
+
+    assert_eq!(
+        f.client.try_void(&id),
+        Err(Ok(Error::NotVoidable)),
+        "void on settled round must return NotVoidable",
+    );
+    assert_eq!(f.client.get_round(&id).status, Status::Settled);
+    assert_eq!(f.usdc_token.balance(&operator), 500, "settlement payout must remain unchanged");
 }
 
 // ── 8. Generated cases reproducible from a printed seed ──────────────────────
