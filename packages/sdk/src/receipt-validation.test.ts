@@ -65,6 +65,48 @@ describe("validateReceipt malformed input", () => {
     );
   });
 
+  it("rejects orphan bid keys not listed in bidders", () => {
+    const receipt = loadGoldenReceipt();
+    (receipt.bids as Record<string, unknown>).EXTRA = { broken: true };
+    assert.throws(
+      () => validateReceipt(receipt),
+      (err: unknown) => {
+        assert.ok(err instanceof SubRosaReceiptValidationError);
+        assert.equal(err.field, "bids.EXTRA");
+        assert.match(err.message, /not in bidders array/);
+        return true;
+      },
+    );
+  });
+
+  it("rejects duplicate bidder entries", () => {
+    const receipt = loadGoldenReceipt();
+    const bidder = receipt.bidders[0]!;
+    receipt.bidders.push(bidder);
+    assert.throws(
+      () => validateReceipt(receipt),
+      (err: unknown) => {
+        assert.ok(err instanceof SubRosaReceiptValidationError);
+        assert.equal(err.field, "bidders");
+        assert.match(err.message, /duplicate bidder/);
+        return true;
+      },
+    );
+  });
+
+  it("serializeReceipt rejects orphan bid keys through the exported API", () => {
+    const receipt = loadGoldenReceipt();
+    (receipt.bids as Record<string, unknown>).EXTRA = { broken: true };
+    assert.throws(
+      () => serializeReceipt(receipt),
+      (err: unknown) => {
+        assert.ok(err instanceof SubRosaReceiptValidationError);
+        assert.equal(err.field, "bids.EXTRA");
+        return true;
+      },
+    );
+  });
+
   it("rejects invalid receipt JSON", () => {
     assert.throws(
       () => parseReceipt("{not-json"),

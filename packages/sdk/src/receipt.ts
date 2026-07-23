@@ -223,8 +223,15 @@ export function validateReceipt(value: unknown): RoundReceipt {
   if (!Array.isArray(receipt.bidders)) {
     validationError("bidders must be an array", "bidders");
   }
+  const bidders: string[] = [];
+  const seenBidders = new Set<string>();
   for (const [index, bidder] of receipt.bidders.entries()) {
     assertNonEmptyString(bidder, `bidders[${index}]`);
+    if (seenBidders.has(bidder)) {
+      validationError(`duplicate bidder: ${bidder}`, "bidders");
+    }
+    seenBidders.add(bidder);
+    bidders.push(bidder);
   }
 
   if (
@@ -236,8 +243,14 @@ export function validateReceipt(value: unknown): RoundReceipt {
   }
 
   const bids = receipt.bids as Record<string, unknown>;
+  for (const key of Object.keys(bids)) {
+    if (!seenBidders.has(key)) {
+      validationError(`bid entry for ${key} not in bidders array`, `bids.${key}`);
+    }
+  }
+
   const validatedBids: Record<string, BidReceiptEntry> = {};
-  for (const bidder of receipt.bidders as string[]) {
+  for (const bidder of bidders) {
     if (!(bidder in bids)) {
       validationError(`missing bid entry for bidder ${bidder}`, `bids.${bidder}`);
     }
@@ -267,7 +280,7 @@ export function validateReceipt(value: unknown): RoundReceipt {
     revealDeadline: receipt.revealDeadline as string,
     operator: receipt.operator as string,
     auditorPubkey: receipt.auditorPubkey as string,
-    bidders: [...(receipt.bidders as string[])],
+    bidders,
     bids: validatedBids,
     winner: receipt.winner as string | null,
     winningValue: receipt.winningValue as string | null,
@@ -287,10 +300,10 @@ export function serializeCanonicalJson(value: unknown): string {
 }
 
 /** Serialise a receipt to canonical JSON (deep-sorted keys, no whitespace).
- *  This is the format the CLI writes and the verifier reads. */
+ *  This is the format the CLI writes and the verifier reads.
+ *  Serializes the validated receipt so orphan / unvalidated fields cannot leak. */
 export function serializeReceipt(receipt: RoundReceipt): string {
-  validateReceipt(receipt);
-  return serializeCanonicalJson(receipt);
+  return serializeCanonicalJson(validateReceipt(receipt));
 }
 
 /** Parse a receipt from its canonical JSON form. */
