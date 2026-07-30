@@ -20,7 +20,7 @@ pnpm agents:e2e
 pnpm web:test
 ```
 
-## Primary narrative: verifiable grant allocation
+## Primary narrative:verifiable grant allocation
 
 Open the **Grant Allocation** case first. Frame the product as allocation
 infrastructure, not as a general privacy app:
@@ -35,7 +35,8 @@ infrastructure, not as a general privacy app:
 The current live case proves the sealed-scoring primitive. The recorded
 evidence view proves the contract lifecycle, settlement, and public audit path.
 
-## 1. Showcase (30s)
+## 1. 
+Showcase (30s)
 
 - **Opening:** verifiable allocation for grants, hackathons, bounties, RFPs,
   and sealed auctions
