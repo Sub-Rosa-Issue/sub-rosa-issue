@@ -16,20 +16,38 @@ export interface DrandCountdown {
   published: boolean;
 }
 
-function timeOfRound(round: number): number {
-  return QUICKNET_GENESIS + QUICKNET_PERIOD * round;
-}
-
-function localCountdown(targetRound: number): Omit<DrandCountdown, "loading" | "error"> {
-  const now = Math.floor(Date.now() / 1000);
-  const targetTime = timeOfRound(targetRound);
-  const currentRound = Math.floor((now - QUICKNET_GENESIS) / QUICKNET_PERIOD);
+/**
+ * Pure countdown calculation — accepts fixed timestamps, genesis, and period
+ * so tests can pin the wall clock. Produces deterministic
+ * { currentRound, targetTime, published, secondsRemaining }.
+ */
+export function computeCountdown(
+  targetRound: number,
+  nowSecs: number,
+  genesis: number,
+  period: number,
+): { currentRound: number; targetTime: number; published: boolean; secondsRemaining: number } {
+  const currentRound = Math.floor((nowSecs - genesis) / period);
+  const targetTime = genesis + period * targetRound;
   const published = currentRound >= targetRound;
 
   return {
     currentRound,
+    targetTime,
+    published,
+    secondsRemaining: published ? 0 : Math.max(0, targetTime - nowSecs),
+  };
+}
+
+function localCountdown(targetRound: number): Omit<DrandCountdown, "loading" | "error"> {
+  const now = Math.floor(Date.now() / 1000);
+  const { currentRound, targetTime, published, secondsRemaining } =
+    computeCountdown(targetRound, now, QUICKNET_GENESIS, QUICKNET_PERIOD);
+
+  return {
+    currentRound,
     targetRound,
-    secondsRemaining: published ? 0 : Math.max(0, targetTime - now),
+    secondsRemaining,
     targetTime,
     published,
   };
@@ -54,10 +72,8 @@ export function useDrandCountdown(targetRound: number, pollMs = 1000): DrandCoun
         const genesis = info.genesis_time;
         const period = info.period;
         const now = Math.floor(Date.now() / 1000);
-        const currentRound = Math.floor((now - genesis) / period);
-        const targetTime = genesis + period * targetRound;
-        const published = currentRound >= targetRound;
-        const secondsRemaining = published ? 0 : Math.max(0, targetTime - now);
+        const { currentRound, targetTime, published, secondsRemaining } =
+          computeCountdown(targetRound, now, genesis, period);
 
         if (!cancelled) {
           setState({
