@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import { quicknet, currentRound } from "./quicknet.js";
 import { sealBid, openBid, generateNonce } from "./seal.js";
@@ -80,3 +81,53 @@ test(
     await assert.rejects(openBid(sealed.ciphertext, client));
   },
 );
+
+const vectors = JSON.parse(
+  fs.readFileSync(new URL("./sealBid-vectors.json", import.meta.url), "utf-8")
+);
+
+test(
+  "sealBid matches cross-implementation test vectors",
+  { timeout: NET_TIMEOUT },
+  async () => {
+    const client = quicknet();
+    
+    for (const vector of vectors) {
+      const value = BigInt(vector.inputs.value);
+      const nonce = Uint8Array.from(Buffer.from(vector.inputs.nonce, "hex"));
+      const round = vector.inputs.round;
+      const identity = Uint8Array.from(Buffer.from(vector.inputs.identity, "hex"));
+      const auditorPublicKey = Uint8Array.from(Buffer.from(vector.inputs.auditorPublicKey, "hex"));
+      
+      const expectedCommitment = vector.expected.commitment;
+
+      const sealed = await sealBid({
+        value,
+        nonce,
+        round,
+        client,
+        identity,
+        auditorPublicKey
+      });
+
+      assert.equal(toHex(sealed.commitment), expectedCommitment);
+    }
+  }
+);
+
+test("modified nonce changes the binding hash", () => {
+  for (const vector of vectors) {
+    const value = BigInt(vector.inputs.value);
+    const nonce = Uint8Array.from(Buffer.from(vector.inputs.nonce, "hex"));
+    
+    const modifiedNonce = new Uint8Array(nonce);
+    modifiedNonce[0] ^= 1;
+    
+    const originalCommitment = toHex(commitment(value, nonce));
+    const modifiedCommitment = toHex(commitment(value, modifiedNonce));
+    
+    assert.notEqual(originalCommitment, modifiedCommitment);
+    assert.equal(originalCommitment, vector.expected.commitment);
+  }
+});
+
