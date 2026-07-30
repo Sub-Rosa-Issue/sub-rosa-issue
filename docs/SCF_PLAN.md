@@ -72,8 +72,8 @@ Stellar is a core part of the product, not superficial storage:
 
 | Proof | Network | Status |
 | --- | --- | --- |
-| Round contract + tests | Local/Soroban | 14 Rust tests |
-| tlock package + auditor blob | Local | 13 tests |
+| Round contract + tests | Local/Soroban | `pnpm contract:test` |
+| tlock package + auditor blob | Local | `pnpm tlock:test` |
 | SDK | Local/Testnet | Contract bindings + direct RPC submitter |
 | Full lifecycle | Testnet | `pnpm lifecycle:e2e`: 2 bidders, USDC SAC, settle to 0 |
 | Multi-agent + x402 | Testnet | `pnpm agents:e2e`: x402 appraisal, sealed commits, keeper reveal, settle |

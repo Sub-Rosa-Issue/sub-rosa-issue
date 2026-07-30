@@ -159,13 +159,23 @@ docs/                   Design, threat model, track answers, deploy, limitations
 
 ```bash
 pnpm install
-pnpm contract:test          # 14 Rust tests
+pnpm contract:test
 pnpm bindings:generate      # generate TS bindings from the contract
 pnpm bindings:check         # verify committed bindings match the contract
 pnpm web:dev                # jury UI — works without .env
 pnpm agents:e2e             # testnet full agent proof (needs stellar keys)
 pnpm mainnet:verify         # mainnet read-only proof
 ```
+
+## Verification
+
+| Suite | Command |
+| --- | --- |
+| Contract | `pnpm contract:test` |
+| tlock | `pnpm tlock:test` |
+| SDK | `pnpm sdk:test` |
+| Keeper | `pnpm keeper:test` |
+| Web | `pnpm web:test` |
 
 ## Documentation
 
@@ -185,9 +195,9 @@ pnpm mainnet:verify         # mainnet read-only proof
 
 ## Status (submission)
 
-- [x] Round contract + 14 tests + on-chain Drand BLS
-- [x] tlock + auditor blob (13 tests)
-- [x] SDK (7 tests) + optional OZ Relayer Channels submitter
+- [x] Round contract + on-chain Drand BLS
+- [x] tlock + auditor blob
+- [x] SDK + optional OZ Relayer Channels submitter
 - [x] Testnet **full lifecycle** (`lifecycle:e2e`) — USDC, 2 bidders, settle → 0
 - [x] Testnet **multi-agent** (`agents:e2e`) — x402, mandate, keeper reveal, settle → 0, **single UI trace**
 - [x] Mainnet **deploy + settle smoke** — 1/5 XLM, round 1 settled
