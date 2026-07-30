@@ -222,3 +222,71 @@ describe("SubRosaClient external submitter failures", () => {
     });
   });
 });
+
+describe("SubRosaClient caching", () => {
+  it("caches getRound reads and invalidates on writes", async () => {
+    let contractCalls = 0;
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      publicKey: PUBLIC_KEY,
+      cacheTtl: 60_000,
+    });
+
+    Object.defineProperty(client.contract, "get_round", {
+      configurable: true,
+      value: async () => {
+        contractCalls += 1;
+        return { result: { unwrap: () => ({ round_number: contractCalls }) } };
+      },
+    });
+
+    Object.defineProperty(client.contract, "void", {
+      configurable: true,
+      value: async () => ({
+        async signAndSend() {
+          return { result: { unwrap: () => {} } };
+        },
+      }),
+    });
+
+    const r1 = await client.getRound(1);
+    assert.equal((r1 as any).round_number, 1);
+    assert.equal(contractCalls, 1);
+
+    const r2 = await client.getRound(1);
+    assert.equal((r2 as any).round_number, 1);
+    assert.equal(contractCalls, 1, "should use cached result");
+
+    await client.void(1);
+
+    const r3 = await client.getRound(1);
+    assert.equal((r3 as any).round_number, 2);
+    assert.equal(contractCalls, 2, "should fetch new result after invalidation");
+  });
+
+  it("caches getConfig reads", async () => {
+    let contractCalls = 0;
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      publicKey: PUBLIC_KEY,
+      cacheTtl: 60_000,
+    });
+
+    Object.defineProperty(client.contract, "get_config", {
+      configurable: true,
+      value: async () => {
+        contractCalls += 1;
+        return { result: { unwrap: () => ({ version: contractCalls }) } };
+      },
+    });
+
+    const c1 = await client.getConfig();
+    assert.equal((c1 as any).version, 1);
+    assert.equal(contractCalls, 1);
+
+    const c2 = await client.getConfig();
+    assert.equal((c2 as any).version, 1);
+    assert.equal(contractCalls, 1, "should use cached config result");
+  });
+});
+
