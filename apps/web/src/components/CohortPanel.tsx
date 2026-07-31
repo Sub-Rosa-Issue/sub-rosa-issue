@@ -23,7 +23,7 @@ export interface RealPeer {
   address: string;
   sealed: boolean;
   revealed: boolean;
-  /** raw decoded value (entry-space, e.g. 8.5 for grants score) */
+  /** raw decoded value in the active case's display units */
   value: number | null;
 }
 

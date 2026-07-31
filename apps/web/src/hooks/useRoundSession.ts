@@ -70,10 +70,7 @@ function emptySession(roundId: bigint | null = null): CaseSession {
 
 function initialSessions(): Record<UseCaseId, CaseSession> {
   return {
-    dao: emptySession(),
-    grants: emptySession(),
-    bounty: emptySession(),
-    allocation: emptySession(),
+    auction: emptySession(),
   };
 }
 

@@ -393,7 +393,7 @@ async function main() {
 
     const demoTrace: DemoTracePayload = {
       meta: {
-        title: "Spectrum Block Allocation — Round 1",
+        title: "Sealed Asset Auction — Round 1",
         network: "Stellar Testnet",
         contractId,
         roundId: Number(roundId),

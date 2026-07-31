@@ -29,7 +29,7 @@ export default function App() {
     <ToastProvider>
       {route.page === "landing" ? (
         <LandingPage
-          onDemo={() => navigate("demo", "grants")}
+          onDemo={() => navigate("demo", "auction")}
           onCase={(id) => navigate("demo", id)}
         />
       ) : route.page === "dashboard" ? (

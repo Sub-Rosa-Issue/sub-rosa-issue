@@ -1,18 +1,4 @@
-export type UseCaseId = "dao" | "grants" | "bounty" | "allocation";
-
-/**
- * inputKind drives the commit form UI for each case while the underlying
- * commit/reveal pipeline stays identical. The numeric `value` is what we
- * actually seal on-chain; everything else is presentation.
- */
-export type InputKind = "ballot" | "score" | "amount";
-
-export interface BallotOption {
-  value: number;
-  label: string;
-  helper: string;
-  tone: "for" | "against" | "neutral";
-}
+export type UseCaseId = "auction";
 
 export interface CaseExample {
   name: string;
@@ -27,26 +13,19 @@ export interface Peer {
   delayMs: number;
 }
 
-export type OutcomeKind = "tally" | "leaderboard" | "highest" | "distribution";
-
 export interface UseCase {
   id: UseCaseId;
   nav: string;
   tagline: string;
   title: string;
   oneLine: string;
-  inputKind: InputKind;
   inputLabel: string;
   defaultValue: number;
-  /** ballot only */
-  options?: BallotOption[];
-  /** score / amount only */
   min?: number;
   max?: number;
   step?: number;
-  /** amount only — quick pick chips */
   presets?: number[];
-  /** display unit (e.g. "USDC", "/ 10") */
+  /** display unit, e.g. "USDC" */
   unit?: string;
   /** label for the commit CTA — gives every case its own verb */
   commitCta: string;
@@ -64,7 +43,6 @@ export interface UseCase {
   };
   /** simulated peers that commit during the round to make the demo feel populated */
   cohort: Peer[];
-  outcomeKind: OutcomeKind;
 }
 
 const formatUsdc = (value: number): string =>
@@ -72,111 +50,12 @@ const formatUsdc = (value: number): string =>
 
 const USE_CASE_DEFINITIONS: UseCase[] = [
   {
-    id: "dao",
-    nav: "DAO Vote",
-    tagline: "Governance",
-    title: "Cast a sealed DAO ballot.",
-    oneLine: "Ballots stay encrypted to Drand R, then the full tally opens in a single reveal.",
-    inputKind: "ballot",
-    inputLabel: "your ballot",
-    defaultValue: 100,
-    actorRole: "voter",
-    commitCta: "Cast sealed vote",
-    formatValue: (value) => {
-      if (value >= 75) return "Yes";
-      if (value <= 25) return "No";
-      return "Abstain";
-    },
-    options: [
-      {
-        value: 100,
-        label: "Yes",
-        helper: "support the proposal",
-        tone: "for",
-      },
-      {
-        value: 50,
-        label: "Abstain",
-        helper: "no preference recorded",
-        tone: "neutral",
-      },
-      {
-        value: 0,
-        label: "No",
-        helper: "reject the proposal",
-        tone: "against",
-      },
-    ],
-    examples: [
-      { name: "Member alpha", value: 100, label: "Yes" },
-      { name: "Member beta", value: 100, label: "Yes" },
-      { name: "Member gamma", value: 0, label: "No" },
-    ],
-    comparison: {
-      leakyTitle: "Visible whip count",
-      leakyBody:
-        "Late voters watch the running tally and bandwagon onto the leading side.",
-      sealedTitle: "Hidden until quorum",
-      sealedTitleAfterCommit: "Ballot sealed on-chain",
-      sealedBody:
-        "Every ballot is encrypted to Drand R; the DAO sees one final tally at reveal.",
-    },
-    cohort: [
-      { name: "Member alpha", value: 100, delayMs: 1200 },
-      { name: "Member beta", value: 100, delayMs: 3800 },
-      { name: "Member gamma", value: 0, delayMs: 7400 },
-      { name: "Member delta", value: 50, delayMs: 11600 },
-    ],
-    outcomeKind: "tally",
-  },
-  {
-    id: "grants",
-    nav: "Grant Allocation",
-    tagline: "Grants · SCF-style",
-    title: "Run a sealed grant review.",
+    id: "auction",
+    nav: "Sealed Auction",
+    tagline: "Auction settlement",
+    title: "Run a sealed auction.",
     oneLine:
-      "Judges submit sealed scores; Drand opens the panel together for a verifiable allocation result.",
-    inputKind: "score",
-    inputLabel: "your score",
-    defaultValue: 8,
-    min: 0,
-    max: 10,
-    step: 0.5,
-    unit: "/ 10",
-    actorRole: "judge",
-    commitCta: "Submit sealed score",
-    formatValue: (value) =>
-      `${value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} / 10`,
-    examples: [
-      { name: "Judge alpha", value: 8.2, label: "8.2 / 10" },
-      { name: "Judge beta", value: 9.1, label: "9.1 / 10" },
-      { name: "Judge gamma", value: 7.6, label: "7.6 / 10" },
-    ],
-    comparison: {
-      leakyTitle: "Public leaderboard",
-      leakyBody:
-        "Early scores anchor the panel. The last judge sees the average and drags toward it.",
-      sealedTitle: "Blind panel",
-      sealedTitleAfterCommit: "Score sealed on-chain",
-      sealedBody:
-        "Every judge commits sealed; the keeper opens all scores together at reveal.",
-    },
-    cohort: [
-      { name: "Judge alpha", value: 8.2, delayMs: 1500 },
-      { name: "Judge beta", value: 9.1, delayMs: 4200 },
-      { name: "Judge gamma", value: 7.6, delayMs: 7800 },
-      { name: "Judge delta", value: 8.8, delayMs: 11200 },
-    ],
-    outcomeKind: "leaderboard",
-  },
-  {
-    id: "bounty",
-    nav: "Bounty Track",
-    tagline: "Hackathons",
-    title: "Place a sealed bounty bid.",
-    oneLine:
-      "Bidders cannot see the leading number, so the meta cannot leak before close.",
-    inputKind: "amount",
+      "Bidders lock escrow, bids stay hidden until Drand R, and Soroban settles the winner and refunds losers.",
     inputLabel: "your bid",
     defaultValue: 500,
     min: 50,
@@ -184,74 +63,33 @@ const USE_CASE_DEFINITIONS: UseCase[] = [
     step: 50,
     presets: [100, 250, 500, 1000],
     unit: "USDC",
-    actorRole: "reviewer",
+    actorRole: "bidder",
     commitCta: "Lock sealed bid",
     formatValue: formatUsdc,
     examples: [
-      { name: "Reviewer alpha", value: 480, label: formatUsdc(480) },
-      { name: "Reviewer beta", value: 520, label: formatUsdc(520) },
-      { name: "Reviewer gamma", value: 410, label: formatUsdc(410) },
+      { name: "Bidder alpha", value: 480, label: formatUsdc(480) },
+      { name: "Bidder beta", value: 520, label: formatUsdc(520) },
+      { name: "Bidder gamma", value: 410, label: formatUsdc(410) },
     ],
     comparison: {
-      leakyTitle: "Visible meta",
+      leakyTitle: "Visible bid book",
       leakyBody:
-        "Teams watch the running leader and copy the winning bid pattern moments before close.",
-      sealedTitle: "Closed bid book",
+        "Late bidders watch the current clearing price and shade their bids moments before close.",
+      sealedTitle: "Sealed bid book",
       sealedTitleAfterCommit: "Bid sealed on-chain",
       sealedBody:
-        "All bids are encrypted to Drand R; the contract opens them simultaneously.",
+        "All bids are encrypted to Drand R; the contract opens them together, clears, settles, and refunds.",
     },
     cohort: [
-      { name: "Reviewer alpha", value: 480, delayMs: 1300 },
-      { name: "Reviewer beta", value: 520, delayMs: 4400 },
-      { name: "Reviewer gamma", value: 410, delayMs: 7900 },
-      { name: "Reviewer delta", value: 600, delayMs: 11800 },
+      { name: "Bidder alpha", value: 480, delayMs: 1300 },
+      { name: "Bidder beta", value: 520, delayMs: 4400 },
+      { name: "Bidder gamma", value: 410, delayMs: 7900 },
+      { name: "Bidder delta", value: 600, delayMs: 11800 },
     ],
-    outcomeKind: "highest",
-  },
-  {
-    id: "allocation",
-    nav: "Token Allocation",
-    tagline: "Distribution",
-    title: "Submit a sealed allocation.",
-    oneLine:
-      "Demand is hidden until R, so participants cannot trade against the visible order book.",
-    inputKind: "amount",
-    inputLabel: "your allocation",
-    defaultValue: 5000,
-    min: 100,
-    max: 25000,
-    step: 100,
-    presets: [500, 1500, 5000, 12000],
-    unit: "USDC",
-    actorRole: "cohort",
-    commitCta: "Lock allocation",
-    formatValue: formatUsdc,
-    examples: [
-      { name: "Cohort alpha", value: 5200, label: formatUsdc(5200) },
-      { name: "Cohort beta", value: 6650, label: formatUsdc(6650) },
-      { name: "Cohort gamma", value: 4400, label: formatUsdc(4400) },
-    ],
-    comparison: {
-      leakyTitle: "Visible demand",
-      leakyBody:
-        "Participants see the order book forming and trade against the leading allocation.",
-      sealedTitle: "One-shot clearing",
-      sealedTitleAfterCommit: "Allocation sealed on-chain",
-      sealedBody:
-        "Demand is sealed until R; clearing uses one public reveal set, no front-running.",
-    },
-    cohort: [
-      { name: "Cohort alpha", value: 5200, delayMs: 1400 },
-      { name: "Cohort beta", value: 6650, delayMs: 4600 },
-      { name: "Cohort gamma", value: 4400, delayMs: 8200 },
-      { name: "Cohort delta", value: 8100, delayMs: 12000 },
-    ],
-    outcomeKind: "distribution",
   },
 ];
 
-const USE_CASE_ORDER: UseCaseId[] = ["grants", "bounty", "allocation", "dao"];
+const USE_CASE_ORDER: UseCaseId[] = ["auction"];
 
 export const USE_CASES: UseCase[] = USE_CASE_ORDER.map((id) =>
   USE_CASE_DEFINITIONS.find((item) => item.id === id),
