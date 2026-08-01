@@ -33,3 +33,46 @@ test("discoverRoundIds returns empty when first round missing", async () => {
   const ids = await discoverRoundIds(reader as Pick<import("@sub-rosa/sdk").SubRosaClient, "getRound">, { from: 1n, maxProbe: 5 });
   assert.deepEqual(ids, []);
 });
+
+test("watch loop handles graceful shutdown during a queued round", async () => {
+  const { KeeperStore } = await import("./store.js");
+  const { createSettlementGuard } = await import("./settlement-guard.js");
+  const { runWatchLoop } = await import("./watch-loop.js");
+
+  const store = new KeeperStore();
+  const settlementGuard = createSettlementGuard();
+  
+  store.addRound(100n, { contractId: "C1", network: "test" });
+  store.addRound(101n, { contractId: "C1", network: "test" });
+
+  let callCount = 0;
+  let processedRoundBeforeStop = false;
+  
+  const isStopping = () => {
+    callCount++;
+    if (callCount > 2) {
+      processedRoundBeforeStop = true;
+      return true; 
+    }
+    return false;
+  };
+
+  const mockSdk = {
+    getRound: async () => { throw new Error("mock error"); }
+  } as any;
+
+  const loopPromise = runWatchLoop({
+    sdk: mockSdk,
+    drand: {} as any,
+    log: () => {},
+    pollMs: 10,
+    contractId: "C1",
+    network: "test",
+    store,
+    settlementGuard,
+    isStopping,
+  });
+
+  await loopPromise;
+  assert.ok(processedRoundBeforeStop, "gracefully stopped without hanging");
+});

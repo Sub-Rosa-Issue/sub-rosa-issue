@@ -1,15 +1,5 @@
 // Watch-mode keeper — standalone entry. For a combined status-API + watch
 // process, use `serve.ts` instead.
-//
-// Env:
-//   ROUND_CONTRACT_ID   deployed Round contract id (C…)
-//   KEEPER_SECRET       funded signer secret (S…)
-//   RPC_URL             Soroban RPC (default testnet)
-//   NETWORK_PASSPHRASE
-//   WATCH_POLL_MS       poll interval (default 15000)
-//   WATCH_ROUND_IDS     optional explicit list: "1,2,5" or "1-10"
-//   WATCH_FROM          first round id when auto-discovering (default 1)
-//   WATCH_MAX_ROUNDS    max rounds to probe (default 64)
 
 import { Keypair } from "@stellar/stellar-sdk";
 import { SubRosaClient } from "@sub-rosa/sdk";
@@ -42,15 +32,6 @@ async function main() {
   const drand = quicknet();
   const log = (m: string) => console.log(`· ${m}`);
 
-  let stopping = false;
-  process.on("SIGINT", () => {
-    console.log("\nwatch: SIGINT — finishing current tick then exit");
-    stopping = true;
-  });
-  process.on("SIGTERM", () => {
-    stopping = true;
-  });
-
   const store = new KeeperStore();
   const settlementGuard = createSettlementGuard();
 
@@ -58,6 +39,22 @@ async function main() {
   console.log("· contract:", contractId);
   console.log("· poll:    ", pollMs, "ms");
   console.log("· Ctrl+C to stop\n");
+
+  let stopping = false;
+  let shutdownTimer: NodeJS.Timeout | undefined;
+
+  const handleSignal = (signal: string) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(JSON.stringify({ event: "shutdown_start", signal, message: "finishing current tick then exit" }));
+    shutdownTimer = setTimeout(() => {
+      console.error(JSON.stringify({ event: "shutdown_timeout", message: "timeout exceeded, forcing exit" }));
+      process.exit(1);
+    }, 30000);
+  };
+
+  process.on("SIGINT", () => handleSignal("SIGINT"));
+  process.on("SIGTERM", () => handleSignal("SIGTERM"));
 
   await runWatchLoop({
     sdk,
@@ -71,7 +68,8 @@ async function main() {
     isStopping: () => stopping,
   });
 
-  console.log("watch: stopped");
+  if (shutdownTimer) clearTimeout(shutdownTimer);
+  console.log(JSON.stringify({ event: "shutdown_complete", message: "watch stopped gracefully" }));
 }
 
 main().catch((err) => {

@@ -214,3 +214,6 @@ pnpm mainnet:verify         # mainnet read-only proof
 - **Binding:** `H = sha256(value‖nonce)`
 - **Unlock:** round-R BLS verified on-chain before reveal
 - **Selective disclosure:** values public post-R; identities auditor-encrypted
+
+## Operational Behavior
+- **Graceful Shutdown**: The keeper watch mode listens for `SIGINT` and `SIGTERM`. Upon receiving a signal, it stops picking up new rounds, finishes processing the current in-flight round, and safely exits. A 30-second timeout ensures the process does not hang indefinitely.

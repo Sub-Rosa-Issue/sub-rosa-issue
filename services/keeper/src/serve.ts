@@ -1,23 +1,4 @@
 // Standalone status server for the keeper.
-//
-// Runs the watch-mode keeper AND a status HTTP API on the same process so
-// pilots and dashboards can poll keeper-observed rounds without SSHing into
-// the host. The status server reads from the same on-chain source and the
-// same persisted store as the watch loop — no extra RPC budget, no extra
-// signing capability.
-//
-// Env:
-//   ROUND_CONTRACT_ID   deployed Round contract id (C…)
-//   KEEPER_SECRET       funded signer secret (S…)
-//   RPC_URL             Soroban RPC (default testnet)
-//   NETWORK_PASSPHRASE
-//   WATCH_POLL_MS       poll interval (default 15000)
-//   WATCH_ROUND_IDS     optional explicit list: "1,2,5" or "1-10"
-//   WATCH_FROM          first round id when auto-discovering (default 1)
-//   WATCH_MAX_ROUNDS    max rounds to probe (default 64)
-//   KEEPER_STATUS_HOST  status API bind host (default 127.0.0.1)
-//   KEEPER_STATUS_PORT  status API port (default 8090)
-//   KEEPER_STATUS_ENABLE set to "false" to disable the status API (default true)
 
 import { Keypair } from "@stellar/stellar-sdk";
 import { SubRosaClient } from "@sub-rosa/sdk";
@@ -60,15 +41,6 @@ async function main() {
   const store = new KeeperStore();
   const settlementGuard = createSettlementGuard();
 
-  let stopping = false;
-  process.on("SIGINT", () => {
-    console.log("\nserve: SIGINT — finishing current tick then exit");
-    stopping = true;
-  });
-  process.on("SIGTERM", () => {
-    stopping = true;
-  });
-
   const statusEnabled = (process.env.KEEPER_STATUS_ENABLE ?? "true").toLowerCase() !== "false";
   const statusHost = process.env.KEEPER_STATUS_HOST ?? "127.0.0.1";
   const statusPort = Number(process.env.KEEPER_STATUS_PORT ?? "8090");
@@ -92,15 +64,29 @@ async function main() {
       },
     });
     statusHandle = withGracefulShutdown(server);
-    console.log(`· status API: http://${statusHost}:${statusPort} (GET /status, /status/rounds/:id, /healthz, /status/health)`);
-  } else {
-    console.log("· status API disabled (KEEPER_STATUS_ENABLE=false)");
+    console.log(`· status API: http://${statusHost}:${statusPort}`);
   }
 
   console.log("Sub Rosa keeper (watch + status)");
   console.log("· contract:", contractId);
   console.log("· poll:    ", pollMs, "ms");
   console.log("· Ctrl+C to stop\n");
+
+  let stopping = false;
+  let shutdownTimer: NodeJS.Timeout | undefined;
+
+  const handleSignal = (signal: string) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(JSON.stringify({ event: "shutdown_start", signal, message: "finishing current tick then exit" }));
+    shutdownTimer = setTimeout(() => {
+      console.error(JSON.stringify({ event: "shutdown_timeout", message: "timeout exceeded, forcing exit" }));
+      process.exit(1);
+    }, 30000);
+  };
+
+  process.on("SIGINT", () => handleSignal("SIGINT"));
+  process.on("SIGTERM", () => handleSignal("SIGTERM"));
 
   await runWatchLoop({
     sdk,
@@ -115,7 +101,8 @@ async function main() {
   });
 
   if (statusHandle) await statusHandle.close();
-  console.log("serve: stopped");
+  if (shutdownTimer) clearTimeout(shutdownTimer);
+  console.log(JSON.stringify({ event: "shutdown_complete", message: "serve stopped gracefully" }));
 }
 
 main().catch((err) => {
