@@ -8,7 +8,7 @@ import { Keypair } from "@stellar/stellar-sdk";
 import type { Network, SettleResponse } from "@x402/core/types";
 import type { Appraisal, AppraisalAttributes, AppraisalRequest } from "@sub-rosa/appraisal-api";
 import { createPaidFetch } from "@sub-rosa/appraisal-api";
-import { SubRosaClient } from "@sub-rosa/sdk";
+import { SubRosaClient, createSacBalanceReader } from "@sub-rosa/sdk";
 import {
   generateNonce,
   quicknet,
@@ -19,6 +19,7 @@ import {
 import {
   assertAppraisalSpendAllowed,
   assertBidWithinMandate,
+  assertSufficientBalance,
   bidFromAppraisal,
   stroopsToUsdc,
   verifySessionMandate,
@@ -38,6 +39,9 @@ export interface BidderAgentConfig {
   revealRound: number;
   /** Appraisal attributes — each agent can supply its own private view. */
   attributes: AppraisalAttributes;
+  /** SAC contract id for the escrow token (e.g. USDC on testnet).
+   *  Required for the pre-flight balance check. */
+  usdcSacId: string;
   x402Network?: Network;
   drand?: DrandClient;
   log?: (msg: string) => void;
@@ -112,7 +116,19 @@ export async function runBidderAgent(config: BidderAgentConfig): Promise<BidderA
 
   const { bidValue, escrow } = bidFromAppraisal(appraisal.suggestedMaxBid, config.mandate);
   assertBidWithinMandate(config.mandate, bidValue, escrow);
-  log(`appraisal → bid ${stroopsToUsdc(bidValue)} USDC (escrow ${stroopsToUsdc(escrow)})`);
+
+  // Pre-flight balance check: refuse to commit if the session account
+  // doesn't hold enough escrow token to cover the locked escrow.
+  const readBalance = createSacBalanceReader(
+    config.rpcUrl,
+    config.networkPassphrase,
+    config.usdcSacId,
+    sessionKp.publicKey(),
+  );
+  const balance = await readBalance(sessionKp.publicKey());
+  assertSufficientBalance(escrow, balance);
+
+  log(`appraisal → bid ${stroopsToUsdc(bidValue)} USDC (escrow ${stroopsToUsdc(escrow)}, balance ${stroopsToUsdc(balance)} USDC)`);
 
   const drand = config.drand ?? quicknet();
   const nonce = generateNonce();

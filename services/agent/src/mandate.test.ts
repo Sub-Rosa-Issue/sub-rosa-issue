@@ -6,8 +6,10 @@ import { Keypair } from "@stellar/stellar-sdk";
 import {
   assertAppraisalSpendAllowed,
   assertBidWithinMandate,
+  assertSufficientBalance,
   bidFromAppraisal,
   createSessionMandate,
+  InsufficientBalanceError,
   MandateCapError,
   MandateError,
   usdcToStroops,
@@ -82,4 +84,21 @@ test("bidFromAppraisal clamps to mandate maxBid", () => {
   const { bidValue, escrow } = bidFromAppraisal(999, mandate);
   assert.equal(bidValue, usdcToStroops(40));
   assert.equal(escrow, usdcToStroops(40));
+});
+
+test("assertSufficientBalance passes when escrow <= balance", () => {
+  assert.doesNotThrow(() =>
+    assertSufficientBalance(usdcToStroops(50), usdcToStroops(100)),
+  );
+  // Equal is fine too.
+  assert.doesNotThrow(() =>
+    assertSufficientBalance(usdcToStroops(100), usdcToStroops(100)),
+  );
+});
+
+test("assertSufficientBalance throws when escrow exceeds balance", () => {
+  assert.throws(
+    () => assertSufficientBalance(usdcToStroops(150), usdcToStroops(100)),
+    InsufficientBalanceError,
+  );
 });

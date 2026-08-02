@@ -10,8 +10,10 @@ import { Keypair } from "@stellar/stellar-sdk";
 import {
   assertAppraisalSpendAllowed,
   assertBidWithinMandate,
+  assertSufficientBalance,
   bidFromAppraisal,
   createSessionMandate,
+  InsufficientBalanceError,
   MandateCapError,
   usdcToStroops,
 } from "./mandate.js";
@@ -48,6 +50,13 @@ test("NEGATIVE: agent rejects explicit bid above mandate maxBid", () => {
   assert.throws(
     () => assertBidWithinMandate(mandate, usdcToStroops(150), usdcToStroops(150)),
     MandateCapError,
+  );
+});
+
+test("NEGATIVE: agent rejects escrow exceeding session balance", () => {
+  assert.throws(
+    () => assertSufficientBalance(usdcToStroops(200), usdcToStroops(50)),
+    InsufficientBalanceError,
   );
 });
 

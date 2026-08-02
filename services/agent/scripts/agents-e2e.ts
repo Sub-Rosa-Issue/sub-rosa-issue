@@ -304,6 +304,7 @@ async function main() {
         auditorPubkey: auditor.publicKey,
         revealRound,
         attributes: plan.attributes,
+        usdcSacId: usdcSac,
         x402Network: X402_NETWORK as `${string}:${string}`,
         log,
       });

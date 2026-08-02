@@ -47,6 +47,19 @@ export interface SessionMandate extends SessionMandatePayload {
 export class MandateError extends Error {}
 export class MandateCapError extends MandateError {}
 
+/** Thrown when the session account lacks sufficient token balance to cover
+ *  the escrow required for a bid. Agent-side guard — prevents wasted fees
+ *  from submitting a commit that would fail on-chain. */
+export class InsufficientBalanceError extends MandateError {
+  constructor(
+    message: string,
+    readonly escrow: bigint,
+    readonly balance: bigint,
+  ) {
+    super(message);
+  }
+}
+
 const canonical = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object") {
@@ -194,6 +207,22 @@ export function assertBidWithinMandate(
   }
   if (bidValue > escrow) {
     throw new MandateCapError(`bid ${bidValue} exceeds escrow ${escrow} (on-chain cap)`);
+  }
+}
+
+/** Refuse an escrow that exceeds the session account's token balance.
+ *  Agent-side pre-flight guard — prevents committing funds the account
+ *  does not hold. */
+export function assertSufficientBalance(
+  escrow: bigint,
+  balance: bigint,
+): void {
+  if (escrow > balance) {
+    throw new InsufficientBalanceError(
+      `escrow ${escrow} exceeds session balance ${balance}`,
+      escrow,
+      balance,
+    );
   }
 }
 
