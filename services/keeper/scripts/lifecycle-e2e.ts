@@ -138,7 +138,7 @@ async function main() {
 
   console.log(`\n[2/8] createRound (R=${revealRound}, time(R)≈${tReveal - now}s, reveal window 75s)…`);
   const roundId = await operator.createRound({
-    itemRef: sha256("sub-rosa://lifecycle/grant-allocation"),
+    itemRef: sha256("sub-rosa://lifecycle/sealed-asset-auction"),
     revealRound,
     commitDeadline,
     revealDeadline,

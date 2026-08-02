@@ -11,23 +11,21 @@
 
 **1st Place — Hack Privacy Track, Build On Stellar Hackathon — IBW 2026**
 
-**Verifiable allocation infrastructure for Stellar grants, hackathons,
-bounties, RFPs, and sealed auctions.** Participants submit sealed scores, bids,
-or allocation decisions now; a public, unbiased Drand round unseals them later,
-verifiably and all at once. The protocol — not the operator — owns fairness.
+**Escrow-backed sealed auction infrastructure for Stellar.** Bidders lock
+Stellar assets, submit bids that stay unreadable until a public Drand reveal,
+and Soroban settles the winner payment and loser refunds deterministically.
 
 > Built on what's proven. Sealed by math, not by trust.
 
 Sub Rosa is now evolving from a hackathon-winning privacy demo into reusable
-allocation infrastructure for Stellar apps: a Soroban primitive, TypeScript
-SDK, keeper service, and integration templates for teams that need sealed
-judging, scoring, bidding, or allocation without building cryptography from
-scratch.
+auction infrastructure for Stellar apps: a Soroban primitive, TypeScript SDK,
+tlock package, keeper service, and integration templates for teams that need
+sealed bids with on-chain settlement.
 
-Target next milestone: **Stellar Community Fund Build Award**. The goal is to
-turn the current proof into production-ready developer infrastructure:
-`@sub-rosa/sdk`, optional React hooks/components, hosted keeper/reveal
-operations, hardened contracts, and mainnet launch.
+Target next milestone: a focused **ecosystem build/funding award** resubmission.
+The next application should include a named sealed-auction pilot or design
+partner, public testnet round receipts, an external funds-handling review
+milestone, and a capped mainnet beta path.
 
 Licensed under [MIT](./LICENSE).
 
@@ -49,16 +47,17 @@ See [docs/LIMITATIONS.md](./docs/LIMITATIONS.md) for honest scope (mainnet ≠ f
 
 ## Pilot plan
 
-Sub Rosa's first pilot will run with **OverBlock** as an internal
-builder/community environment for sealed judging, bounty allocation, and
-grant-style scoring workflows.
+Sub Rosa's next pilot target is a **sealed auction or competitive bid round**
+with a named Stellar ecosystem team, marketplace, asset issuer, or
+auction platform.
 
-Beyond OverBlock, we are actively preparing external pilot conversations with
-Stellar ecosystem teams, hackathon organizers, DAOs, and grant/RFP programs
-that need sealed scoring, sealed bidding, or verifiable allocation workflows.
+The pilot should prove more than "the code works": it should publish round IDs,
+participant count, total escrow, settlement/refund receipts, partner feedback,
+and a go/no-go decision for a capped mainnet beta.
 
-See [docs/PILOT_PLAYBOOK.md](./docs/PILOT_PLAYBOOK.md) for the pilot scope,
-SCF-style demo narrative, and outreach message.
+See [docs/PILOT_PLAYBOOK.md](./docs/PILOT_PLAYBOOK.md) for pilot scope and
+outreach, and [docs/FUNDING_STRATEGY.md](./docs/FUNDING_STRATEGY.md) for the
+funding/resubmission strategy.
 
 ---
 
@@ -94,8 +93,9 @@ const sealed = await sealBid({
 await client.commit({ roundId, sealed, escrow });
 ```
 
-The app layer can be a DAO tool, grants platform, auction UI, RFP workflow, or
-allocation dashboard. Sub Rosa supplies the sealed round state machine.
+The first app layer should be an auction or competitive bid UI. Other workflows
+can still embed the sealed round primitive later, but they no longer lead the
+core story.
 
 ---
 
@@ -130,15 +130,17 @@ pnpm mainnet:micro           # dry-run checklist; --execute needs MAINNET_CONFIR
 
 ## The idea
 
-Public ledgers are transparent by default, which quietly breaks fair allocation
-when participants or judges can see each other's inputs too early. That affects
-grant scoring, hackathon judging, bounty allocation, RFPs, and sealed auctions.
-The usual "fix" trusts the operator. Sub Rosa removes the operator from the
-trust path entirely:
+Public ledgers are transparent by default, which breaks sealed auctions when
+bidders can see the current clearing price before close. The usual "fix" is to
+collect bids off-chain and trust the operator. Sub Rosa removes that operator
+from the trust path:
 
 - **Seal** each bid with Drand timelock encryption (`tlock`) to a future round R.
 - **Force-open** at R: BLS12-381 verified **on-chain** — simultaneous reveal.
-- **Settle** deterministically. Identities disclosed only to the auditor.
+- **Settle** deterministically: winner escrow pays the operator; losers are
+  refunded.
+- **Disclose selectively:** bid values become public after reveal; identities
+  can remain auditor-only.
 
 See **[ARCHITECTURE.md](./ARCHITECTURE.md)** for the system map, lifecycle, trust boundaries, and monorepo layout.
 
@@ -182,8 +184,11 @@ pnpm mainnet:verify         # mainnet read-only proof
 | Doc | Purpose |
 | --- | --- |
 | **[ARCHITECTURE.md](./ARCHITECTURE.md)** | System overview, lifecycle, trust boundaries, repo map |
-| [docs/SCF_PLAN.md](./docs/SCF_PLAN.md) | SCF Build framing, tranches, deliverables, ecosystem value |
-| [docs/PILOT_PLAYBOOK.md](./docs/PILOT_PLAYBOOK.md) | OverBlock pilot scope, external pilot outreach, SCF-style demo narrative |
+| [docs/PLATFORM_PLAN.md](./docs/PLATFORM_PLAN.md) | Partner-ready protocol, SDK, template, and pilot delivery plan |
+| [docs/BUILD_PLAN.md](./docs/BUILD_PLAN.md) | Focused build/funding framing for sealed auction infrastructure |
+| [docs/GRANT_SUBMISSION.md](./docs/GRANT_SUBMISSION.md) | Grant submission narrative for the sealed auction product |
+| [docs/FUNDING_STRATEGY.md](./docs/FUNDING_STRATEGY.md) | Reviewer feedback response and resubmission strategy |
+| [docs/PILOT_PLAYBOOK.md](./docs/PILOT_PLAYBOOK.md) | Sealed auction pilot scope, outreach, and report template |
 | [docs/INTEGRATION.md](./docs/INTEGRATION.md) | How another Stellar app embeds Sub Rosa |
 | [docs/TECH_DESIGN.md](./docs/TECH_DESIGN.md) | Cryptography, storage, settlement rails |
 | [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) | Adversaries, mitigations, honest limits |
@@ -205,13 +210,13 @@ pnpm mainnet:verify         # mainnet read-only proof
 - [x] Jury UI — one canonical testnet trace (status, bidders, R, auditor blobs, session keys)
 - [x] Watch-mode keeper (`pnpm keeper:watch`)
 
-## SCF roadmap
+## Funding roadmap
 
 | Tranche | Goal | Deliverables |
 | --- | --- | --- |
-| 1 | Developer infrastructure | Publish-ready `@sub-rosa/sdk`, integration docs, contract hardening, test vectors |
-| 2 | Testnet pilots | Hosted keeper, reusable UI hooks/components, partner pilot templates, testnet dashboards |
-| 3 | Mainnet launch | Audited/open-source contracts, mainnet deployment, production keeper ops, launch docs |
+| 1 | Auction integration package | Publish-ready `@sub-rosa/sdk`, sealed auction docs, contract hardening, test vectors |
+| 2 | Named testnet pilot | Hosted keeper, operator dashboard, public pilot report, partner feedback |
+| 3 | Capped mainnet beta | Reviewed contracts, production keeper ops, capped real-asset round, launch docs |
 
 ## Cryptographic design (Privacy track)
 
@@ -219,5 +224,3 @@ pnpm mainnet:verify         # mainnet read-only proof
 - **Binding:** `H = sha256(value‖nonce)`
 - **Unlock:** round-R BLS verified on-chain before reveal
 - **Selective disclosure:** values public post-R; identities auditor-encrypted
-
-all done

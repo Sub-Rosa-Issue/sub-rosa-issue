@@ -6,7 +6,7 @@ import {
   createSessionMandate,
   MandateCapError,
   usdcToStroops,
-} from "@sub-rosa/agent";
+} from "@sub-rosa/agent/mandate";
 import {
   commitment,
   currentRound,

@@ -170,20 +170,8 @@ function PhaseGuide(props: {
     const dangerThreshold = Math.max(4, Math.min(12, Math.round(duration * 0.25)));
     tone = commitSeconds <= dangerThreshold ? "danger" : "urgent";
     eyebrow = `Step 2 · ${useCase.actorRole} commit`;
-    title =
-      useCase.inputKind === "ballot"
-        ? "Cast your sealed ballot"
-        : useCase.inputKind === "score"
-          ? "Submit your sealed score"
-          : useCase.id === "bounty"
-            ? "Place your sealed bid"
-            : "Submit your sealed allocation";
-    detail =
-      useCase.inputKind === "ballot"
-        ? "Pick an option and seal it before the window closes. Encrypted to Drand R."
-        : useCase.inputKind === "score"
-          ? "Move the slider to your score and seal. Other judges cannot see it until R."
-          : "Choose an amount and seal. The number is encrypted to Drand R until reveal.";
+    title = "Place your sealed bid";
+    detail = "Choose an amount and seal it with escrow. The bid is encrypted to Drand R until reveal.";
     timerLabel = "Time left";
     timerValue = formatCountdown(commitSeconds);
     ctaLabel = useCase.commitCta;
@@ -262,63 +250,14 @@ function PhaseGuide(props: {
 
         {showInput ? (
           <motion.div
-            className={`phase-input phase-input--${useCase.inputKind}`}
+            className="phase-input phase-input--amount"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25 }}
           >
             <label>{useCase.inputLabel}</label>
 
-            {useCase.inputKind === "ballot" && useCase.options ? (
-              <div className="option-grid" role="radiogroup" aria-label={useCase.inputLabel}>
-                {useCase.options.map((option) => {
-                  const selected = entryValue === option.value;
-                  return (
-                    <button
-                      key={option.label}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      className={`option-card ${option.tone} ${selected ? "selected" : ""}`}
-                      onClick={() => onEntryChange(option.value)}
-                    >
-                      <strong>{option.label}</strong>
-                      <small>{option.helper}</small>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {useCase.inputKind === "score" ? (
-              <div className="score-control">
-                <div className="score-display">
-                  <b>
-                    {entryValue.toLocaleString(undefined, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })}
-                  </b>
-                  <span>{useCase.unit}</span>
-                </div>
-                <input
-                  type="range"
-                  min={useCase.min ?? 0}
-                  max={useCase.max ?? 10}
-                  step={useCase.step ?? 0.5}
-                  value={entryValue}
-                  onChange={(e) => onEntryChange(Number(e.target.value))}
-                />
-                <div className="score-marks" aria-hidden="true">
-                  <span>0</span>
-                  <span>5</span>
-                  <span>10</span>
-                </div>
-              </div>
-            ) : null}
-
-            {useCase.inputKind === "amount" ? (
-              <div className="amount-control">
+            <div className="amount-control">
                 {useCase.presets ? (
                   <div className="preset-chips">
                     {useCase.presets.map((preset) => {
@@ -357,8 +296,7 @@ function PhaseGuide(props: {
                     {useCase.unit ? <span>{useCase.unit}</span> : null}
                   </div>
                 </div>
-              </div>
-            ) : null}
+            </div>
 
             <small>
               Sealed escrow: {formatDemoAmount(toDemoEscrowAmount(entryValue))}
@@ -897,7 +835,7 @@ export function DemoPage({
 
           {mode === "live" ? (
             <>
-              <div className="case-nav-section-label">Cases</div>
+              <div className="case-nav-section-label">Focus</div>
               {USE_CASES.map((item) => (
                 <button
                   key={item.id}

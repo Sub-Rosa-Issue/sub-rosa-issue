@@ -48,3 +48,17 @@ export {
   type FreshnessStatus,
   type FreshnessResult,
 } from "./freshness.js";
+
+export {
+  encodePayloadEnvelope,
+  decodePayloadEnvelope,
+  payloadCommitment,
+  sealPayload,
+  openPayload,
+  PAYLOAD_ENVELOPE_VERSION,
+  PAYLOAD_HEADER_BYTES,
+  MAX_APPLICATION_PAYLOAD_BYTES,
+  type PayloadEnvelope,
+  type SealPayloadParams,
+  type SealedPayload,
+} from "./payload.js";

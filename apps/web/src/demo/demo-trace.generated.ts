@@ -3,7 +3,7 @@
 
 export const DEMO_TRACE = {
   "meta": {
-    "title": "Spectrum Block Allocation — Round 1",
+    "title": "Sealed Asset Auction — Round 1",
     "network": "Stellar Testnet",
     "contractId": "CAPTODBCDEVIK23ALBJBS2TXRTIK47ZA5MBTHYF4XLHG2BK7JPYUCU2Y",
     "roundId": 1,

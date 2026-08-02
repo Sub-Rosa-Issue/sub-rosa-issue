@@ -5,6 +5,7 @@ import { quicknet, currentRound } from "./quicknet.js";
 import { sealBid, openBid, generateNonce } from "./seal.js";
 import { commitment, toHex } from "./commitment.js";
 import { generateAuditorKeypair, openIdentity } from "./auditor.js";
+import { openPayload, payloadCommitment, sealPayload } from "./payload.js";
 
 // These tests hit the live Drand quicknet network (no mock).
 const NET_TIMEOUT = 30_000;
@@ -44,6 +45,40 @@ test(
 
     // Auditor (and only the auditor) recovers the identity.
     assert.deepEqual([...openIdentity(sealed.auditorBlob, auditor.secretKey)], [...identity]);
+  },
+);
+
+test(
+  "structured proposal payload seals and opens against a real quicknet round",
+  { timeout: NET_TIMEOUT },
+  async () => {
+    const client = quicknet();
+    const round = (await currentRound(client)) - 5;
+    const amount = 12_000_0000000n;
+    const nonce = generateNonce();
+    const payload = new TextEncoder().encode(
+      '{"price":"12000 USDC","timeline":"4 weeks","approach":"manual Soroban review"}',
+    );
+    const auditor = generateAuditorKeypair();
+    const identity = new TextEncoder().encode("GPROVIDER...alice");
+
+    const sealed = await sealPayload({
+      amount,
+      nonce,
+      payload,
+      round,
+      client,
+      identity,
+      auditorPublicKey: auditor.publicKey,
+    });
+    const opened = await openPayload(sealed.ciphertext, client);
+
+    assert.ok(sealed.ciphertext.length <= 4096, `ciphertext ${sealed.ciphertext.length}B`);
+    assert.equal(opened.amount, amount);
+    assert.deepEqual(opened.nonce, nonce);
+    assert.deepEqual(opened.payload, payload);
+    assert.equal(toHex(payloadCommitment(opened)), toHex(sealed.commitment));
+    assert.deepEqual(openIdentity(sealed.auditorBlob, auditor.secretKey), identity);
   },
 );
 

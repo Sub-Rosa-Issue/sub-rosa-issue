@@ -2,7 +2,7 @@
   "name": "sub-rosa",
   "version": "0.1.0",
   "private": true,
-  "description": "Verifiable allocation infrastructure for Stellar grants, hackathons, bounties, RFPs, and sealed auctions.",
+  "description": "Escrow-backed sealed auction infrastructure for Stellar.",
   "license": "MIT",
   "packageManager": "pnpm@10.13.1",
   "engines": {
@@ -58,8 +58,6 @@
     "web:build": "pnpm --filter @sub-rosa/web build",
     "web:test": "pnpm --filter @sub-rosa/web test",
     "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
-    "grant-scoring:test": "pnpm --filter @sub-rosa/grant-scoring-pilot test",
-    "grant-scoring:start": "pnpm --filter @sub-rosa/grant-scoring-pilot start",
     "snapshot:check": "node scripts/check-snapshots.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
     "docs:check-links": "node scripts/check-links.js",

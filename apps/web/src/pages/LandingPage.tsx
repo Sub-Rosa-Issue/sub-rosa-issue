@@ -68,23 +68,23 @@ export function LandingPage({
         <motion.div className="hero-copy" variants={fadeUp} transition={transition}>
           <span className="hero-eyebrow">
             <span>SR</span>
-            Verifiable allocation on Stellar
+            Sealed auction settlement on Stellar
           </span>
           <motion.h1 variants={fadeUp} transition={transition}>
-            Verifiable allocation. <em>Sealed by design.</em>
+            Sealed auctions. <em>Settled on Stellar.</em>
           </motion.h1>
           <motion.p className="lede" variants={fadeUp} transition={transition}>
-            Infrastructure for Stellar grants, bounties, hackathons, sealed auctions, and RFP
-            scoring.
+            Bidders lock escrow, bids stay unreadable until Drand R, and Soroban settles the
+            winner while refunding losers.
           </motion.p>
           <motion.p className="hero-infra-line" variants={fadeUp} transition={transition}>
-            Scores, bids, and allocation inputs stay unreadable until Drand R, then reveal and
-            settle publicly on Soroban.
+            Built as an embeddable Soroban contract, TypeScript SDK, tlock package, and
+            permissionless keeper.
           </motion.p>
 
           <motion.div className="hero-actions" variants={fadeUp} transition={transition}>
             <button type="button" className="primary-action large" onClick={onDemo}>
-              Open sealed grant scoring demo
+              Open sealed auction demo
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path
                   d="M5 12h14M13 6l6 6-6 6"
@@ -115,8 +115,8 @@ export function LandingPage({
               <strong>{DEMO_TRACE.keeper.contractBalanceFinal} USDC final</strong>
             </div>
             <div>
-              <span>First pilot</span>
-              <strong>OverBlock</strong>
+              <span>Next milestone</span>
+              <strong>Named pilot</strong>
             </div>
           </motion.div>
         </motion.div>
@@ -129,8 +129,8 @@ export function LandingPage({
         >
           <div className="console-status-row">
             <div>
-              <span>allocation round</span>
-              <strong>Scores sealed</strong>
+              <span>auction round</span>
+              <strong>Bids sealed</strong>
             </div>
             <span className="status-tag">commit live</span>
           </div>
@@ -159,24 +159,24 @@ export function LandingPage({
           <div className="console-events">
             <p>
               <strong>1</strong>
-              <span>Judges submit sealed scores</span>
+              <span>Bidders lock escrow + sealed bids</span>
               <em>private</em>
             </p>
             <p>
               <strong>2</strong>
-              <span>Drand R opens the scoring set</span>
+              <span>Drand R opens the bid set</span>
               <em>public</em>
             </p>
             <p>
               <strong>3</strong>
-              <span>Soroban settles the result</span>
+              <span>Soroban pays + refunds</span>
               <em>verifiable</em>
             </p>
           </div>
 
           <div className="proof-strip">
             <span>{shortAddr(DEMO_TRACE.meta.contractId, 6)}</span>
-            <span>sealed scoring</span>
+            <span>sealed auction</span>
             <span>round #{DEMO_TRACE.meta.roundId}</span>
           </div>
         </motion.div>
@@ -190,16 +190,16 @@ export function LandingPage({
         transition={transition}
       >
         <div>
-          <span>First internal pilot</span>
-          <h2>OverBlock</h2>
+          <span>SCF resubmission focus</span>
+          <h2>One wedge: escrow-backed sealed auctions.</h2>
         </div>
         <p>
-          OverBlock will be Sub Rosa&apos;s first internal pilot environment for sealed judging,
-          bounty allocation, and grant-style scoring workflows.
+          The next submission should include a named auction or competitive-bid pilot, public
+          testnet round receipts, and partner feedback.
         </p>
         <p>
-          We are also preparing small external pilot conversations with Stellar ecosystem teams,
-          hackathon organizers, DAOs, and grant/RFP programs.
+          Partners integrate the same audited round lifecycle through the SDK without replacing
+          their marketplace or product workflow.
         </p>
       </motion.section>
 
@@ -211,10 +211,10 @@ export function LandingPage({
           viewport={{ once: true, margin: "-80px" }}
           transition={transition}
         >
-          <h2>Run a verifiable allocation workflow.</h2>
+          <h2>Run a sealed auction round.</h2>
           <p>
-            Each case uses the same sealed-round primitive: inputs stay hidden until reveal, then
-            the result is public and enforceable on Stellar.
+            The demo follows the funds path reviewers care about: escrow is locked before reveal,
+            bids open together, the winner pays, and losers are refunded.
           </p>
         </motion.div>
 
