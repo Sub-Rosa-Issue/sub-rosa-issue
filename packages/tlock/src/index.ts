@@ -6,6 +6,7 @@ export {
   beBytesToI128,
   toHex,
   fromHex,
+  isValidHex,
   VALUE_BYTES,
   NONCE_BYTES,
   PREIMAGE_BYTES,
