@@ -77,9 +77,20 @@ export function toHex(bytes: Uint8Array): string {
     .join("");
 }
 
+const HEX_CHARS_RE = /^[0-9a-fA-F]*$/;
+
+/// True if `hex` (optionally `0x`-prefixed) is non-empty, even-length hex.
+export function isValidHex(hex: string): boolean {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  return clean.length > 0 && clean.length % 2 === 0 && HEX_CHARS_RE.test(clean);
+}
+
 export function fromHex(hex: string): Uint8Array {
   const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
   if (clean.length % 2 !== 0) throw new Error("odd hex length");
+  if (!HEX_CHARS_RE.test(clean)) {
+    throw new Error("invalid hex string: expected only [0-9a-fA-F] characters");
+  }
   const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) {
     out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);

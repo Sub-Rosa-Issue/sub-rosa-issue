@@ -47,6 +47,27 @@ test(
   },
 );
 
+test("sealBid rejects a non-positive round", async () => {
+  const client = quicknet();
+  await assert.rejects(
+    () => sealBid({ value: 1n, nonce: generateNonce(), round: 0, client }),
+    /round must be a positive integer/,
+  );
+});
+
+test("sealBid rejects a wrong-length nonce", async () => {
+  const client = quicknet();
+  await assert.rejects(
+    () => sealBid({ value: 1n, nonce: new Uint8Array(16), round: 5, client }),
+    /nonce must be 32 bytes/,
+  );
+});
+
+test("openBid rejects an empty ciphertext", async () => {
+  const client = quicknet();
+  await assert.rejects(() => openBid(new Uint8Array(0), client), /empty/);
+});
+
 test(
   "wrong value/nonce does not match the commitment (would be rejected on-chain)",
   { timeout: NET_TIMEOUT },

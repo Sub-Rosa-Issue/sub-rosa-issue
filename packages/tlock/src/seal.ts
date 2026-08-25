@@ -42,6 +42,13 @@ export function generateNonce(): Uint8Array {
 export async function sealBid(params: SealBidParams): Promise<SealedBid> {
   const { value, nonce, round, client, identity, auditorPublicKey } = params;
 
+  if (round < 1) {
+    throw new RangeError(`round must be a positive integer, got ${round}`);
+  }
+  if (nonce.length !== NONCE_BYTES) {
+    throw new RangeError(`nonce must be ${NONCE_BYTES} bytes, got ${nonce.length}`);
+  }
+
   const preimage = encodeBidPreimage(value, nonce);
   const h = commitment(value, nonce);
   const armored = await timelockEncrypt(round, TlockBuffer.from(preimage), client);
@@ -68,6 +75,9 @@ export async function openBid(
   ciphertext: Uint8Array,
   client: DrandClient,
 ): Promise<OpenedBid> {
+  if (ciphertext.length === 0) {
+    throw new Error("ciphertext is empty");
+  }
   const armored = utf8Decode.decode(ciphertext);
   const plaintext = await timelockDecrypt(armored, client);
   return decodeBidPreimage(Uint8Array.from(plaintext));
