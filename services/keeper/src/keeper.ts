@@ -16,6 +16,7 @@
 
 import type { SubRosaClient } from "@sub-rosa/sdk";
 import { openBid, fetchRoundSignature, type DrandClient } from "@sub-rosa/tlock";
+import { compareRoundIds } from "./store.js";
 
 export type KeeperLogger = (msg: string) => void;
 
@@ -369,7 +370,7 @@ export function parseRoundIdSpec(spec: string): bigint[] {
       ids.add(BigInt(part));
     }
   }
-  return [...ids].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0));
+  return [...ids].sort((x, y) => compareRoundIds(x, y));
 }
 
 export async function discoverRoundIds(

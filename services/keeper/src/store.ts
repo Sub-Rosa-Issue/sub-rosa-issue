@@ -18,6 +18,17 @@ export interface StoreData {
 
 export type RoundIdInput = bigint | number | string;
 
+/**
+ * Numeric round-id comparator. Orders two round ids by their numeric value
+ * regardless of the input type (bigint, number, or string). Returns a negative
+ * number if `a < b`, zero if equal, and a positive number if `a > b`.
+ */
+export function compareRoundIds(a: RoundIdInput, b: RoundIdInput): number {
+  const aBig = BigInt(normalizeRoundId(a));
+  const bBig = BigInt(normalizeRoundId(b));
+  return aBig < bBig ? -1 : aBig > bBig ? 1 : 0;
+}
+
 export function normalizeRoundId(roundId: RoundIdInput): string {
   let value: bigint;
 
@@ -68,10 +79,19 @@ export class KeeperStore {
       const rounds: Record<string, WatchedRound> = {};
       for (const [key, value] of Object.entries(parsed.rounds)) {
         if (!value || typeof value !== "object" || Array.isArray(value)) {
-          throw new Error(`invalid stored round ${key}`);
+          console.warn(`[Store] Dropping malformed stored round entry ${key}: expected an object`);
+          continue;
         }
         const stored = value as Partial<WatchedRound>;
-        const id = normalizeRoundId(stored.roundId ?? key);
+        let id: string;
+        try {
+          id = normalizeRoundId(stored.roundId ?? key);
+        } catch {
+          console.warn(
+            `[Store] Dropping malformed stored round entry ${key}: non-numeric or invalid round id ${JSON.stringify(stored.roundId ?? key)}`,
+          );
+          continue;
+        }
         rounds[id] = { ...stored, roundId: id } as WatchedRound;
       }
       return { rounds };
@@ -140,12 +160,8 @@ export class KeeperStore {
   }
 
   public listRounds(): WatchedRound[] {
-    // Return sorted by roundId mathematically
-    return Object.values(this.data.rounds).sort((a, b) => {
-      const aBig = BigInt(a.roundId);
-      const bBig = BigInt(b.roundId);
-      return aBig < bBig ? -1 : aBig > bBig ? 1 : 0;
-    });
+    // Return sorted by roundId numerically, regardless of id type
+    return Object.values(this.data.rounds).sort((a, b) => compareRoundIds(a.roundId, b.roundId));
   }
 
   public getRawData(): StoreData {
