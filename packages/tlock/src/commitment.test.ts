@@ -8,6 +8,7 @@ import {
   encodeBidPreimage,
   fromHex,
   i128ToBeBytes,
+  isValidHex,
   toHex,
 } from "./commitment.js";
 
@@ -71,4 +72,15 @@ test("fromHex rejects odd-length and non-hex input", () => {
   assert.throws(() => fromHex("zz"), /invalid hex characters/);
   assert.throws(() => fromHex("12 3"), /invalid hex characters/);
   assert.throws(() => fromHex("0x12gg"), /invalid hex characters/);
+});
+
+test("isValidHex agrees with fromHex's accept/reject decisions", () => {
+  for (const hex of ["abcdef", "ABCDEF", "0xAbCdEf", "0XABCDEF", "", "0x"]) {
+    assert.equal(isValidHex(hex), true, hex);
+    assert.doesNotThrow(() => fromHex(hex));
+  }
+  for (const hex of ["abc", "zz", "12 3", "0x12gg"]) {
+    assert.equal(isValidHex(hex), false, hex);
+    assert.throws(() => fromHex(hex));
+  }
 });
