@@ -113,6 +113,9 @@ export {
   type KeeperStatusResponse,
   type KeeperHealthResponse,
   type ApiError,
+  describeRoundStatus,
+  isRoundOpen,
+  isTerminalRoundStatus,
 } from "./status.js";
 
 // Fetch client for the keeper status API.

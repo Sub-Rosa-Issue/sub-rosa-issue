@@ -77,3 +77,35 @@ export interface ApiError {
   roundIds?: string[];
   roundId?: string;
 }
+
+/** Human-readable label for a round status, for logs and UI copy. */
+export function describeRoundStatus(status: RoundStatus): string {
+  switch (status) {
+    case "Open":
+      return "Open for commits";
+    case "Revealing":
+      return "Reveal window open";
+    case "Cleared":
+      return "Cleared";
+    case "Settled":
+      return "Settled";
+    case "Voided":
+      return "Voided";
+    case "NotFound":
+      return "Not found";
+    case "Unknown":
+      return "Unknown";
+    default:
+      return status;
+  }
+}
+
+/** True while a round still accepts commits. */
+export function isRoundOpen(status: RoundStatus): boolean {
+  return status === "Open";
+}
+
+/** True once a round reached a terminal state (settled or voided). */
+export function isTerminalRoundStatus(status: RoundStatus): boolean {
+  return status === "Settled" || status === "Voided";
+}

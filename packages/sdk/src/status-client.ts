@@ -3,11 +3,12 @@
 // Lambda — no `axios`, no generated client. Status endpoints are read-only
 // and return stable typed JSON (see ../status.ts).
 
-import type {
-  KeeperHealthResponse,
-  KeeperStatusResponse,
-  KeeperRoundStatusView,
-  ApiError,
+import {
+  isRoundOpen,
+  type KeeperHealthResponse,
+  type KeeperStatusResponse,
+  type KeeperRoundStatusView,
+  type ApiError,
 } from "./status.js";
 
 export interface StatusClientOptions {
@@ -65,6 +66,12 @@ export class KeeperStatusClient {
 
   async getRound(roundId: number | bigint | string): Promise<KeeperRoundStatusView> {
     return this.getJSON<KeeperRoundStatusView>(`/status/rounds/${roundId}`);
+  }
+
+  /** Rounds that are still open for commits. */
+  async getOpenRounds(): Promise<KeeperRoundStatusView[]> {
+    const status = await this.getStatus();
+    return status.rounds.filter((round) => isRoundOpen(round.status));
   }
 
   async getHealth(): Promise<KeeperHealthResponse> {
