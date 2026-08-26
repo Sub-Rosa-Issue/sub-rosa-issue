@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
 import { quicknet } from "@sub-rosa/tlock";
 
