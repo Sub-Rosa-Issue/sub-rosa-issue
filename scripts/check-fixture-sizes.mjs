@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
