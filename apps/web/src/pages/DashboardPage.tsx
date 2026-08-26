@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { motion, useReducedMotion } from "framer-motion";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { LOGO_SRC } from "../lib/chain";

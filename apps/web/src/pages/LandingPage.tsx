@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { motion, useReducedMotion } from "framer-motion";
 import { DEMO_TRACE } from "../demo/trace";
 import { USE_CASES, type UseCaseId } from "../config/useCases";
