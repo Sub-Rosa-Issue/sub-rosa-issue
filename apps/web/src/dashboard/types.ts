@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Types for the monitoring dashboard data structure.
 
 export type RoundStatus = "Open" | "Revealing" | "Cleared" | "Settled" | "Voided";
