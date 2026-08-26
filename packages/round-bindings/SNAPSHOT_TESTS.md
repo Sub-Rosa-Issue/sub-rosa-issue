@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Round contract event snapshot tests
 
 The Round contract emits seven **on-chain events** via

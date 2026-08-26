@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Round Receipts
 
 A **round receipt** is a portable JSON document that captures the final state of a Sub Rosa auction round. Receipts can be exported from any live contract and verified offline — no RPC, no secrets, no Stellar dependency.

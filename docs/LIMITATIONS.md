@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Known Limitations
 
 Honest boundaries for the current prototype and submission materials. No hidden

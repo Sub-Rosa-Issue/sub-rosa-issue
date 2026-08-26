@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Keeper Service
 
 The Sub Rosa keeper service is a permissionless TypeScript node application that can run single-shot lifecycle operations or run in watch mode to automatically monitor and drive in-flight rounds to completion. A built-in status HTTP API exposes keeper-observed round state for pilots and dashboards.
