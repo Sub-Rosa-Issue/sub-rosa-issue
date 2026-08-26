@@ -10,6 +10,8 @@ import {
   createSessionMandate,
   MandateCapError,
   MandateError,
+  remainingAppraisalSpend,
+  stroopsToUsdc,
   usdcToStroops,
   verifySessionMandate,
 } from "./mandate.js";
@@ -82,4 +84,40 @@ test("bidFromAppraisal clamps to mandate maxBid", () => {
   const { bidValue, escrow } = bidFromAppraisal(999, mandate);
   assert.equal(bidValue, usdcToStroops(40));
   assert.equal(escrow, usdcToStroops(40));
+});
+
+test("usdcToStroops converts and hardens input", () => {
+  assert.equal(usdcToStroops(1), 10_000_000n);
+  assert.equal(usdcToStroops(0.1), 1_000_000n);
+  assert.equal(usdcToStroops(0), 0n);
+  assert.throws(() => usdcToStroops(Number.NaN), MandateError);
+  assert.throws(() => usdcToStroops(Number.POSITIVE_INFINITY), MandateError);
+  assert.throws(() => usdcToStroops(-1), MandateError);
+});
+
+test("stroopsToUsdc converts and hardens input", () => {
+  assert.equal(stroopsToUsdc(10_000_000n), 1);
+  assert.equal(stroopsToUsdc(1_500_000n), 0.15);
+  assert.equal(stroopsToUsdc(0n), 0);
+  assert.throws(() => stroopsToUsdc(123 as unknown as bigint), MandateError);
+  assert.throws(() => stroopsToUsdc(-1n), MandateError);
+});
+
+test("remainingAppraisalSpend tracks remaining budget", () => {
+  const p = baseParams();
+  p.maxAppraisalSpendStroops = usdcToStroops(1);
+  const { mandate } = createSessionMandate(p);
+  assert.equal(remainingAppraisalSpend(mandate), usdcToStroops(1));
+  assert.equal(
+    remainingAppraisalSpend(mandate, usdcToStroops(0.4)),
+    usdcToStroops(0.6),
+  );
+  assert.throws(
+    () => remainingAppraisalSpend(mandate, usdcToStroops(1.5)),
+    MandateCapError,
+  );
+  assert.throws(
+    () => remainingAppraisalSpend(mandate, -1n as unknown as bigint),
+    MandateError,
+  );
 });

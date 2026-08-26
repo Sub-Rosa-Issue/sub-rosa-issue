@@ -5,6 +5,7 @@ export {
   assertAppraisalSpendAllowed,
   assertBidWithinMandate,
   bidFromAppraisal,
+  remainingAppraisalSpend,
   mandateDigest,
   usdcToStroops,
   stroopsToUsdc,

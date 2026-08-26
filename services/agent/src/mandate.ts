@@ -65,11 +65,31 @@ export function mandateDigest(payload: SessionMandatePayload): Buffer {
 }
 
 export function usdcToStroops(amount: number): bigint {
-  return BigInt(Math.round(amount * 1e7));
+  if (!Number.isFinite(amount)) {
+    throw new MandateError(`usdc amount must be a finite number, got ${amount}`);
+  }
+  if (amount < 0) {
+    throw new MandateError(`usdc amount must be non-negative, got ${amount}`);
+  }
+  const scaled = Math.round(amount * 1e7);
+  if (!Number.isSafeInteger(scaled)) {
+    throw new MandateError(`usdc amount ${amount} is out of stroop-safe range`);
+  }
+  return BigInt(scaled);
 }
 
 export function stroopsToUsdc(stroops: bigint): number {
-  return Number(stroops) / 1e7;
+  if (typeof stroops !== "bigint") {
+    throw new MandateError(`stroops must be a bigint, got ${typeof stroops}`);
+  }
+  if (stroops < 0n) {
+    throw new MandateError(`stroops must be non-negative, got ${stroops}`);
+  }
+  // Split whole/fraction to avoid `Number(bigint)` precision loss for large
+  // escrow/bid values that exceed Number's safe integer range.
+  const whole = Number(stroops / 10_000_000n);
+  const frac = Number(stroops % 10_000_000n) / 1e7;
+  return whole + frac;
 }
 
 export interface CreateMandateParams {
@@ -176,6 +196,26 @@ export function assertAppraisalSpendAllowed(
       `appraisal spend ${next} would exceed mandate cap ${mandate.maxAppraisalSpendStroops}`,
     );
   }
+}
+
+/** Remaining x402 appraisal budget (stroops) before the mandate cap is hit. */
+export function remainingAppraisalSpend(
+  mandate: SessionMandate,
+  spentSoFarStroops: bigint = 0n,
+): bigint {
+  if (typeof spentSoFarStroops !== "bigint" || spentSoFarStroops < 0n) {
+    throw new MandateError(
+      `spentSoFarStroops must be a non-negative bigint, got ${String(spentSoFarStroops)}`,
+    );
+  }
+  const cap = BigInt(mandate.maxAppraisalSpendStroops);
+  const remaining = cap - spentSoFarStroops;
+  if (remaining < 0n) {
+    throw new MandateCapError(
+      `appraisal spend ${spentSoFarStroops} already exceeds mandate cap ${cap}`,
+    );
+  }
+  return remaining;
 }
 
 /** Refuse a bid/escrow pair that exceeds mandate caps (agent-side guard). */
