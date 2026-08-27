@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
 import { getUseCase } from "./config/useCases";
 import type { UseCaseId } from "./config/useCases";

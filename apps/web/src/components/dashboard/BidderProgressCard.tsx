@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { shortAddr, usdc } from "../../lib/format";
 import type { DashboardData } from "../../dashboard/types";
 
