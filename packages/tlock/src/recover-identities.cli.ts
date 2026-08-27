@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import process from "node:process";
 
 import { runAuditorRecoveryCli, usage } from "./auditor-recovery-cli.js";
