@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import http from "node:http";
 
 import type { DrandClient } from "@sub-rosa/tlock";

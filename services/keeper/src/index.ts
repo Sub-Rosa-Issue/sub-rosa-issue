@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export {
   keepRound,
   closeRound,

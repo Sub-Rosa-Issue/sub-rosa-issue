@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Shared watch loop. Keeps in-flight rounds moving through
 // void-if-stale → keep → close, persisting status into the KeeperStore and
 // emitting lightweight logs. Independent of how the loop is started

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // settlement-guard.ts
 //
 // In-memory duplicate-settlement suppression for the keeper.
