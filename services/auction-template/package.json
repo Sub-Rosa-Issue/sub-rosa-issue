@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Runnable sealed-auction integration template for Sub Rosa on Stellar testnet.",
   "scripts": {
     "fixture": "FIXTURE=1 node --import tsx sealed-auction.ts",
     "testnet": "node --import tsx sealed-auction.ts",
