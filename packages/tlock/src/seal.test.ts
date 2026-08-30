@@ -100,6 +100,24 @@ test(
   },
 );
 
+test("sealBid rejects a non-positive Drand round", async () => {
+  const client = quicknet();
+  for (const round of [0, -1, -100]) {
+    await assert.rejects(
+      sealBid({ value: 1n, nonce: generateNonce(), round, client }),
+      /round must be a positive integer/,
+    );
+  }
+});
+
+test("openBid rejects an empty ciphertext", async () => {
+  const client = quicknet();
+  await assert.rejects(
+    openBid(new Uint8Array(0), client),
+    /ciphertext must not be empty/,
+  );
+});
+
 test(
   "a bid sealed to a future round cannot be opened — the seal holds",
   { timeout: NET_TIMEOUT },

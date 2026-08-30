@@ -77,6 +77,13 @@ export function toHex(bytes: Uint8Array): string {
     .join("");
 }
 
+/// True iff `hex` is a valid hex string (optionally 0x-prefixed) that fromHex
+/// would accept: even length, and every remaining character is a hex digit.
+export function isValidHex(hex: string): boolean {
+  const clean = /^0x/i.test(hex) ? hex.slice(2) : hex;
+  return clean.length % 2 === 0 && /^[0-9a-fA-F]*$/.test(clean);
+}
+
 export function fromHex(hex: string): Uint8Array {
   const clean = /^0x/i.test(hex) ? hex.slice(2) : hex;
   if (clean.length % 2 !== 0) throw new Error("odd hex length");
