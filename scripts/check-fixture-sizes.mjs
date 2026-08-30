@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const GROUPS = [
@@ -36,8 +36,11 @@ function walk(dir, include) {
         files.push(full);
       }
     }
-  } catch {
-    // directory does not exist
+  } catch (error) {
+    // Un directorio ausente es normal al recorrer en profundidad. Cualquier
+    // otro error, como un permiso denegado, no lo es: tragarselo hacia que un
+    // grupo ilegible se viera igual que uno vacio.
+    if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
   }
   return files;
 }
@@ -58,7 +61,15 @@ function checkGroup(group) {
   const totalOk = totalBytes <= group.totalBytes;
   const allFilesOk = files.every((f) => f.ok);
 
-  return { label: group.label, files, totalBytes, totalOk, ok: allFilesOk && totalOk };
+  return {
+    label: group.label,
+    dir: group.dir,
+    dirExists: existsSync(group.dir),
+    files,
+    totalBytes,
+    totalOk,
+    ok: allFilesOk && totalOk,
+  };
 }
 
 function main() {
@@ -67,8 +78,25 @@ function main() {
   for (const group of GROUPS) {
     const result = checkGroup(group);
 
+    // Todo grupo configurado en GROUPS es obligatorio. Antes un grupo ausente
+    // o vacio salia por SKIP y el proceso terminaba en 0, asi que borrar un
+    // grupo entero desactivaba en silencio el presupuesto que lo cuidaba.
+    //
+    // Los dos casos se informan por separado a proposito: "no existe" y "esta
+    // vacio" se arreglan distinto, y un solo mensaje para los dos te obliga a
+    // ir a mirar cual de los dos fue.
+    if (!result.dirExists) {
+      console.log(`  [FAIL] ${group.label} — required fixture directory is missing: ${group.dir}`);
+      allPassed = false;
+      continue;
+    }
+
     if (result.files.length === 0) {
-      console.log(`  [SKIP] ${group.label} — directory not found or empty`);
+      console.log(
+        `  [FAIL] ${group.label} — required fixture directory has no matching files: ` +
+          `${group.dir} (expected files matching ${group.include})`,
+      );
+      allPassed = false;
       continue;
     }
 
@@ -101,7 +129,7 @@ function main() {
     console.log("All fixture size budgets are within limits.");
     process.exit(0);
   } else {
-    console.log("Some fixture size budgets are exceeded.");
+    console.log("Fixture check failed: a budget was exceeded or a required group is missing.");
     console.log("To update budgets, edit GROUPS in scripts/check-fixture-sizes.mjs.");
     process.exit(1);
   }
