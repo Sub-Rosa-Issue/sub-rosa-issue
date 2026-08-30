@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
