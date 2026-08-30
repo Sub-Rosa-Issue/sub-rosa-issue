@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useRef } from "react";
 import { animate, useReducedMotion } from "framer-motion";
 
