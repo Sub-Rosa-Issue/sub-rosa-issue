@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";

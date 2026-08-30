@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # round-bindings JS
 
 JS library for interacting with [Soroban](https://soroban.stellar.org/) smart contract `round-bindings` via Soroban RPC.

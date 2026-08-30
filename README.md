@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 > [!NOTE]
 > This repository is the ecosystem contribution workspace for Sub Rosa,
 > created specifically for participation in the Stellar Wave program. The main

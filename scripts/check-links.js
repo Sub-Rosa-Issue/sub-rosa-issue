@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Sub Rosa contributors
 'use strict';
 
 const fs = require('fs');

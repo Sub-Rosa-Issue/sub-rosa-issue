@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Stellar x CV Labs Accelerator Application
 
 Working draft for the 2026 Stellar x CV Labs Accelerator application.
