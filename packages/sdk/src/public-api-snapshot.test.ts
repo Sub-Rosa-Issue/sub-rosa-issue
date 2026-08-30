@@ -17,6 +17,7 @@ const EXPECTED_EXPORTS = [
   "RoundContract",
   "RoundErrors",
   "StatusApiError",
+  "StatusJsonParseError",
   "SubRosaClient",
   "SubRosaClientConfigError",
   "SubRosaMissingReturnValueError",
