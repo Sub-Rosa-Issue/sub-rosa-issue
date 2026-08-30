@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Permissionless reveal keeper.
 //
 // Once Drand round R is published, *anyone* can force a sealed round open and

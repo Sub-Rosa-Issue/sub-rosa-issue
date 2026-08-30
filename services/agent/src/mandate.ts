@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Session mandate — scoped authorization for an autonomous bidder agent.
 //
 // A human/principal wallet signs a mandate that binds a session public key to a

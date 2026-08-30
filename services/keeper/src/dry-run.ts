@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { BidState, Round, SubRosaClient } from "@sub-rosa/sdk";
 import { systemClock } from "@sub-rosa/time";
 
