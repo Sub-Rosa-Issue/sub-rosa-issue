@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export type UseCaseId = "auction";
 
 export interface CaseExample {

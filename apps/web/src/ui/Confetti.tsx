@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTime } from "../lib/time";

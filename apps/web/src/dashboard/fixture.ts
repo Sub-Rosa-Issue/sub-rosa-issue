@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Bundled fixture for the monitoring dashboard.
 // Used when VITE_DASHBOARD_ENDPOINT is not configured.
 

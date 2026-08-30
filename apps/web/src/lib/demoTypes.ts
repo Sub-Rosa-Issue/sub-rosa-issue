@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export interface AttackStep {
   label: string;
   ok: boolean;

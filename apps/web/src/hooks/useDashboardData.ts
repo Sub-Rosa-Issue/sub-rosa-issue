@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "../dashboard/types";
 import { DASHBOARD_FIXTURE } from "../dashboard/fixture";

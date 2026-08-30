@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Snapshot tests for the Round contract event surface.
 //
 // These tests are the single source of truth — for the TypeScript code in

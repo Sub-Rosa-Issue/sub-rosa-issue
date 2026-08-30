@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Encrypted blob validation tests.
 //
 // These tests validate the helper/schema that accepts encrypted blob payloads
