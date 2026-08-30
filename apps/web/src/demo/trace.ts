@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Types for the jury demo trace. Data lives in demo-trace.generated.ts (from agents:e2e).
 
 import { DEMO_TRACE as GENERATED } from "./demo-trace.generated";
