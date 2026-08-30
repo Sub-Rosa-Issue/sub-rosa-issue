@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Auditor identity blob — selective disclosure.
 //
 // Bid values unseal publicly after round R (the auditability guarantee), but

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // x402 paid-fetch client.
 //
 // Wraps a single HTTP call with the x402 handshake: try the request, and if the

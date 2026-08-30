@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Drand quicknet client — the same network the Round contract verifies on-chain
 // (chain hash 52db9ba7…, bls-unchained-g1-rfc9380, 3s rounds).
 

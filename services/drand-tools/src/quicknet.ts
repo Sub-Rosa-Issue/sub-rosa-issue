@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Live Drand quicknet access. No hardcoded beacons — everything is fetched from
 // the public API so the harness validates against the real network.
 

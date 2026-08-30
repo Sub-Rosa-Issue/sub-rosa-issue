@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import {
   DEFAULT_TESTNET_RPC_URL,
