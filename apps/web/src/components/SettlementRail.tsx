@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DemoTrace } from "../demo/trace";
 import { usdc } from "../lib/format";
 

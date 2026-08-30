@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DemoTrace } from "../demo/trace";
 import { isTraceSettled } from "../demo/trace";
 import type { LiveSnapshot } from "../hooks/useLiveRound";
