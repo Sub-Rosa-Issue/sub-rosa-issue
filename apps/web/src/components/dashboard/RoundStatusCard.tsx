@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useDrandCountdown, formatCountdown } from "../../hooks/useDrandCountdown";
 import { shortAddr } from "../../lib/format";
 import { classifyRoundPhase, type RoundPhase } from "../../lib/round-phase";

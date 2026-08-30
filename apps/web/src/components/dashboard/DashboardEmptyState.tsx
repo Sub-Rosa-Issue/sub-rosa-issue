@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export function DashboardEmptyState() {
   return (
     <div className="dashboard-empty-state">

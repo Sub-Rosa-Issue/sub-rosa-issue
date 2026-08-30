@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { shortHash } from "../../lib/format";
 import type { DashboardData, KeeperDryRunPhase } from "../../dashboard/types";
 
