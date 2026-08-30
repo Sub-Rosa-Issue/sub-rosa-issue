@@ -18,6 +18,7 @@ import {
 } from "@sub-rosa/tlock";
 
 import type { AttackStep, CapDemoResult } from "./demoTypes";
+import { systemClock } from "@sub-rosa/time";
 
 export type { AttackStep, CapDemoResult };
 export function runCapSafetyDemos(): CapDemoResult[] {
@@ -36,7 +37,7 @@ export function runCapSafetyDemos(): CapDemoResult[] {
       maxEscrowStroops: usdcToStroops(100),
       maxAppraisalSpendStroops: usdcToStroops(0.5),
       appraisalPriceStroops: usdcToStroops(0.1),
-      commitDeadline: Math.floor(Date.now() / 1000) + 3600,
+      commitDeadline: systemClock.nowSeconds() + 3600,
     });
     assertAppraisalSpendAllowed(mandate, usdcToStroops(0.2));
     results.push({
@@ -69,7 +70,7 @@ export function runCapSafetyDemos(): CapDemoResult[] {
     maxEscrowStroops: usdcToStroops(100),
     maxAppraisalSpendStroops: usdcToStroops(1),
     appraisalPriceStroops: usdcToStroops(0.1),
-    commitDeadline: Math.floor(Date.now() / 1000) + 3600,
+    commitDeadline: systemClock.nowSeconds() + 3600,
   });
   const { bidValue } = bidFromAppraisal(999, m2);
   results.push({

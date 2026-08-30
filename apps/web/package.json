@@ -16,6 +16,7 @@
     "@stellar/stellar-sdk": "^15.1.0",
     "@sub-rosa/agent": "workspace:*",
     "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/tlock": "workspace:*",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",

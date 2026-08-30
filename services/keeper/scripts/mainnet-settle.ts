@@ -13,8 +13,11 @@ import {
   SubRosaClient,
 } from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
+import { systemTime } from "@sub-rosa/time";
 
 import { closeRound, keepRound } from "../src/keeper.js";
+
+const { clock, scheduler } = systemTime;
 
 const RPC_URL = process.env.RPC_URL ?? "https://rpc.ankr.com/stellar_soroban";
 const NETWORK =
@@ -27,7 +30,7 @@ function reqEnv(name: string): string {
   return v;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => scheduler.sleep(ms);
 const bigintReplacer = (_k: string, v: unknown) =>
   typeof v === "bigint" ? v.toString() : v;
 
@@ -98,8 +101,8 @@ async function main() {
   round = await reader.getRound(roundId);
   const revealDeadline = Number(round.reveal_deadline);
   console.log("\n[2/3] waiting for reveal deadline…", revealDeadline);
-  while (Math.floor(Date.now() / 1000) <= revealDeadline + 3) {
-    const remain = revealDeadline + 4 - Math.floor(Date.now() / 1000);
+  while (clock.nowSeconds() <= revealDeadline + 3) {
+    const remain = revealDeadline + 4 - clock.nowSeconds();
     if (remain > 0) {
       log(`~${remain}s until clear allowed`);
       await sleep(Math.min(10_000, remain * 1000));

@@ -15,6 +15,8 @@
 // terminal rounds are skipped with a structured log event that carries a
 // `skippedDuplicateReason` field so it is searchable in structured logs.
 
+import { systemClock, type Clock } from "@sub-rosa/time";
+
 export type SettlementGuardStatus = "pending" | "submitted" | "terminal";
 
 export interface SettlementGuardEntry {
@@ -70,8 +72,8 @@ export interface SettlementGuard {
   entries(): SettlementGuardEntry[];
 }
 
-function now(): string {
-  return new Date().toISOString();
+function now(clock: Clock): string {
+  return clock.toISOString();
 }
 
 /**
@@ -81,7 +83,7 @@ function now(): string {
  * would add complexity and a keeper restart is already a safe recovery action
  * because it re-reads on-chain state before deciding whether to settle.
  */
-export function createSettlementGuard(): SettlementGuard {
+export function createSettlementGuard(clock: Clock = systemClock): SettlementGuard {
   const entries = new Map<bigint, SettlementGuardEntry>();
 
   function getOrCreate(roundId: bigint): SettlementGuardEntry {
@@ -89,7 +91,7 @@ export function createSettlementGuard(): SettlementGuard {
       entries.set(roundId, {
         roundId,
         status: "pending",
-        updatedAt: now(),
+        updatedAt: now(clock),
         reason: "initial",
       });
     }
@@ -116,14 +118,14 @@ export function createSettlementGuard(): SettlementGuard {
     markSubmitted(roundId) {
       const entry = getOrCreate(roundId);
       entry.status = "submitted";
-      entry.updatedAt = now();
+      entry.updatedAt = now(clock);
       entry.reason = "settle tx dispatched";
     },
 
     markTerminal(roundId, reason) {
       const entry = getOrCreate(roundId);
       entry.status = "terminal";
-      entry.updatedAt = now();
+      entry.updatedAt = now(clock);
       entry.reason = reason;
     },
 
@@ -132,7 +134,7 @@ export function createSettlementGuard(): SettlementGuard {
       // Retryable failures go back to pending so the next cycle can retry.
       // This explicitly does NOT permanently suppress the work.
       entry.status = "pending";
-      entry.updatedAt = now();
+      entry.updatedAt = now(clock);
       entry.reason = `retryable: ${reason}`;
     },
 

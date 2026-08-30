@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 
 import { Keypair } from "@stellar/stellar-sdk";
+import { systemClock } from "@sub-rosa/time";
 
 export const MANDATE_VERSION = 1;
 
@@ -88,6 +89,8 @@ export interface CreateMandateParams {
   ttlSeconds?: number;
   /** Optional pre-generated session secret; otherwise a fresh keypair is created. */
   sessionSecret?: string;
+  /** Injectable wall clock. Default: systemClock. */
+  clock?: import("@sub-rosa/time").Clock;
 }
 
 /** Issue a fresh session key + principal-signed mandate. */
@@ -99,7 +102,8 @@ export function createSessionMandate(params: CreateMandateParams): {
   const session = params.sessionSecret
     ? Keypair.fromSecret(params.sessionSecret)
     : Keypair.random();
-  const now = Math.floor(Date.now() / 1000);
+  const clock = params.clock ?? systemClock;
+  const now = clock.nowSeconds();
   const payload: SessionMandatePayload = {
     version: MANDATE_VERSION,
     principal: principal.publicKey(),
@@ -127,7 +131,7 @@ export function createSessionMandate(params: CreateMandateParams): {
 /** Verify principal signature, expiry, and round binding. */
 export function verifySessionMandate(
   mandate: SessionMandate,
-  opts?: { contractId?: string; roundId?: bigint | number; now?: number },
+  opts?: { contractId?: string; roundId?: bigint | number; now?: number; clock?: import("@sub-rosa/time").Clock },
 ): void {
   if (mandate.version !== MANDATE_VERSION) {
     throw new MandateError(`unsupported mandate version ${mandate.version}`);
@@ -140,7 +144,7 @@ export function verifySessionMandate(
   );
   if (!ok) throw new MandateError("invalid mandate signature");
 
-  const now = opts?.now ?? Math.floor(Date.now() / 1000);
+  const now = opts?.now ?? (opts?.clock ?? systemClock).nowSeconds();
   if (now > mandate.expiresAt) throw new MandateError("mandate expired");
   if (now > mandate.commitDeadline) throw new MandateError("commit deadline passed");
 

@@ -35,6 +35,7 @@ import {
 import { DEMO_TRACE } from "../demo/trace";
 import { formatCountdown, useDrandCountdown } from "./useDrandCountdown";
 import { useToast } from "../ui/Toast";
+import { useTime } from "../lib/time";
 
 export type ActionStatus = "idle" | "working" | "ok" | "error";
 
@@ -76,6 +77,7 @@ function initialSessions(): Record<UseCaseId, CaseSession> {
 
 export function useRoundSession(active: UseCase) {
   const toast = useToast();
+  const { clock } = useTime();
   const [address, setAddress] = useState<string | null>(null);
   const [walletStatus, setWalletStatus] = useState("Connect a funded Stellar testnet wallet.");
   const [entryValue, setEntryValue] = useState(active.defaultValue);
@@ -94,7 +96,7 @@ export function useRoundSession(active: UseCase) {
   const targetRound = live ? Number(live.round.reveal_round) : DEMO_TRACE.meta.revealRound;
   const drandGate = useDrandCountdown(targetRound);
   const commitSecondsRemaining = live
-    ? Math.max(0, Number(live.round.commit_deadline) - Math.floor(Date.now() / 1000))
+    ? Math.max(0, Number(live.round.commit_deadline) - clock.nowSeconds())
     : null;
   const commitClosed = commitSecondsRemaining != null && commitSecondsRemaining <= 0;
   const committedOnChain = Boolean(address && live?.bidStates[address]);
@@ -189,7 +191,7 @@ export function useRoundSession(active: UseCase) {
       const commitDeadline = tReveal - LIVE_COMMIT_CLOSE_BEFORE_REVEAL_SECONDS;
       const revealDeadline = tReveal + LIVE_REVEAL_WINDOW_AFTER_REVEAL_SECONDS;
       const auditor = generateAuditorKeypair();
-      const itemRef = await sha256Bytes(`${active.id}:${address}:${Date.now()}`);
+      const itemRef = await sha256Bytes(`${active.id}:${address}:${clock.nowMs()}`);
       const tx = await contract.create_round({
         operator: address,
         item_ref: Buffer.from(itemRef),
@@ -204,7 +206,7 @@ export function useRoundSession(active: UseCase) {
       updateSession(id, {
         roundId: nextRoundId,
         auditorPublicKey: auditor.publicKey,
-        roundCreatedAt: Date.now(),
+        roundCreatedAt: clock.nowMs(),
         commitValue: null,
         sealedCiphertext: null,
         live: null,
@@ -251,14 +253,14 @@ export function useRoundSession(active: UseCase) {
         throw new Error(`Round #${parsedId} is ${round.status.tag} — commit window has closed.`);
       }
       const commitDeadline = Number(round.commit_deadline);
-      const now = Math.floor(Date.now() / 1000);
+      const now = clock.nowSeconds();
       if (commitDeadline <= now) {
         throw new Error(`Round #${parsedId} commit window has already closed.`);
       }
       updateSession(id, {
         roundId: parsedId,
         auditorPublicKey: new Uint8Array(round.auditor_pubkey),
-        roundCreatedAt: Date.now(),
+        roundCreatedAt: clock.nowMs(),
         commitValue: null,
         sealedCiphertext: null,
         live: null,

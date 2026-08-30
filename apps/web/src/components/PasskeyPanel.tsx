@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CAP_SAFETY_COPY } from "../demo/trace";
+import { useTime } from "../lib/time";
 import {
   PASSKEY_NETWORK_PASSPHRASE,
   PASSKEY_RPC_URL,
@@ -32,6 +33,7 @@ const LINKS = [
 ];
 
 export function PasskeyPanel() {
+  const { clock } = useTime();
   const [status, setStatus] = useState<PasskeyStatus>("idle");
   const [message, setMessage] = useState<string>(
     "Create a browser passkey (Touch ID / Face ID / security key). Does not change Round agents.",
@@ -63,7 +65,7 @@ export function PasskeyPanel() {
 
   function passkeyUserId(): string {
     // passkey-kit builds WebAuthn user.id from `${user}:${time}:${random}` — must decode to ≤64 bytes.
-    return `sr-${Date.now().toString(36)}`;
+    return `sr-${clock.nowMs().toString(36)}`;
   }
 
   async function createDemoKey() {

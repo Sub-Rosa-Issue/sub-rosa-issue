@@ -1,5 +1,12 @@
 import type { SubRosaClient } from "@sub-rosa/sdk";
 import { fetchRoundSignature, type DrandClient } from "@sub-rosa/tlock";
+import {
+  resolveTimeContext,
+  systemClock,
+  systemTime,
+  type Clock,
+  type PartialTimeContext,
+} from "@sub-rosa/time";
 
 import { decideKeeperDryRunAction, type KeeperDryRunPhase } from "./dry-run.js";
 import type { WatchedRound } from "./store.js";
@@ -62,6 +69,7 @@ export interface BuildRoundStatusArgs {
   drand: DrandClient;
   roundId: bigint;
   nowSeconds?: number;
+  clock?: Clock;
   settlement?: SettlementIndicator;
   watched?: WatchedRound;
 }
@@ -75,6 +83,8 @@ export interface BuildStatusSource {
   epochMs?: number;
   nowSeconds?: number;
   settleIndicator?: (roundId: bigint) => SettlementIndicator;
+  /** Injectable wall clock. Default: systemClock. */
+  time?: PartialTimeContext;
 }
 
 const VOID_GRACE_SECONDS = 3600;
@@ -98,7 +108,8 @@ export async function buildRoundStatus(
   args: BuildRoundStatusArgs,
 ): Promise<RoundStatusView> {
   const { reader, drand, roundId, watched, settlement = "none" } = args;
-  const nowSeconds = args.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const clock = args.clock ?? systemClock;
+  const nowSeconds = args.nowSeconds ?? clock.nowSeconds();
   const ridStr = roundId.toString();
 
   let round;
@@ -128,7 +139,7 @@ export async function buildRoundStatus(
       lastKeeperAction: watched?.lastAction ?? null,
       lastError: watched?.lastError ?? null,
       retryCount: watched?.retryCount ?? 0,
-      updatedAt: new Date().toISOString(),
+      updatedAt: clock.toISOString(),
     };
   }
 
@@ -185,7 +196,7 @@ export async function buildRoundStatus(
     lastKeeperAction: watched?.lastAction ?? null,
     lastError: watched?.lastError ?? null,
     retryCount: watched?.retryCount ?? 0,
-    updatedAt: new Date().toISOString(),
+    updatedAt: clock.toISOString(),
   };
 }
 
@@ -213,8 +224,9 @@ export async function buildKeeperStatus(source: BuildStatusSource): Promise<Keep
     nowSeconds,
   } = source;
 
-  const health = await checkHealth(reader, drand);
-  const nowMs = Date.now();
+  const { clock } = resolveTimeContext(systemTime, source.time);
+  const health = await checkHealth(reader, drand, clock);
+  const nowMs = clock.nowMs();
   const startedAt = epochMs ?? nowMs;
   const watched = storeRounds();
 
@@ -226,6 +238,7 @@ export async function buildKeeperStatus(source: BuildStatusSource): Promise<Keep
         roundId: BigInt(w.roundId),
         watched: w,
         nowSeconds,
+        clock,
         settlement: settleIndicator?.(BigInt(w.roundId)) ?? "none",
       }),
     ),
@@ -256,13 +269,14 @@ export async function buildKeeperStatus(source: BuildStatusSource): Promise<Keep
     uptimeSeconds: Math.max(0, Math.floor((nowMs - startedAt) / 1000)),
     rounds,
     health,
-    now: new Date().toISOString(),
+    now: clock.toISOString(),
   };
 }
 
 export async function checkHealth(
   reader: StatusReader,
   drand: DrandClient,
+  clock: Clock = systemClock,
 ): Promise<KeeperServiceHealth> {
   let rpc: "ok" | "degraded" | "down" = "ok";
   let drandStatus: "ok" | "degraded" | "down" = "ok";
@@ -294,6 +308,6 @@ export async function checkHealth(
     rpc,
     drand: drandStatus,
     ...(reasons.length ? { reason: reasons.join("; ") } : {}),
-    checkedAt: new Date().toISOString(),
+    checkedAt: clock.toISOString(),
   };
 }

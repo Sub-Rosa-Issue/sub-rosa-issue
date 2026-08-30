@@ -1,4 +1,5 @@
 import type { BidState, Round, SubRosaClient } from "@sub-rosa/sdk";
+import { systemClock } from "@sub-rosa/time";
 
 import { VOID_GRACE_SECONDS } from "./keeper.js";
 
@@ -112,7 +113,7 @@ export function decideKeeperDryRunAction(
   round: Pick<Round, "status" | "reveal_deadline">,
   bidderCount: number,
   revealedCount: number | null,
-  nowSeconds = Math.floor(Date.now() / 1000),
+  nowSeconds = systemClock.nowSeconds(),
 ): KeeperDryRunDecision {
   switch (round.status.tag) {
     case "Open": {
@@ -174,7 +175,7 @@ async function countRevealedBids(
 export async function buildKeeperDryRunSummary(
   reader: KeeperDryRunReader,
   roundId: bigint | number,
-  nowSeconds = Math.floor(Date.now() / 1000),
+  nowSeconds = systemClock.nowSeconds(),
 ): Promise<KeeperDryRunSummary> {
   const rid = BigInt(roundId);
   const round = await reader.getRound(rid);

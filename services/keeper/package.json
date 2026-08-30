@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/tlock": "workspace:*"
   },
   "devDependencies": {

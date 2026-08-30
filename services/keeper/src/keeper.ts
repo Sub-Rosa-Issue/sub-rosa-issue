@@ -16,6 +16,12 @@
 
 import type { SubRosaClient } from "@sub-rosa/sdk";
 import { openBid, fetchRoundSignature, type DrandClient } from "@sub-rosa/tlock";
+import {
+  resolveTimeContext,
+  systemTime,
+  type PartialTimeContext,
+  type TimeContext,
+} from "@sub-rosa/time";
 
 export type KeeperLogger = (msg: string) => void;
 
@@ -28,6 +34,8 @@ export interface KeeperDeps {
   maxWaitSeconds?: number;
   /** Poll cadence while waiting for R (ms). Default 3000. */
   pollMs?: number;
+  /** Injectable wall clock and scheduler. Default: systemTime. */
+  time?: PartialTimeContext;
 }
 
 export interface SkipRecord {
@@ -67,7 +75,9 @@ export function errorMatches(e: unknown, names: string[]): boolean {
   return names.some((n) => blob.includes(n));
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function keeperTime(deps: KeeperDeps): TimeContext {
+  return resolveTimeContext(systemTime, deps.time);
+}
 
 /** Wait until Drand round R should be published. Returns false if R is still in
  *  the future after `maxWaitSeconds`. */
@@ -76,15 +86,16 @@ export async function waitForRound(
   round: number,
 ): Promise<boolean> {
   const { drand, log = () => {}, maxWaitSeconds = 0, pollMs = 3000 } = deps;
+  const { clock, scheduler } = keeperTime(deps);
   const info = await drand.chain().info();
   const publishAtMs = (info.genesis_time + info.period * round) * 1000;
-  const giveUpAtMs = Date.now() + maxWaitSeconds * 1000;
+  const giveUpAtMs = clock.nowMs() + maxWaitSeconds * 1000;
 
-  while (Date.now() < publishAtMs) {
-    if (Date.now() >= giveUpAtMs) return false;
-    const remainS = Math.ceil((publishAtMs - Date.now()) / 1000);
+  while (clock.nowMs() < publishAtMs) {
+    if (clock.nowMs() >= giveUpAtMs) return false;
+    const remainS = Math.ceil((publishAtMs - clock.nowMs()) / 1000);
     log(`waiting ~${remainS}s for Drand round ${round}…`);
-    await sleep(Math.min(pollMs, Math.max(250, publishAtMs - Date.now())));
+    await scheduler.sleep(Math.min(pollMs, Math.max(250, publishAtMs - clock.nowMs())));
   }
   return true;
 }
@@ -121,12 +132,13 @@ export async function keepRound(
     // it serves the beacon — retry briefly rather than bailing.
     const pollMs = deps.pollMs ?? 3000;
     let signature: Uint8Array | undefined;
+    const { scheduler } = keeperTime(deps);
     for (let attempt = 0; attempt < 5 && !signature; attempt++) {
       try {
         signature = await fetchRoundSignature(drand, R);
       } catch (e) {
         log(`Drand round ${R} not servable yet (try ${attempt + 1}/5): ${errorName(e)}`);
-        await sleep(pollMs);
+        await scheduler.sleep(pollMs);
       }
     }
     if (!signature) {
@@ -234,6 +246,7 @@ export async function closeRound(
   roundId: bigint | number,
 ): Promise<CloseResult> {
   const { sdk, log = () => {} } = deps;
+  const { clock } = keeperTime(deps);
   const rid = BigInt(roundId);
   const result: CloseResult = {
     roundId: rid,
@@ -250,7 +263,7 @@ export async function closeRound(
 
   // ── Phase C: clear once the reveal window has closed ──────────────────
   if (round.status.tag === "Revealing") {
-    const now = Math.floor(Date.now() / 1000);
+    const now = clock.nowSeconds();
     if (now <= Number(round.reveal_deadline)) {
       result.skipped.push(`reveal window open until ${round.reveal_deadline}`);
       result.finalStatus = round.status.tag;
@@ -319,6 +332,7 @@ export async function voidIfStale(
   roundId: bigint | number,
 ): Promise<VoidResult> {
   const { sdk, log = () => {} } = deps;
+  const { clock } = keeperTime(deps);
   const rid = BigInt(roundId);
   const result: VoidResult = {
     roundId: rid,
@@ -334,7 +348,7 @@ export async function voidIfStale(
     return result;
   }
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = clock.nowSeconds();
   const voidAfter = Number(round.reveal_deadline) + VOID_GRACE_SECONDS;
   if (now <= voidAfter) {
     result.skipped.push(`void not yet allowed until ${voidAfter}`);

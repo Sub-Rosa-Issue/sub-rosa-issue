@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Peer, UseCase } from "../config/useCases";
 import { shortAddr } from "../lib/format";
+import { useTime } from "../lib/time";
 
 type PeerState = "pending" | "sealing" | "sealed" | "revealed";
 
@@ -110,14 +111,15 @@ export function CohortPanel({
   realPeers,
   roundId,
 }: CohortPanelProps) {
-  const [now, setNow] = useState(() => Date.now());
+  const { clock, scheduler } = useTime();
+  const [now, setNow] = useState(() => clock.nowMs());
   const useReal = realPeers.length > 0;
 
   useEffect(() => {
     if (useReal || roundCreatedAt == null || revealed) return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [useReal, roundCreatedAt, revealed]);
+    const handle = scheduler.setInterval(() => setNow(clock.nowMs()), 250);
+    return () => scheduler.clear(handle);
+  }, [useReal, roundCreatedAt, revealed, clock, scheduler]);
 
   const simulatedPeers = useCase.cohort;
   const simulatedSealed = simulatedPeers.filter(

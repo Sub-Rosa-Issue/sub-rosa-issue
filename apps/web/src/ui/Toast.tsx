@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTime } from "../lib/time";
 
 export type ToastTone = "info" | "working" | "success" | "error";
 
@@ -54,6 +55,7 @@ const TONE_DURATION: Record<ToastTone, number> = {
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const { scheduler } = useTime();
   const [items, setItems] = useState<ToastItem[]>([]);
   const seq = useRef(0);
 
@@ -66,10 +68,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const id = `toast-${++seq.current}`;
       setItems((prev) => [{ id, tone, title, detail }, ...prev].slice(0, 4));
       const ttl = TONE_DURATION[tone];
-      if (ttl > 0) window.setTimeout(() => dismiss(id), ttl);
+      if (ttl > 0) scheduler.setTimeout(() => dismiss(id), ttl);
       return id;
     },
-    [dismiss],
+    [dismiss, scheduler],
   );
 
   const value = useMemo(() => ({ push, dismiss }), [push, dismiss]);

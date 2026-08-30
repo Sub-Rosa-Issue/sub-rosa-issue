@@ -61,6 +61,9 @@
     "snapshot:check": "node scripts/check-snapshots.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
     "docs:check-links": "node scripts/check-links.js",
-    "coverage:test": "node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs"
+    "coverage:test": "node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
+    "time:test": "pnpm --filter @sub-rosa/time test",
+    "time:guard": "node scripts/check-direct-time-access.mjs",
+    "time:guard:test": "node --test scripts/check-direct-time-access.test.mjs"
   }
 }
