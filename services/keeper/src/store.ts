@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { systemClock } from "@sub-rosa/time";
 
 export interface WatchedRound {
   roundId: string;
@@ -78,7 +79,7 @@ export class KeeperStore {
     } catch (e) {
       console.warn(`[Store] Failed to parse ${this.storePath}. Backing up corrupted file and starting fresh.`);
       try {
-        fs.renameSync(this.storePath, `${this.storePath}.corrupted.${Date.now()}`);
+        fs.renameSync(this.storePath, `${this.storePath}.corrupted.${systemClock.nowMs()}`);
       } catch (backupErr) {
         console.error(`[Store] Could not backup corrupted file:`, backupErr);
       }

@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createFakeTime } from "@sub-rosa/time";
 
 import { errorMatches, errorName, waitForRound } from "./index.js";
 
@@ -17,8 +18,8 @@ test("errorName extracts a readable message", () => {
 });
 
 test("waitForRound returns false for a future round when not allowed to wait", async () => {
-  // A stub Drand client whose chain info puts round R far in the future.
-  const nowS = Math.floor(Date.now() / 1000);
+  const { clock, scheduler } = createFakeTime(1_000_000_000_000);
+  const nowS = clock.nowSeconds();
   const fakeDrand = {
     chain: () => ({
       info: async () => ({ genesis_time: nowS, period: 3 }),
@@ -26,23 +27,33 @@ test("waitForRound returns false for a future round when not allowed to wait", a
   } as never;
 
   const ok = await waitForRound(
-    { sdk: {} as never, drand: fakeDrand, maxWaitSeconds: 0 },
-    1_000_000, // ~ genesis + 3,000,000s in the future
+    {
+      sdk: {} as never,
+      drand: fakeDrand,
+      maxWaitSeconds: 0,
+      time: { clock, scheduler },
+    },
+    1_000_000,
   );
   assert.equal(ok, false);
 });
 
 test("waitForRound returns true immediately for an already-published round", async () => {
-  const nowS = Math.floor(Date.now() / 1000);
+  const { clock, scheduler } = createFakeTime(1_000_000_000_000);
+  const nowS = clock.nowSeconds();
   const fakeDrand = {
     chain: () => ({
-      // genesis far in the past so round 1 is long published.
       info: async () => ({ genesis_time: nowS - 10_000, period: 3 }),
     }),
   } as never;
 
   const ok = await waitForRound(
-    { sdk: {} as never, drand: fakeDrand, maxWaitSeconds: 0 },
+    {
+      sdk: {} as never,
+      drand: fakeDrand,
+      maxWaitSeconds: 0,
+      time: { clock, scheduler },
+    },
     1,
   );
   assert.equal(ok, true);

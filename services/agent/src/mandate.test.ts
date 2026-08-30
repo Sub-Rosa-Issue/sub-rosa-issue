@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createFakeTime } from "@sub-rosa/time";
 
 import { Keypair } from "@stellar/stellar-sdk";
 
@@ -17,6 +18,7 @@ import {
 const baseParams = () => {
   const principal = Keypair.random();
   const session = Keypair.random();
+  const { clock } = createFakeTime(1_700_000_000_000);
   return {
     principalSecret: principal.secret(),
     principalPub: principal.publicKey(),
@@ -30,21 +32,27 @@ const baseParams = () => {
     maxEscrowStroops: usdcToStroops(120),
     maxAppraisalSpendStroops: usdcToStroops(1),
     appraisalPriceStroops: usdcToStroops(0.1),
-    commitDeadline: Math.floor(Date.now() / 1000) + 3600,
+    commitDeadline: clock.nowSeconds() + 3600,
+    clock,
   };
 };
 
 test("createSessionMandate + verifySessionMandate round-trip", () => {
   const p = baseParams();
   const { mandate } = createSessionMandate(p);
-  verifySessionMandate(mandate, { contractId: p.contractId, roundId: p.roundId });
+  verifySessionMandate(mandate, {
+    contractId: p.contractId,
+    roundId: p.roundId,
+    clock: p.clock,
+  });
   assert.equal(mandate.principal, p.principalPub);
 });
 
 test("tampered mandate fails verification", () => {
-  const { mandate } = createSessionMandate(baseParams());
+  const p = baseParams();
+  const { mandate } = createSessionMandate(p);
   mandate.maxBidStroops = String(usdcToStroops(999));
-  assert.throws(() => verifySessionMandate(mandate), MandateError);
+  assert.throws(() => verifySessionMandate(mandate, { clock: p.clock }), MandateError);
 });
 
 test("assertBidWithinMandate enforces maxBid and bid<=escrow", () => {

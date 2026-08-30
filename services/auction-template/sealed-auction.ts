@@ -13,6 +13,7 @@ import {
   sealBid,
   toHex,
 } from "@sub-rosa/tlock";
+import { systemTime } from "@sub-rosa/time";
 
 const DRAND_GENESIS = 1_692_803_367;
 const DRAND_PERIOD = 3;
@@ -23,9 +24,11 @@ const RPC_URL = process.env.RPC_URL ?? "https://soroban-testnet.stellar.org";
 const NETWORK = process.env.NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015";
 const VOID_GRACE = 3600;
 
+const { clock, scheduler } = systemTime;
+
 const hex = (s: string) => Buffer.from(s, "hex");
 const sha256 = (s: string) => createHash("sha256").update(s).digest();
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => scheduler.sleep(ms);
 const reqEnv = (n: string): string => {
   const v = process.env[n];
   if (!v) throw new Error(`missing required env var ${n}`);
@@ -176,7 +179,7 @@ async function testnetMain() {
   const contractId = (await deployTx.signAndSend()).result.options.contractId;
   console.log("contract:", contractId);
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = clock.nowSeconds();
   const revealRound = Math.ceil((now + 135 - DRAND_GENESIS) / DRAND_PERIOD);
   const tReveal = DRAND_GENESIS + DRAND_PERIOD * revealRound;
   const commitDeadline = now + 75;
@@ -239,8 +242,8 @@ async function testnetMain() {
   console.log("  all bids revealed");
 
   banner("Phase 4 — Clear + Settle");
-  while (Math.floor(Date.now() / 1000) <= revealDeadline + 3) {
-    const r = revealDeadline + 4 - Math.floor(Date.now() / 1000);
+  while (clock.nowSeconds() <= revealDeadline + 3) {
+    const r = revealDeadline + 4 - clock.nowSeconds();
     if (r > 0) { log(`~${r}s until clear`); await sleep(Math.min(5000, r * 1000)); }
   }
 

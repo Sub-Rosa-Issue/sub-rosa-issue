@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Round, BidState } from "@sub-rosa/sdk";
+import { useTime } from "../lib/time";
 
 const RPC = import.meta.env.VITE_RPC_URL ?? "https://soroban-testnet.stellar.org";
 const NETWORK =
@@ -17,6 +18,7 @@ export interface LiveSnapshot {
 }
 
 export function useLiveRound(enabled: boolean, pollMs = 12_000) {
+  const { clock, scheduler } = useTime();
   const [live, setLive] = useState<LiveSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +43,7 @@ export function useLiveRound(enabled: boolean, pollMs = 12_000) {
           bidStates[b] = await reader.getBidState(ROUND_ID!, b);
         }
         if (!cancelled) {
-          setLive({ round, bidders, bidStates, polledAt: Date.now() });
+          setLive({ round, bidders, bidStates, polledAt: clock.nowMs() });
           setError(null);
         }
       } catch (e) {
@@ -50,12 +52,12 @@ export function useLiveRound(enabled: boolean, pollMs = 12_000) {
     }
 
     poll();
-    const id = setInterval(poll, pollMs);
+    const handle = scheduler.setInterval(poll, pollMs);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      scheduler.clear(handle);
     };
-  }, [enabled, pollMs]);
+  }, [enabled, pollMs, clock, scheduler]);
 
   return { live, error, configured: Boolean(CONTRACT && ROUND_ID !== undefined) };
 }

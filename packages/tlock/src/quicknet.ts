@@ -8,6 +8,7 @@ import {
 } from "drand-client";
 
 import { drandSignatureToSoroban } from "./bls.js";
+import { systemClock, type Clock } from "@sub-rosa/time";
 
 export const QUICKNET_HASH =
   "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
@@ -25,7 +26,7 @@ export async function chainInfo(client: DrandClient) {
 /// The round number live at `unixMillis` (defaults to now).
 export async function currentRound(
   client: DrandClient,
-  unixMillis: number = Date.now(),
+  unixMillis: number = systemClock.nowMs(),
 ): Promise<number> {
   const info = await client.chain().info();
   return drandRoundAt(unixMillis, info);
@@ -36,9 +37,10 @@ export async function currentRound(
 export async function roundInSeconds(
   client: DrandClient,
   seconds: number,
+  clock: Clock = systemClock,
 ): Promise<number> {
   const info = await client.chain().info();
-  return drandRoundAt(Date.now() + seconds * 1000, info);
+  return drandRoundAt(clock.nowMs() + seconds * 1000, info);
 }
 
 /// The raw beacon (round, randomness, signature hex) for a specific round.

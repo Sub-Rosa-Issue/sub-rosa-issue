@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createFakeTime } from "@sub-rosa/time";
 
 import http from "node:http";
 
@@ -38,7 +39,7 @@ async function get(
 }
 
 function makeSource(overrides: Partial<BuildStatusSource> = {}): BuildStatusSource {
-  const now = Math.floor(Date.now() / 1000);
+  const now = createFakeTime(1_700_000_000_000).clock.nowSeconds();
   const fullRound = (extra: Partial<import("@sub-rosa/sdk").Round> = {}): import("@sub-rosa/sdk").Round =>
     ({
       status: { tag: "Open" as const },

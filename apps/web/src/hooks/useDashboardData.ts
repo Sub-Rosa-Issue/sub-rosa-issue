@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "../dashboard/types";
 import { DASHBOARD_FIXTURE } from "../dashboard/fixture";
 import { assertDashboardData } from "../dashboard/fixture-health-check";
+import { useTime } from "../lib/time";
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 const LIVE_POLL_INTERVAL_MS = 30 * 1000; // 30 seconds
@@ -14,12 +15,13 @@ export interface UseDashboardDataResult {
   refetch: () => void;
 }
 
-function isStale(fetchedAt: string): boolean {
-  const fetchedTime = new Date(fetchedAt).getTime();
-  return Date.now() - fetchedTime > STALE_THRESHOLD_MS;
+function isStale(fetchedAt: string, nowMs: number): boolean {
+  const fetchedTime = Date.parse(fetchedAt);
+  return nowMs - fetchedTime > STALE_THRESHOLD_MS;
 }
 
 export function useDashboardData(): UseDashboardDataResult {
+  const { clock, scheduler } = useTime();
   const endpoint = import.meta.env.VITE_DASHBOARD_ENDPOINT as string | undefined;
   const useFixture = !endpoint?.trim();
 
@@ -38,7 +40,7 @@ export function useDashboardData(): UseDashboardDataResult {
         data: DASHBOARD_FIXTURE,
         loading: false,
         error: null,
-        stale: isStale(DASHBOARD_FIXTURE.meta.fetchedAt),
+        stale: isStale(DASHBOARD_FIXTURE.meta.fetchedAt, clock.nowMs()),
       }));
       return;
     }
@@ -59,7 +61,7 @@ export function useDashboardData(): UseDashboardDataResult {
         data: json,
         loading: false,
         error: null,
-        stale: isStale(json.meta.fetchedAt),
+        stale: isStale(json.meta.fetchedAt, clock.nowMs()),
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -69,7 +71,7 @@ export function useDashboardData(): UseDashboardDataResult {
         error: `Failed to fetch dashboard data: ${message}`,
       }));
     }
-  }, [endpoint, useFixture]);
+  }, [endpoint, useFixture, clock]);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,19 +83,18 @@ export function useDashboardData(): UseDashboardDataResult {
 
     void tick();
 
-    // Only poll when using live endpoint
-    let intervalId: number | undefined;
+    let intervalHandle: ReturnType<typeof scheduler.setInterval> | undefined;
     if (!useFixture) {
-      intervalId = window.setInterval(() => void tick(), LIVE_POLL_INTERVAL_MS);
+      intervalHandle = scheduler.setInterval(() => void tick(), LIVE_POLL_INTERVAL_MS);
     }
 
     return () => {
       cancelled = true;
-      if (intervalId !== undefined) {
-        window.clearInterval(intervalId);
+      if (intervalHandle !== undefined) {
+        scheduler.clear(intervalHandle);
       }
     };
-  }, [fetchData, useFixture]);
+  }, [fetchData, useFixture, scheduler]);
 
   // Update stale status periodically
   useEffect(() => {
@@ -102,14 +103,14 @@ export function useDashboardData(): UseDashboardDataResult {
     const checkStale = () => {
       setState((s) => {
         if (!s.data) return s;
-        const nowStale = isStale(s.data.meta.fetchedAt);
+        const nowStale = isStale(s.data.meta.fetchedAt, clock.nowMs());
         return nowStale !== s.stale ? { ...s, stale: nowStale } : s;
       });
     };
 
-    const id = window.setInterval(checkStale, 60_000); // Check every minute
-    return () => window.clearInterval(id);
-  }, [state.data]);
+    const handle = scheduler.setInterval(checkStale, 60_000);
+    return () => scheduler.clear(handle);
+  }, [state.data, clock, scheduler]);
 
   return {
     ...state,
