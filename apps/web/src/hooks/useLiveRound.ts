@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
 import type { Round, BidState } from "@sub-rosa/sdk";
 import { useTime } from "../lib/time";
