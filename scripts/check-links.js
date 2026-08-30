@@ -17,7 +17,6 @@ const FILES = [
   'docs/DEMO_SCRIPT.md',
   'docs/INTEGRATION.md',
   'docs/RECEIPTS.md',
-  'docs/SCF_PLAN.md',
   'docs/CV_LABS_APPLICATION.md',
   'docs/LIMITATIONS.md',
   'docs/ECOSYSTEM.md',
