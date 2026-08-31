@@ -293,7 +293,8 @@ export async function checkHealth(
       // healthy-enough: reachable
     } else {
       rpc = "down";
-      reasons.push(`rpc: ${msg}`);
+      console.error("[keeper-health] rpc probe failed:", msg);
+      reasons.push("rpc: unavailable");
     }
   }
 
@@ -301,7 +302,9 @@ export async function checkHealth(
     await drand.chain().info();
   } catch (e) {
     drandStatus = "down";
-    reasons.push(`drand: ${e instanceof Error ? e.message : String(e)}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[keeper-health] drand probe failed:", msg);
+    reasons.push("drand: unavailable");
   }
 
   const worst = rpc === "down" || drandStatus === "down" ? "down" : "ok";
