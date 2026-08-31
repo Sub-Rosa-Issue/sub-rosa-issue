@@ -11,6 +11,7 @@ import {
   createSessionMandate,
   MandateCapError,
   MandateError,
+  mandateDigest,
   usdcToStroops,
   verifySessionMandate,
 } from "./mandate.js";
@@ -90,4 +91,54 @@ test("bidFromAppraisal clamps to mandate maxBid", () => {
   const { bidValue, escrow } = bidFromAppraisal(999, mandate);
   assert.equal(bidValue, usdcToStroops(40));
   assert.equal(escrow, usdcToStroops(40));
+});
+
+test("createSessionMandate rejects unsafe numeric fields", () => {
+  const p = baseParams();
+  assert.throws(
+    () => createSessionMandate({ ...p, basePriceUsdc: Number.NaN }),
+    (error: unknown) => error instanceof MandateError && error.message === "invalid mandate basePriceUsdc",
+  );
+  assert.throws(
+    () => createSessionMandate({ ...p, commitDeadline: p.commitDeadline + 0.5 }),
+    (error: unknown) => error instanceof MandateError && error.message === "invalid mandate commitDeadline",
+  );
+  assert.throws(
+    () => createSessionMandate({ ...p, roundId: 1.5 }),
+    (error: unknown) => error instanceof MandateError && error.message === "invalid mandate roundId",
+  );
+});
+
+test("verifySessionMandate rejects a signed mandate with unsafe fields", () => {
+  const p = baseParams();
+  const { mandate } = createSessionMandate(p);
+  const { signature: _signature, ...payload } = mandate;
+  const malformed = {
+    ...payload,
+    basePriceUsdc: Number.MAX_SAFE_INTEGER + 1,
+    signature: Keypair.fromSecret(p.principalSecret)
+      .sign(mandateDigest({ ...payload, basePriceUsdc: Number.MAX_SAFE_INTEGER + 1 }))
+      .toString("base64"),
+  };
+  assert.throws(
+    () => verifySessionMandate(malformed, { clock: p.clock }),
+    (error: unknown) => error instanceof MandateError && error.message === "invalid mandate basePriceUsdc",
+  );
+});
+
+test("verifySessionMandate rejects malformed stroop strings", () => {
+  const p = baseParams();
+  const { mandate } = createSessionMandate(p);
+  const { signature: _signature, ...payload } = mandate;
+  const malformedPayload = { ...payload, maxBidStroops: "1.5" };
+  const malformed = {
+    ...malformedPayload,
+    signature: Keypair.fromSecret(p.principalSecret)
+      .sign(mandateDigest(malformedPayload))
+      .toString("base64"),
+  };
+  assert.throws(
+    () => verifySessionMandate(malformed, { clock: p.clock }),
+    (error: unknown) => error instanceof MandateError && error.message === "invalid mandate maxBidStroops",
+  );
 });
