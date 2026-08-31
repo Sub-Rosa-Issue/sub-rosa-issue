@@ -8,6 +8,8 @@ import {
 import { RoundContract } from "@sub-rosa/sdk";
 import { useMemo } from "react";
 
+import { formatEscrowAmount } from "./amount";
+
 export const LOGO_SRC = "/sub-rosa-logo.png";
 export const RPC_URL = import.meta.env.VITE_RPC_URL ?? "https://soroban-testnet.stellar.org";
 export const NETWORK =
@@ -70,7 +72,7 @@ export function toDemoEscrowAmount(value: number): bigint {
 }
 
 export function formatDemoAmount(value: bigint): string {
-  return `${(Number(value) / 10_000_000).toFixed(4)} ${ESCROW_TOKEN_LABEL}`;
+  return formatEscrowAmount(value, ESCROW_TOKEN_LABEL);
 }
 
 export async function sha256Bytes(text: string): Promise<Uint8Array> {
