@@ -35,6 +35,13 @@ export {
 export { drandSignatureToSoroban, encodeG1Soroban } from "./bls.js";
 
 export {
+  assertChainInfo,
+  assertBeacon,
+  type RawChainInfo,
+  type RawBeacon,
+} from "./validate.js";
+
+export {
   sealBid,
   openBid,
   generateNonce,

@@ -17,6 +17,7 @@ export {
 } from "./config.js";
 export {
   createPaidFetch,
+  AppraisalResponseParseError,
   X402PaymentError,
   type PaidClientConfig,
   type PaidResult,

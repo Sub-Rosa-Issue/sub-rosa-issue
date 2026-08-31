@@ -9,9 +9,9 @@ import {
   assertBidWithinMandate,
   bidFromAppraisal,
   createSessionMandate,
+  mandateDigest,
   MandateCapError,
   MandateError,
-  mandateDigest,
   usdcToStroops,
   verifySessionMandate,
 } from "./mandate.js";
@@ -140,5 +140,76 @@ test("verifySessionMandate rejects malformed stroop strings", () => {
   assert.throws(
     () => verifySessionMandate(malformed, { clock: p.clock }),
     (error: unknown) => error instanceof MandateError && error.message === "invalid mandate maxBidStroops",
+  );
+});
+
+test("verifySessionMandate rejects when issuedAt > expiresAt", () => {
+  const p = baseParams();
+  const { mandate } = createSessionMandate(p);
+  const { signature: _sig, ...payload } = mandate;
+  const tamperedPayload = { ...payload, issuedAt: payload.expiresAt + 10 };
+  const tampered = {
+    ...tamperedPayload,
+    signature: Keypair.fromSecret(p.principalSecret).sign(mandateDigest(tamperedPayload)).toString("base64"),
+  };
+  assert.throws(
+    () => verifySessionMandate(tampered, { clock: p.clock }),
+    (error: unknown) => error instanceof MandateError && /issuedAt.*expiresAt/.test((error as Error).message),
+  );
+});
+
+test("verifySessionMandate rejects when issuedAt > commitDeadline", () => {
+  const p = baseParams();
+  const { mandate } = createSessionMandate(p);
+  const { signature: _sig, ...payload } = mandate;
+  const tamperedPayload = { ...payload, commitDeadline: payload.issuedAt - 10 };
+  const tampered = {
+    ...tamperedPayload,
+    signature: Keypair.fromSecret(p.principalSecret).sign(mandateDigest(tamperedPayload)).toString("base64"),
+  };
+  assert.throws(
+    () => verifySessionMandate(tampered, { clock: p.clock }),
+    (error: unknown) => error instanceof MandateError && /issuedAt.*commitDeadline/.test((error as Error).message),
+  );
+});
+
+test("verifySessionMandate rejects when commitDeadline > expiresAt", () => {
+  const p = baseParams();
+  const { mandate } = createSessionMandate(p);
+  const { signature: _sig, ...payload } = mandate;
+  const tamperedPayload = { ...payload, commitDeadline: payload.expiresAt + 10 };
+  const tampered = {
+    ...tamperedPayload,
+    signature: Keypair.fromSecret(p.principalSecret).sign(mandateDigest(tamperedPayload)).toString("base64"),
+  };
+  assert.throws(
+    () => verifySessionMandate(tampered, { clock: p.clock }),
+    (error: unknown) => error instanceof MandateError && /commitDeadline.*expiresAt/.test((error as Error).message),
+  );
+});
+
+test("verifySessionMandate allows equality boundaries (issuedAt == commitDeadline == expiresAt)", () => {
+  const p = baseParams();
+  // Make commitDeadline equal to expiresAt at creation (already is), then tamper to set all three equal
+  const { mandate } = createSessionMandate(p);
+  const { signature: _sig, ...payload } = mandate;
+  const equalTime = payload.expiresAt;
+  const tamperedPayload = { ...payload, issuedAt: equalTime, commitDeadline: equalTime, expiresAt: equalTime };
+  const tampered = {
+    ...tamperedPayload,
+    signature: Keypair.fromSecret(p.principalSecret).sign(mandateDigest(tamperedPayload)).toString("base64"),
+  };
+  assert.doesNotThrow(() => verifySessionMandate(tampered, { clock: p.clock }));
+});
+
+test("createSessionMandate rejects timestamp ordering violations at creation", () => {
+  const p = baseParams();
+  assert.throws(
+    () => createSessionMandate({ ...p, commitDeadline: p.clock.nowSeconds() - 10 }),
+    (error: unknown) => error instanceof MandateError && /issuedAt.*commitDeadline/.test((error as Error).message),
+  );
+  assert.throws(
+    () => createSessionMandate({ ...p, commitDeadline: p.clock.nowSeconds() + 7200, ttlSeconds: 3600 }),
+    (error: unknown) => error instanceof MandateError && /commitDeadline.*expiresAt/.test((error as Error).message),
   );
 });

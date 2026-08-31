@@ -9,6 +9,7 @@ import {
 } from "drand-client";
 
 import { drandSignatureToSoroban } from "./bls.js";
+import { assertBeacon, assertChainInfo } from "./validate.js";
 import { systemClock, type Clock } from "@sub-rosa/time";
 
 export const QUICKNET_HASH =
@@ -21,7 +22,9 @@ export function quicknet(): DrandClient {
 }
 
 export async function chainInfo(client: DrandClient) {
-  return client.chain().info();
+  const info = await client.chain().info();
+  assertChainInfo(info);
+  return info;
 }
 
 /// The round number live at `unixMillis` (defaults to now).
@@ -29,7 +32,7 @@ export async function currentRound(
   client: DrandClient,
   unixMillis: number = systemClock.nowMs(),
 ): Promise<number> {
-  const info = await client.chain().info();
+  const info = await chainInfo(client);
   return drandRoundAt(unixMillis, info);
 }
 
@@ -40,23 +43,25 @@ export async function roundInSeconds(
   seconds: number,
   clock: Clock = systemClock,
 ): Promise<number> {
-  const info = await client.chain().info();
+  const info = await chainInfo(client);
   return drandRoundAt(clock.nowMs() + seconds * 1000, info);
 }
 
 /// The raw beacon (round, randomness, signature hex) for a specific round.
-/// Rejects if round R has not yet been published.
+/// Rejects if round R has not yet been published or the response is malformed.
 export async function fetchRoundBeacon(client: DrandClient, round: number) {
-  return fetchBeacon(client, round);
+  const beacon = await fetchBeacon(client, round);
+  assertBeacon(beacon);
+  return beacon;
 }
 
 /// Round R's threshold signature, encoded as the 96-byte uncompressed G1 the
 /// Round contract verifies on-chain. This is exactly the value `open_reveal`
-/// takes. Rejects if R has not been published yet.
+/// takes. Rejects if R has not been published yet or the response is malformed.
 export async function fetchRoundSignature(
   client: DrandClient,
   round: number,
 ): Promise<Uint8Array> {
-  const beacon = await fetchBeacon(client, round);
+  const beacon = await fetchRoundBeacon(client, round);
   return drandSignatureToSoroban(beacon.signature);
 }

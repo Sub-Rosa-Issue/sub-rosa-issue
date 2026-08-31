@@ -16,8 +16,27 @@ export interface UseDashboardDataResult {
   refetch: () => void;
 }
 
-function isStale(fetchedAt: string, nowMs: number): boolean {
+/**
+ * Determine whether dashboard data fetched at `fetchedAt` should be treated
+ * as stale relative to `nowMs`.
+ *
+ * A missing or unparseable `fetchedAt` is treated as stale rather than
+ * fresh: `Date.parse()` returns `NaN` for invalid input, and every
+ * comparison against `NaN` (including `>`) evaluates to `false` in
+ * JavaScript -- so without an explicit check, malformed timestamp data
+ * would silently be reported as fresh instead of triggering the staleness
+ * warning it's meant to guard against.
+ */
+export function isStale(fetchedAt: string | null | undefined, nowMs: number): boolean {
+  if (!fetchedAt) {
+    return true;
+  }
+
   const fetchedTime = Date.parse(fetchedAt);
+  if (!Number.isFinite(fetchedTime)) {
+    return true;
+  }
+
   return nowMs - fetchedTime > STALE_THRESHOLD_MS;
 }
 
