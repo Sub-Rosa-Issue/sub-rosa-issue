@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import * as assert from "node:assert";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { KeeperStore, normalizeRoundId } from "./store.js";
+import { KeeperStore, normalizeRoundId, compareRoundIds } from "./store.js";
 
 describe("KeeperStore", () => {
   const TEST_STORE_PATH = path.join(process.cwd(), ".test-keeper-store.json");
@@ -77,21 +77,58 @@ describe("KeeperStore", () => {
     cleanUp();
   });
 
-  it("backs up persisted data with an invalid round ID before sorting", () => {
+  it("drops a single malformed round entry on load and keeps the valid ones", () => {
     cleanUp();
     fs.writeFileSync(
       TEST_STORE_PATH,
-      JSON.stringify({ rounds: { invalid: { roundId: "abc", lastStatus: "Unknown", retryCount: 0 } } }),
+      JSON.stringify({
+        rounds: {
+          "7": { roundId: "7", lastStatus: "Open", retryCount: 0 },
+          invalid: { roundId: "abc", lastStatus: "Unknown", retryCount: 0 },
+        },
+      }),
       "utf-8",
     );
 
     const store = new KeeperStore(TEST_STORE_PATH);
-    assert.deepEqual(store.listRounds(), []);
+    assert.deepEqual(
+      store.listRounds().map((round) => round.roundId),
+      ["7"],
+    );
+    // No full-file corrupted backup should be created for a single bad entry
     const backups = fs.readdirSync(process.cwd()).filter(
       (file) => file.startsWith(".test-keeper-store.json.corrupted."),
     );
-    assert.strictEqual(backups.length, 1);
+    assert.strictEqual(backups.length, 0);
     cleanUp();
+  });
+
+  it("drops entries whose key is non-numeric and has no valid roundId", () => {
+    cleanUp();
+    fs.writeFileSync(
+      TEST_STORE_PATH,
+      JSON.stringify({
+        rounds: {
+          notanumber: { lastStatus: "Open", retryCount: 0 },
+          "12": { roundId: "12", lastStatus: "Open", retryCount: 0 },
+        },
+      }),
+      "utf-8",
+    );
+
+    const store = new KeeperStore(TEST_STORE_PATH);
+    assert.deepEqual(
+      store.listRounds().map((round) => round.roundId),
+      ["12"],
+    );
+    cleanUp();
+  });
+
+  it("orders rounds numerically via the shared comparator regardless of id type", () => {
+    assert.strictEqual(compareRoundIds(2n, "10"), -1);
+    assert.strictEqual(compareRoundIds("10", 2), 1);
+    assert.strictEqual(compareRoundIds("7", "07"), 0);
+    assert.strictEqual(compareRoundIds(10, "10"), 0);
   });
 
   it("should remove a round", () => {
