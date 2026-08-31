@@ -140,11 +140,13 @@ function healthzHandler(
         },
       };
     } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      console.error("[keeper-healthz] health check failed:", detail);
       return {
         status: 503,
         body: {
           ok: false,
-          reason: e instanceof Error ? e.message : String(e),
+          reason: "health check failed",
           now: clock.toISOString(),
         },
       };

@@ -180,6 +180,38 @@ test("GET /healthz returns 503 when drand is down", async () => {
       assert.equal(res.status, 503);
       const body = res.body as Record<string, unknown>;
       assert.equal(body.ok, false);
+      assert.equal(body.reason, "health check failed");
+      assert.doesNotMatch(JSON.stringify(body), /drand down/);
+    },
+  );
+});
+
+test("GET /healthz redacts secret-bearing upstream errors from the response body", async () => {
+  const secretRpc = "https://rpc.example.internal/secret-token-abc123";
+  await withServer(
+    makeSource({
+      reader: {
+        getRound: async () => {
+          throw new Error(`connection refused to ${secretRpc}`);
+        },
+        getBidState: async () => ({ revealed_value: null }) as never,
+      },
+      drand: {
+        chain: () => ({
+          info: async () => {
+            throw new Error(`connection refused to ${secretRpc}`);
+          },
+        }),
+      } as never,
+    }),
+    async (server) => {
+      const res = await get(server, "/healthz");
+      assert.equal(res.status, 503);
+      const body = res.body as Record<string, unknown>;
+      assert.equal(body.reason, "health check failed");
+      const serialized = JSON.stringify(body);
+      assert.doesNotMatch(serialized, /secret-token-abc123/);
+      assert.doesNotMatch(serialized, /rpc\.example\.internal/);
     },
   );
 });

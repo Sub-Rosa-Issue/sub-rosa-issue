@@ -282,6 +282,31 @@ describe("buildKeeperStatus — upstream failure", () => {
     assert.match(String(health.reason ?? ""), /drand/);
   });
 
+  it("redacts upstream error details from health reason", async () => {
+    const secretUrl = "https://rpc.internal.example/secret-key-xyz";
+    const reader = {
+      getRound: async () => {
+        throw new Error(`connection refused: ${secretUrl}`);
+      },
+      getBidState: async () => ({ revealed_value: null }) as never,
+    };
+    const drand = {
+      chain: () => ({
+        info: async () => {
+          throw new Error(`timeout contacting ${secretUrl}`);
+        },
+      }),
+    } as never;
+
+    const health = await checkHealth(reader, drand);
+    assert.equal(health.rpc, "down");
+    assert.equal(health.drand, "down");
+    assert.equal(health.reason, "rpc: unavailable; drand: unavailable");
+    const serialized = JSON.stringify(health);
+    assert.doesNotMatch(serialized, /secret-key-xyz/);
+    assert.doesNotMatch(serialized, /rpc\.internal\.example/);
+  });
+
   it("does not crash when a tracked round is missing on-chain", async () => {
     const source = makeSource({
       reader: readerNotFound(),
