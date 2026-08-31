@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Sub Rosa contributors
 // check-snapshots.mjs
 //
 // CI guard for Issue #120 — contract snapshot inventory check.

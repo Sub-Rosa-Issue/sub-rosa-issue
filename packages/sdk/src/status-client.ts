@@ -27,19 +27,42 @@ export class StatusApiError extends Error {
   }
 }
 
+/** Raised when a successful HTTP response body is empty or not valid JSON. */
+export class StatusJsonParseError extends Error {
+  readonly name = "StatusJsonParseError";
+  readonly status: number;
+
+  constructor(status: number, options?: ErrorOptions) {
+    super(`status api returned ${status} with invalid JSON body`, options);
+    this.status = status;
+  }
+}
+
 function fullURL(base: string, path: string): string {
   const trimmed = base.replace(/\/+$/, "");
   const clean = path.startsWith("/") ? path : `/${path}`;
   return `${trimmed}${clean}`;
 }
 
-async function asJson<T>(res: Response): Promise<T> {
+async function parseErrorBody(res: Response): Promise<ApiError> {
   const text = await res.text();
-  if (!text.trim()) return {} as T;
+  if (!text.trim()) return { error: `status api returned ${res.status}` };
+  try {
+    return JSON.parse(text) as ApiError;
+  } catch {
+    return { error: "invalid JSON body" };
+  }
+}
+
+async function parseSuccessBody<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!text.trim()) {
+    throw new StatusJsonParseError(res.status);
+  }
   try {
     return JSON.parse(text) as T;
-  } catch {
-    return { error: "invalid JSON body" } as T;
+  } catch (cause) {
+    throw new StatusJsonParseError(res.status, { cause });
   }
 }
 
@@ -82,10 +105,10 @@ export class KeeperStatusClient {
       headers: { Accept: "application/json", ...this.headers },
     });
     if (!res.ok) {
-      const body = await asJson<ApiError>(res);
+      const body = await parseErrorBody(res);
       throw new StatusApiError(res.status, body);
     }
-    return asJson<T>(res);
+    return parseSuccessBody<T>(res);
   }
 }
 

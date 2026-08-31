@@ -1,69 +1,100 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa Pilot Playbook
 
 ## Positioning
 
-Sub Rosa is verifiable allocation infrastructure for Stellar grants,
-hackathons, bounties, RFPs, and sealed auctions.
+Sub Rosa is escrow-backed sealed auction infrastructure for Stellar apps.
 
-It keeps scores, bids, and allocation inputs unreadable until a shared reveal
-time, then produces a public result that can be verified and settled on
-Soroban.
+Bidders lock Stellar assets, submit bids that remain unreadable until a shared
+Drand reveal round, and then Soroban clears the auction, pays the operator, and
+refunds losing escrow deterministically.
 
-## First internal pilot: OverBlock
+## Pilot Goal
 
-OverBlock will be Sub Rosa's first internal pilot environment, using it for
-sealed judging, bounty allocation, and grant-style scoring workflows.
+The pilot should answer one question:
 
-The internal pilot should validate:
+> Does a real Stellar team need sealed on-chain bidding enough to run repeated
+> rounds?
 
-- whether organizers can create and monitor a sealed scoring round;
-- whether judges understand the commit and reveal flow;
-- whether sealed inputs reduce anchoring and late-score influence;
-- whether the final result, settlement/refund state, and receipt are clear;
-- what an external organizer needs to integrate or operate the workflow.
+The pilot is not a generic demo of privacy. It is a focused test of whether
+sealed auctions or competitive bid rounds create value for an operator and
+participants.
 
-## External pilot ask
+## Target Pilot Profiles
 
-Target five small pilot conversations:
+Prioritize teams with funds movement or real competitive bids:
 
-1. Rise In / Build on Stellar organizer
-2. Stellar hackathon organizer
-3. SCF or Stellar ecosystem builder
-4. DAO or community operator
-5. Project distributing grants or bounties
+1. auction or marketplace operator;
+2. asset issuer running a sale or allocation round;
+3. procurement-style workflow where suppliers submit competitive bids;
+4. Stellar ecosystem team awarding a paid bounty through sealed bids;
+5. DeFi or intent-style app that needs sealed order collection before clearing.
 
-Suggested message:
+Do not describe a partner as confirmed until they explicitly agree to run a
+pilot or provide a written design-partner note.
+
+## Pilot Scope
+
+A good first pilot is small and measurable:
+
+- 3 sealed auction rounds on Stellar testnet;
+- 3-10 bidders per round;
+- USDC or XLM SAC escrow;
+- public round IDs and settlement receipts;
+- operator feedback after each round;
+- a final go/no-go decision for a capped mainnet beta.
+
+## Success Criteria
+
+| Question | Evidence |
+| --- | --- |
+| Did anyone need sealed bidding? | Partner explains the leakage or trust problem in their own words |
+| Did settlement matter? | Bids were escrow-backed; winner payment and loser refunds are visible |
+| Could an operator run it? | Partner creates or monitors a round with docs/support |
+| Did participants understand it? | Bidders can commit, wait for R, and verify reveal |
+| Is there repeat potential? | Partner wants another round, mainnet beta, or integration work |
+
+## Outreach Message
 
 > Sub Rosa won 1st Place in the Hack Privacy Track at Build On Stellar. We are
-> now turning the protocol into verifiable allocation infrastructure for
-> sealed judging, bounty allocation, grant scoring, RFPs, and sealed auctions
-> on Stellar. Would you be open to a small pilot using one upcoming judging or
-> allocation workflow?
+> narrowing the next SCF submission to one use case: escrow-backed sealed
+> auctions on Stellar. Bidders lock assets, bids stay unreadable until a public
+> Drand reveal, and Soroban settles the winner and refunds losers. Would you be
+> open to a small testnet pilot for an auction, sale, bounty, or competitive bid
+> workflow?
 
-Do not describe an external pilot as confirmed until the organizer explicitly
-agrees to run it.
+## Demo Narrative
 
-## SCF-style demo narrative
+The SCF-facing walkthrough should make the auction workflow obvious:
 
-The SCF-facing walkthrough should make the allocation workflow obvious:
+1. An operator creates a sealed auction round.
+2. Bidders lock escrow and submit sealed bids.
+3. No bidder or operator can read bids before Drand R.
+4. Drand unlocks the reveal for the entire bid set.
+5. Soroban validates commitments, selects the winning bid, pays the operator,
+   and refunds losers.
+6. The operator publishes a receipt with round ID, Drand R, bid set,
+   settlement, and final contract balance.
 
-1. Five projects enter a grant round.
-2. Three judges submit sealed scores.
-3. Scores remain unreadable until the reveal time.
-4. Drand unlocks the reveal and the final result becomes public.
-5. Soroban shows deterministic settlement and refunds.
-6. The organizer receives a public proof/receipt for the round.
+## Pilot Report Template
 
-The current live grant-scoring case demonstrates the sealed-score primitive.
-The next demo iteration should add the multi-project allocation view and a
-single organizer receipt that ties scoring, result, and settlement together.
+For each pilot round, capture:
 
-## Short social post
+- partner/operator name;
+- round ID and contract ID;
+- asset and total escrow;
+- number of bidders;
+- winning bid and settlement amount;
+- refund status;
+- keeper action timestamp;
+- participant/operator feedback;
+- next action.
 
-Sub Rosa won 1st Place in the Hack Privacy Track at Build On Stellar. We are
-now preparing small Stellar pilots for sealed judging, bounty allocation, and
-grant-style scoring: inputs stay hidden until reveal, then the result is
-publicly verifiable and settled on Soroban.
+## Short Social Post
 
-If you run a hackathon, grant, bounty, DAO, or RFP workflow, would you be open
-to a small pilot?
+Sub Rosa is preparing focused Stellar pilots for escrow-backed sealed auctions:
+bids stay hidden until a public Drand reveal, then Soroban settles the winner
+and refunds losers.
+
+If you run an auction, marketplace, asset sale, bounty, or competitive bid
+workflow on Stellar, I would love to test a small round with you.

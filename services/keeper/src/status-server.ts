@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import http from "node:http";
 
 import type { DrandClient } from "@sub-rosa/tlock";
+import { resolveTimeContext, systemClock, systemScheduler, systemTime } from "@sub-rosa/time";
 
 import type { StatusReader } from "./status.js";
 import { buildKeeperStatus, type BuildStatusSource } from "./status.js";
@@ -119,6 +121,7 @@ function makeRoutes(src: BuildStatusSource): Route[] {
 function healthzHandler(
   src: BuildStatusSource,
 ): (url: URL) => Promise<{ status: number; body: unknown }> {
+  const { clock } = resolveTimeContext(systemTime, src.time);
   return async () => {
     try {
       const info = await src.drand.chain().info();
@@ -133,7 +136,7 @@ function healthzHandler(
           },
           contractId: src.contractId,
           network: src.network,
-          now: new Date().toISOString(),
+          now: clock.toISOString(),
         },
       };
     } catch (e) {
@@ -142,7 +145,7 @@ function healthzHandler(
         body: {
           ok: false,
           reason: e instanceof Error ? e.message : String(e),
-          now: new Date().toISOString(),
+          now: clock.toISOString(),
         },
       };
     }
@@ -160,7 +163,7 @@ export function createStatusServer(config: StatusServerConfig): http.Server {
     contractId: config.contractId,
     network: config.network,
     settleIndicator: config.settleIndicator,
-    epochMs: config.epochMs ?? Date.now(),
+    epochMs: config.epochMs ?? systemClock.nowMs(),
   };
 
   const dynamic = makeRoutes(source);
@@ -243,7 +246,7 @@ export function withGracefulShutdown(server: http.Server, signals: NodeJS.Signal
     if (stopping) return;
     stopping = true;
     server.close(() => process.exit(0));
-    setTimeout(() => process.exit(1), 5000).unref();
+    systemScheduler.setTimeout(() => process.exit(1), 5000);
   };
   for (const sig of signals) process.on(sig, onSig);
 

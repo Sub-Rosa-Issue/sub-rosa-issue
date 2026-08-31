@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 /// <reference types="vite/client" />
 
 declare module "process/browser";

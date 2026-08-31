@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # `@sub-rosa/appraisal-api`
 
 x402-gated appraisal API. Agents pay per call in **USDC (SEP-41)** over Soroban;

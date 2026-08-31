@@ -195,9 +195,18 @@ export function validateEncryptedBlob(
   let byteLength: number;
 
   if (typeof blob === "string") {
-    // Try hex first, then base64.
-    const hexDecoded = tryDecodeHex(blob);
-    const b64Decoded = hexDecoded ? null : tryDecodeBase64(blob);
+    const encoding = options?.encoding;
+    let hexDecoded: ReturnType<typeof tryDecodeHex> = null;
+    let b64Decoded: ReturnType<typeof tryDecodeBase64> = null;
+
+    if (encoding === "hex") {
+      hexDecoded = tryDecodeHex(blob);
+    } else if (encoding === "base64") {
+      b64Decoded = tryDecodeBase64(blob);
+    } else {
+      hexDecoded = tryDecodeHex(blob);
+      b64Decoded = hexDecoded ? null : tryDecodeBase64(blob);
+    }
 
     if (hexDecoded) {
       rawBytes = hexDecoded.bytes;

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DemoTrace } from "../demo/trace";
 import { formatCountdown, useDrandCountdown } from "../hooks/useDrandCountdown";
 import { phaseIcon, usdc } from "../lib/format";

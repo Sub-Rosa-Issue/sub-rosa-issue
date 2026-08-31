@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Session mandate — scoped authorization for an autonomous bidder agent.
 //
 // A human/principal wallet signs a mandate that binds a session public key to a
@@ -10,6 +11,7 @@
 import { createHash } from "node:crypto";
 
 import { Keypair } from "@stellar/stellar-sdk";
+import { systemClock } from "@sub-rosa/time";
 
 export const MANDATE_VERSION = 1;
 
@@ -46,6 +48,44 @@ export interface SessionMandate extends SessionMandatePayload {
 
 export class MandateError extends Error {}
 export class MandateCapError extends MandateError {}
+
+function invalidNumericField(field: string): never {
+  throw new MandateError(`invalid mandate ${field}`);
+}
+
+function assertSafeMandateInteger(value: number, field: string, minimum = 0): void {
+  if (!Number.isSafeInteger(value) || value < minimum) invalidNumericField(field);
+}
+
+function assertMandateIntegerString(value: string, field: string, minimum = 0n): void {
+  if (!/^(0|[1-9]\d*)$/.test(value)) invalidNumericField(field);
+  const parsed = BigInt(value);
+  if (parsed < minimum) invalidNumericField(field);
+}
+
+function validateMandateNumbers(payload: SessionMandatePayload): void {
+  assertSafeMandateInteger(payload.basePriceUsdc, "basePriceUsdc");
+  assertSafeMandateInteger(payload.commitDeadline, "commitDeadline");
+  assertSafeMandateInteger(payload.issuedAt, "issuedAt");
+  assertSafeMandateInteger(payload.expiresAt, "expiresAt");
+  assertMandateIntegerString(payload.roundId, "roundId", 1n);
+  assertMandateIntegerString(payload.maxBidStroops, "maxBidStroops");
+  assertMandateIntegerString(payload.maxEscrowStroops, "maxEscrowStroops");
+  assertMandateIntegerString(payload.maxAppraisalSpendStroops, "maxAppraisalSpendStroops");
+  assertMandateIntegerString(payload.appraisalPriceStroops, "appraisalPriceStroops");
+}
+
+function validateMandateTimestampOrdering(payload: SessionMandatePayload): void {
+  if (payload.issuedAt > payload.expiresAt) {
+    throw new MandateError("issuedAt must be <= expiresAt");
+  }
+  if (payload.issuedAt > payload.commitDeadline) {
+    throw new MandateError("issuedAt must be <= commitDeadline");
+  }
+  if (payload.commitDeadline > payload.expiresAt) {
+    throw new MandateError("commitDeadline must be <= expiresAt");
+  }
+}
 
 const canonical = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -108,6 +148,8 @@ export interface CreateMandateParams {
   ttlSeconds?: number;
   /** Optional pre-generated session secret; otherwise a fresh keypair is created. */
   sessionSecret?: string;
+  /** Injectable wall clock. Default: systemClock. */
+  clock?: import("@sub-rosa/time").Clock;
 }
 
 /** Issue a fresh session key + principal-signed mandate. */
@@ -119,7 +161,8 @@ export function createSessionMandate(params: CreateMandateParams): {
   const session = params.sessionSecret
     ? Keypair.fromSecret(params.sessionSecret)
     : Keypair.random();
-  const now = Math.floor(Date.now() / 1000);
+  const clock = params.clock ?? systemClock;
+  const now = clock.nowSeconds();
   const payload: SessionMandatePayload = {
     version: MANDATE_VERSION,
     principal: principal.publicKey(),
@@ -137,6 +180,8 @@ export function createSessionMandate(params: CreateMandateParams): {
     issuedAt: now,
     expiresAt: now + (params.ttlSeconds ?? 3600),
   };
+  validateMandateNumbers(payload);
+  validateMandateTimestampOrdering(payload);
   const sig = principal.sign(mandateDigest(payload));
   return {
     mandate: { ...payload, signature: sig.toString("base64") },
@@ -147,7 +192,7 @@ export function createSessionMandate(params: CreateMandateParams): {
 /** Verify principal signature, expiry, and round binding. */
 export function verifySessionMandate(
   mandate: SessionMandate,
-  opts?: { contractId?: string; roundId?: bigint | number; now?: number },
+  opts?: { contractId?: string; roundId?: bigint | number; now?: number; clock?: import("@sub-rosa/time").Clock },
 ): void {
   if (mandate.version !== MANDATE_VERSION) {
     throw new MandateError(`unsupported mandate version ${mandate.version}`);
@@ -160,7 +205,10 @@ export function verifySessionMandate(
   );
   if (!ok) throw new MandateError("invalid mandate signature");
 
-  const now = opts?.now ?? Math.floor(Date.now() / 1000);
+  validateMandateNumbers(payload);
+  validateMandateTimestampOrdering(payload);
+
+  const now = opts?.now ?? (opts?.clock ?? systemClock).nowSeconds();
   if (now > mandate.expiresAt) throw new MandateError("mandate expired");
   if (now > mandate.commitDeadline) throw new MandateError("commit deadline passed");
 

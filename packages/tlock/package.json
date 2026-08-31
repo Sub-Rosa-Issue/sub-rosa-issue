@@ -15,19 +15,20 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/karagozemin/Sub-Rosa.git",
+    "url": "https://github.com/Sub-Rosa-Issue/sub-rosa-issue.git",
     "directory": "packages/tlock"
   },
   "main": "src/index.ts",
   "scripts": {
-    "test": "node --import tsx --test src/commitment.test.ts src/auditor.test.ts src/auditor-recovery-cli.test.ts src/bls.test.ts src/seal.test.ts src/freshness.test.ts src/quicknet.test.ts",
+    "test": "node --import tsx --test src/commitment.test.ts src/payload.test.ts src/auditor.test.ts src/auditor-recovery-cli.test.ts src/bls.test.ts src/seal.test.ts src/freshness.test.ts src/quicknet.test.ts src/validate.test.ts",
     "test:quicknet": "node --import tsx --test src/quicknet.test.ts",
-    "test:unit": "node --import tsx --test src/commitment.test.ts src/auditor.test.ts src/auditor-recovery-cli.test.ts src/bls.test.ts src/freshness.test.ts src/quicknet.test.ts",
+    "test:unit": "node --import tsx --test src/commitment.test.ts src/payload.test.ts src/auditor.test.ts src/auditor-recovery-cli.test.ts src/bls.test.ts src/freshness.test.ts src/quicknet.test.ts src/validate.test.ts",
     "test:seal": "node --import tsx --test src/seal.test.ts",
     "recover:identities": "node --import tsx src/recover-identities.cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@sub-rosa/time": "workspace:*",
     "@noble/ciphers": "^2.2.0",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -5,6 +6,7 @@ import { quicknet, currentRound } from "./quicknet.js";
 import { sealBid, openBid, generateNonce } from "./seal.js";
 import { commitment, toHex } from "./commitment.js";
 import { generateAuditorKeypair, openIdentity } from "./auditor.js";
+import { openPayload, payloadCommitment, sealPayload } from "./payload.js";
 
 // These tests hit the live Drand quicknet network (no mock).
 const NET_TIMEOUT = 30_000;
@@ -48,6 +50,40 @@ test(
 );
 
 test(
+  "structured proposal payload seals and opens against a real quicknet round",
+  { timeout: NET_TIMEOUT },
+  async () => {
+    const client = quicknet();
+    const round = (await currentRound(client)) - 5;
+    const amount = 12_000_0000000n;
+    const nonce = generateNonce();
+    const payload = new TextEncoder().encode(
+      '{"price":"12000 USDC","timeline":"4 weeks","approach":"manual Soroban review"}',
+    );
+    const auditor = generateAuditorKeypair();
+    const identity = new TextEncoder().encode("GPROVIDER...alice");
+
+    const sealed = await sealPayload({
+      amount,
+      nonce,
+      payload,
+      round,
+      client,
+      identity,
+      auditorPublicKey: auditor.publicKey,
+    });
+    const opened = await openPayload(sealed.ciphertext, client);
+
+    assert.ok(sealed.ciphertext.length <= 4096, `ciphertext ${sealed.ciphertext.length}B`);
+    assert.equal(opened.amount, amount);
+    assert.deepEqual(opened.nonce, nonce);
+    assert.deepEqual(opened.payload, payload);
+    assert.equal(toHex(payloadCommitment(opened)), toHex(sealed.commitment));
+    assert.deepEqual(openIdentity(sealed.auditorBlob, auditor.secretKey), identity);
+  },
+);
+
+test(
   "wrong value/nonce does not match the commitment (would be rejected on-chain)",
   { timeout: NET_TIMEOUT },
   async () => {
@@ -63,6 +99,24 @@ test(
     assert.notEqual(toHex(commitment(opened.value + 1n, opened.nonce)), toHex(sealed.commitment));
   },
 );
+
+test("sealBid rejects a non-positive Drand round", async () => {
+  const client = quicknet();
+  for (const round of [0, -1, -100]) {
+    await assert.rejects(
+      sealBid({ value: 1n, nonce: generateNonce(), round, client }),
+      /round must be a positive integer/,
+    );
+  }
+});
+
+test("openBid rejects an empty ciphertext", async () => {
+  const client = quicknet();
+  await assert.rejects(
+    openBid(new Uint8Array(0), client),
+    /ciphertext must not be empty/,
+  );
+});
 
 test(
   "a bid sealed to a future round cannot be opened — the seal holds",

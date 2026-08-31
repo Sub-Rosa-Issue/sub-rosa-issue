@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useMemo, useState } from "react";
 import type { DemoTrace } from "../demo/trace";
 import { shortAddr } from "../lib/format";

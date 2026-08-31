@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import architectureMd from "../../../../ARCHITECTURE.md?raw";
 import { LOGO_SRC } from "../lib/chain";
 

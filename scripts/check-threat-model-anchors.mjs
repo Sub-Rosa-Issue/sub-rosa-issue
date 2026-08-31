@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Sub Rosa contributors
 /**
  * Check that docs/THREAT_MODEL.md still covers the core sealed-round risk
  * topics used by SCF / Wave diligence.

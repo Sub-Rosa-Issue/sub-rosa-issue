@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Offline binding-encoding tests.
 //
 // These exercise the real correctness surface of a contract-binding SDK: the

@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/karagozemin/Sub-Rosa.git",
+    "url": "https://github.com/Sub-Rosa-Issue/sub-rosa-issue.git",
     "directory": "packages/sdk"
   },
   "main": "src/index.ts",
@@ -24,13 +24,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "node --import tsx --test src/client.test.ts src/encoding.test.ts src/errors.test.ts src/ids.test.ts src/mainnet-readiness.test.ts src/network.test.ts src/preflight.test.ts src/public-api-snapshot.test.ts src/redact.test.ts src/round-status.test.ts src/verify.test.ts",
+    "test": "node --import tsx --test src/asset-config.test.ts src/client.test.ts src/encoding.test.ts src/encrypted-blob.test.ts src/errors.test.ts src/export-receipt.test.ts src/ids.test.ts src/mainnet-readiness.test.ts src/network.test.ts src/preflight.test.ts src/public-api-snapshot.test.ts src/receipt.test.ts src/redact.test.ts src/round-status.test.ts src/status-client.test.ts src/verify.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@openzeppelin/relayer-plugin-channels": "^0.20.0",
     "@stellar/stellar-sdk": "^15.1.0",
     "@sub-rosa/round-bindings": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/tlock": "workspace:*"
   },
   "devDependencies": {

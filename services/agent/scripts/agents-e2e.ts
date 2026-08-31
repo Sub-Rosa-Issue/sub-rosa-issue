@@ -27,6 +27,7 @@ import { basicNodeSigner } from "@stellar/stellar-sdk/contract";
 import { closeRound, keepRound } from "@sub-rosa/keeper";
 import { RoundContract, SubRosaClient } from "@sub-rosa/sdk";
 import { generateAuditorKeypair, quicknet } from "@sub-rosa/tlock";
+import { systemTime } from "@sub-rosa/time";
 import { buildAppraisalServer } from "@sub-rosa/appraisal-api";
 
 import {
@@ -51,9 +52,11 @@ const HORIZON_URL = process.env.HORIZON_URL ?? "https://horizon-testnet.stellar.
 const NETWORK = process.env.NETWORK_PASSPHRASE ?? Networks.TESTNET;
 const X402_NETWORK = process.env.X402_NETWORK ?? "stellar:testnet";
 
+const { clock, scheduler } = systemTime;
+
 const hex = (s: string) => Buffer.from(s, "hex");
 const sha256 = (s: string) => createHash("sha256").update(s).digest();
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => scheduler.sleep(ms);
 const reqEnv = (n: string): string => {
   const v = process.env[n];
   if (!v) throw new Error(`missing required env var ${n}`);
@@ -216,7 +219,7 @@ async function main() {
   console.log("    ✔ contract", contractId);
 
   const itemRefStr = "sub-rosa://agents/spectrum-block-9";
-  const now = Math.floor(Date.now() / 1000);
+  const now = clock.nowSeconds();
   const revealRound = Math.ceil((now + 180 - DRAND_GENESIS) / DRAND_PERIOD);
   const tReveal = DRAND_GENESIS + DRAND_PERIOD * revealRound;
   const commitDeadline = now + 90;
@@ -362,8 +365,8 @@ async function main() {
     console.log("    ✔ all bids revealed");
 
     console.log("\n[5/7] waiting for reveal deadline…");
-    while (Math.floor(Date.now() / 1000) <= revealDeadline + 3) {
-      const remain = revealDeadline + 4 - Math.floor(Date.now() / 1000);
+    while (clock.nowSeconds() <= revealDeadline + 3) {
+      const remain = revealDeadline + 4 - clock.nowSeconds();
       if (remain > 0) {
         log(`~${remain}s until clear allowed`);
         await sleep(Math.min(10_000, remain * 1000));
@@ -385,7 +388,7 @@ async function main() {
     if (opDelta !== winnerBid) fail(`operator delta ${opDelta} != winning bid ${winnerBid}`);
 
     console.log("\n[7/7] writing canonical web demo trace…");
-    const generatedAt = new Date().toISOString();
+    const generatedAt = clock.toISOString();
     const revealLines = results.map(({ plan, result }) => {
       const bid = stroopsToUsdc(result.bidValue);
       return `${plan.name} → ${bid} USDC`;
@@ -393,7 +396,7 @@ async function main() {
 
     const demoTrace: DemoTracePayload = {
       meta: {
-        title: "Spectrum Block Allocation — Round 1",
+        title: "Sealed Asset Auction — Round 1",
         network: "Stellar Testnet",
         contractId,
         roundId: Number(roundId),

@@ -1,8 +1,10 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DemoTrace } from "../demo/trace";
 import { isTraceSettled } from "../demo/trace";
 import type { LiveSnapshot } from "../hooks/useLiveRound";
 import { getRoundStatusInfo } from "../lib/round-status";
 import { shortAddr, usdc } from "../lib/format";
+import { useTime } from "../lib/time";
 import { RoundStatusBadge } from "./RoundStatusBadge";
 
 export function ObserverView({
@@ -20,6 +22,7 @@ export function ObserverView({
   expectLive?: boolean;
   onRefresh?: () => void;
 }) {
+  const { clock } = useTime();
   const settled = isTraceSettled(trace);
 
   // When live polling is expected (Live mode) use full state detection;
@@ -29,7 +32,7 @@ export function ObserverView({
         live,
         error: liveError ?? null,
         configured: true,
-        stale: livePolledAt != null && Date.now() - livePolledAt > 30_000,
+        stale: livePolledAt != null && clock.nowMs() - livePolledAt > 30_000,
       })
     : { state: "found" as const, tag: trace.meta.roundStatus, message: trace.meta.roundStatus };
 

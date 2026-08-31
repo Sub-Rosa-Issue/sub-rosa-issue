@@ -1,6 +1,8 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Known Limitations
 
-Honest boundaries for hackathon submission. No hidden fallbacks.
+Honest boundaries for the current prototype and submission materials. No hidden
+fallbacks.
 
 ## Network scope
 

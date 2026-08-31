@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Sub Rosa contributors
 // scripts/check-deploy-docs.mjs
 //
 // Lightweight text-based smoke test that keeps docs/DEPLOY.md copy-pasteable.
@@ -81,7 +82,6 @@ const WORKSPACE_PKG_DIRS = [
   "services/drand-tools",
   "services/auction-template",
   "apps/web",
-  "examples/grant-scoring",
 ];
 
 function loadEnvKeys(filePath) {
