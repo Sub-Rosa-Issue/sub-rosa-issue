@@ -49,6 +49,44 @@ export interface SessionMandate extends SessionMandatePayload {
 export class MandateError extends Error {}
 export class MandateCapError extends MandateError {}
 
+function invalidNumericField(field: string): never {
+  throw new MandateError(`invalid mandate ${field}`);
+}
+
+function assertSafeMandateInteger(value: number, field: string, minimum = 0): void {
+  if (!Number.isSafeInteger(value) || value < minimum) invalidNumericField(field);
+}
+
+function assertMandateIntegerString(value: string, field: string, minimum = 0n): void {
+  if (!/^(0|[1-9]\d*)$/.test(value)) invalidNumericField(field);
+  const parsed = BigInt(value);
+  if (parsed < minimum) invalidNumericField(field);
+}
+
+function validateMandateNumbers(payload: SessionMandatePayload): void {
+  assertSafeMandateInteger(payload.basePriceUsdc, "basePriceUsdc");
+  assertSafeMandateInteger(payload.commitDeadline, "commitDeadline");
+  assertSafeMandateInteger(payload.issuedAt, "issuedAt");
+  assertSafeMandateInteger(payload.expiresAt, "expiresAt");
+  assertMandateIntegerString(payload.roundId, "roundId", 1n);
+  assertMandateIntegerString(payload.maxBidStroops, "maxBidStroops");
+  assertMandateIntegerString(payload.maxEscrowStroops, "maxEscrowStroops");
+  assertMandateIntegerString(payload.maxAppraisalSpendStroops, "maxAppraisalSpendStroops");
+  assertMandateIntegerString(payload.appraisalPriceStroops, "appraisalPriceStroops");
+}
+
+function validateMandateTimestampOrdering(payload: SessionMandatePayload): void {
+  if (payload.issuedAt > payload.expiresAt) {
+    throw new MandateError("issuedAt must be <= expiresAt");
+  }
+  if (payload.issuedAt > payload.commitDeadline) {
+    throw new MandateError("issuedAt must be <= commitDeadline");
+  }
+  if (payload.commitDeadline > payload.expiresAt) {
+    throw new MandateError("commitDeadline must be <= expiresAt");
+  }
+}
+
 const canonical = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object") {
@@ -122,6 +160,8 @@ export function createSessionMandate(params: CreateMandateParams): {
     issuedAt: now,
     expiresAt: now + (params.ttlSeconds ?? 3600),
   };
+  validateMandateNumbers(payload);
+  validateMandateTimestampOrdering(payload);
   const sig = principal.sign(mandateDigest(payload));
   return {
     mandate: { ...payload, signature: sig.toString("base64") },
@@ -144,6 +184,9 @@ export function verifySessionMandate(
     Buffer.from(signature, "base64"),
   );
   if (!ok) throw new MandateError("invalid mandate signature");
+
+  validateMandateNumbers(payload);
+  validateMandateTimestampOrdering(payload);
 
   const now = opts?.now ?? (opts?.clock ?? systemClock).nowSeconds();
   if (now > mandate.expiresAt) throw new MandateError("mandate expired");

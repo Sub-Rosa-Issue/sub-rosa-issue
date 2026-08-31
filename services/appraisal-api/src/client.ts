@@ -8,7 +8,7 @@
 // pay the appraisal API per call.
 
 import { x402Client, x402HTTPClient } from "@x402/core/client";
-import type { Network, SettleResponse } from "@x402/core/types";
+import type { Network, PaymentRequired, SettleResponse } from "@x402/core/types";
 import { createEd25519Signer } from "@x402/stellar";
 import { ExactStellarScheme as ClientStellarScheme } from "@x402/stellar/exact/client";
 
@@ -28,7 +28,38 @@ export interface PaidResult<T = unknown> {
   settlement?: SettleResponse;
 }
 
-export class X402PaymentError extends Error {}
+export class AppraisalResponseParseError extends Error {
+  readonly name = "AppraisalResponseParseError";
+  readonly status: number;
+
+  constructor(status: number, options?: ErrorOptions) {
+    super(`appraisal api returned ${status} with invalid JSON body`, options);
+    this.status = status;
+  }
+}
+
+export class X402PaymentError extends Error {
+  readonly name = "X402PaymentError";
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!text.trim()) {
+    throw new AppraisalResponseParseError(res.status);
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch (cause) {
+    throw new AppraisalResponseParseError(res.status, { cause });
+  }
+}
 
 /** Build a paid-fetch function bound to a payer wallet. */
 export function createPaidFetch(config: PaidClientConfig) {
@@ -47,15 +78,34 @@ export function createPaidFetch(config: PaidClientConfig) {
   ): Promise<PaidResult<T>> {
     const first = await fetch(url, init);
     if (first.status !== 402) {
-      return { status: first.status, body: (await first.json()) as T };
+      return { status: first.status, body: await parseJsonResponse<T>(first) };
     }
 
     // 402 → build the signed payment and retry.
-    const bodyForParse = await first.clone().json().catch(() => undefined);
-    const paymentRequired = http.getPaymentRequiredResponse(
-      (name) => first.headers.get(name),
-      bodyForParse,
-    );
+    let bodyForParse: unknown;
+    try {
+      bodyForParse = await parseJsonResponse<unknown>(first.clone());
+    } catch (error) {
+      if (error instanceof AppraisalResponseParseError) {
+        bodyForParse = undefined;
+      } else {
+        throw error;
+      }
+    }
+
+    let paymentRequired: PaymentRequired;
+    try {
+      paymentRequired = http.getPaymentRequiredResponse(
+        (name) => first.headers.get(name),
+        bodyForParse,
+      );
+    } catch {
+      throw new X402PaymentError(
+        `x402 payment required response was invalid (${first.status})`,
+        first.status,
+      );
+    }
+
     const payload = await http.createPaymentPayload(paymentRequired);
     const payHeaders = http.encodePaymentSignatureHeader(payload);
 
@@ -63,12 +113,10 @@ export function createPaidFetch(config: PaidClientConfig) {
       ...init,
       headers: { ...(init.headers ?? {}), ...payHeaders },
     });
-    const body = (await paid.json()) as T;
+    const body = await parseJsonResponse<T>(paid);
 
     if (paid.status !== 200) {
-      throw new X402PaymentError(
-        `paid request failed (${paid.status}): ${JSON.stringify(body)}`,
-      );
+      throw new X402PaymentError(`paid request failed (${paid.status})`, paid.status);
     }
     const settlement = http.getPaymentSettleResponse((name) => paid.headers.get(name));
     return { status: paid.status, body, settlement };
