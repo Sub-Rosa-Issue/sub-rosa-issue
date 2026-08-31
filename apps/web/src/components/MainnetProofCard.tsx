@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { MAINNET_ARTIFACTS } from "@sub-rosa/sdk";
 import { shortAddr } from "../lib/format";
 

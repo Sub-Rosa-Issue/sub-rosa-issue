@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa Pilot Playbook
 
 ## Positioning

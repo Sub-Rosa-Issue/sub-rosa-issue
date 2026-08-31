@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Standalone status server for the keeper.
 //
 // Runs the watch-mode keeper AND a status HTTP API on the same process so

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Deploy & environment variables
 
 Sub Rosa **does not require a committed `.env` file**. Secrets stay out of git; you inject them where each layer runs.

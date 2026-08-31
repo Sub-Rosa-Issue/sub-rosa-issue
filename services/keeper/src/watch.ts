@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Watch-mode keeper — standalone entry. For a combined status-API + watch
 // process, use `serve.ts` instead.
 //

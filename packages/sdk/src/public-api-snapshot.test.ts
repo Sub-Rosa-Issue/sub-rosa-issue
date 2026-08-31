@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as sdk from "./index.js";
@@ -17,6 +18,7 @@ const EXPECTED_EXPORTS = [
   "RoundContract",
   "RoundErrors",
   "StatusApiError",
+  "StatusJsonParseError",
   "SubRosaClient",
   "SubRosaClientConfigError",
   "SubRosaMissingReturnValueError",

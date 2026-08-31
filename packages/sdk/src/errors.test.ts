@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -9,6 +10,7 @@ import {
   SubRosaTimeoutError,
 } from "./errors.js";
 import { SubRosaClient } from "./client.js";
+import { createFakeTime } from "@sub-rosa/time";
 
 describe("SubRosaClientConfigError", () => {
   it("sets name and message", () => {
@@ -192,7 +194,19 @@ describe("SubRosaClientConfig validation", () => {
 // -------------------------------------------------------------------------
 
 describe("custom polling settings with injected sleep", () => {
-  it("accepts injected sleep without invoking it during construction", () => {
+  it("accepts injected fake scheduler without invoking it during construction", () => {
+    const { scheduler } = createFakeTime();
+
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      confirmTimeout: 10_000,
+      pollInterval: 200,
+      time: { scheduler },
+    });
+    assert.ok(client instanceof SubRosaClient);
+  });
+
+  it("deprecated _sleep override still works for compatibility", () => {
     let sleepCalls = 0;
     const fakeSleep = async (_ms: number) => {
       sleepCalls += 1;

@@ -20,6 +20,7 @@
     "@sub-rosa/appraisal-api": "workspace:*",
     "@sub-rosa/keeper": "workspace:*",
     "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/tlock": "workspace:*",
     "@x402/core": "^2.14.0"
   },

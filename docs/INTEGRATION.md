@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Integrating Sub Rosa
 
 Sub Rosa does not require users to come to the Sub Rosa demo app. The demo app

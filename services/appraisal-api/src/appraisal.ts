@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Deterministic appraisal model.
 //
 // Given a structured item descriptor, produce a fair-value estimate, a

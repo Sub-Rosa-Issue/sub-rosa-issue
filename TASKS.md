@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Task List: Issue #114 Receipt Schema Version Rejection
 
 - [ ] Phase 1: Locate offline receipt verifier and inspect current error handling

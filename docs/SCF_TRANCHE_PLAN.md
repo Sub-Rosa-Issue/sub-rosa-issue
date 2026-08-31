@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa — SCF Tranche Plan
 
 This document defines a focused three-tranche plan for Sub Rosa's SCF Build Award,

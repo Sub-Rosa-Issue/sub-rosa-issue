@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

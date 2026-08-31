@@ -40,9 +40,15 @@
     "mainnet:verify": "bash packages/sdk/scripts/mainnet-verify.sh",
     "mainnet:micro": "bash packages/sdk/scripts/mainnet-micro.sh",
     "tlock:test": "pnpm --filter @sub-rosa/tlock test",
+    "tlock:typecheck": "pnpm --filter @sub-rosa/tlock typecheck",
+    "drand-tools:test": "pnpm --filter @sub-rosa/drand-tools test",
+    "drand-tools:typecheck": "pnpm --filter @sub-rosa/drand-tools typecheck",
     "keeper:test": "pnpm --filter @sub-rosa/keeper test",
+    "keeper:typecheck": "pnpm --filter @sub-rosa/keeper typecheck",
     "keeper:e2e": "bash services/keeper/scripts/keeper-e2e.sh",
     "keeper:watch": "pnpm --filter @sub-rosa/keeper watch",
+    "receipt-cli:test": "pnpm --filter @sub-rosa/receipt-cli test",
+    "receipt-cli:typecheck": "pnpm --filter @sub-rosa/receipt-cli typecheck",
     "lifecycle:e2e": "bash services/keeper/scripts/lifecycle-e2e.sh",
     "appraisal:test": "pnpm --filter @sub-rosa/appraisal-api test",
     "appraisal:typecheck": "pnpm --filter @sub-rosa/appraisal-api typecheck",
@@ -53,6 +59,7 @@
     "agents:e2e": "bash services/agent/scripts/agents-e2e.sh",
     "template:fixture": "pnpm --filter @sub-rosa/auction-template fixture",
     "template:testnet": "bash services/auction-template/testnet.sh",
+    "template:test": "pnpm --filter @sub-rosa/auction-template test",
     "template:typecheck": "pnpm --filter @sub-rosa/auction-template typecheck",
     "web:dev": "pnpm --filter @sub-rosa/web dev",
     "web:build": "pnpm --filter @sub-rosa/web build",
@@ -61,6 +68,9 @@
     "snapshot:check": "node scripts/check-snapshots.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
     "docs:check-links": "node scripts/check-links.js",
-    "coverage:test": "node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs"
+    "coverage:test": "node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
+    "time:test": "pnpm --filter @sub-rosa/time test",
+    "time:guard": "node scripts/check-direct-time-access.mjs",
+    "time:guard:test": "node --test scripts/check-direct-time-access.test.mjs"
   }
 }

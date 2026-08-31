@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { shortHash } from "../../lib/format";
 import type { DashboardData, KeeperDryRunPhase } from "../../dashboard/types";
 
@@ -36,10 +37,10 @@ export function KeeperStatusCard({ data }: { data: DashboardData }) {
           <div className="dashboard-kv-row">
             <span className="dashboard-kv-label">Last Action</span>
             <span className="dashboard-kv-value">
-              {new Date(keeper.lastActionAt).toLocaleString(undefined, {
+              {new Intl.DateTimeFormat(undefined, {
                 dateStyle: "short",
                 timeStyle: "short",
-              })}
+              }).format(Date.parse(keeper.lastActionAt))}
             </span>
           </div>
         )}
@@ -59,11 +60,11 @@ export function KeeperStatusCard({ data }: { data: DashboardData }) {
                   <div className="dashboard-action-content">
                     <span className="dashboard-action-text">{action.action}</span>
                     <span className="dashboard-action-meta">
-                      {new Date(action.timestamp).toLocaleTimeString(undefined, {
+                      {new Intl.DateTimeFormat(undefined, {
                         hour: "2-digit",
                         minute: "2-digit",
                         second: "2-digit",
-                      })}
+                      }).format(Date.parse(action.timestamp))}
                       {action.txHash && (
                         <>
                           {" · "}
