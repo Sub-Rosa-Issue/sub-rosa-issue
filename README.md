@@ -4,6 +4,7 @@
 > created specifically for participation in the Stellar Wave program. The main
 > Sub Rosa repository is maintained separately.
 
+
 <p align="center">
   <img src="./assets/sub-rosa-readme.png" width="250" alt="Sub Rosa logo" />
 </p>
