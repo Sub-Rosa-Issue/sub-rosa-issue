@@ -82,7 +82,6 @@ const WORKSPACE_PKG_DIRS = [
   "services/drand-tools",
   "services/auction-template",
   "apps/web",
-  "examples/grant-scoring",
 ];
 
 function loadEnvKeys(filePath) {
