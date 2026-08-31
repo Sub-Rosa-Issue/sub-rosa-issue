@@ -134,3 +134,54 @@ test(
     await assert.rejects(openBid(sealed.ciphertext, client));
   },
 );
+
+test("sealBid rejects non-positive or non-integer round numbers", async () => {
+  const client = quicknet();
+  const nonce = generateNonce();
+  const value = 100n;
+
+  await assert.rejects(
+    () => sealBid({ value, nonce, round: 0, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+  await assert.rejects(
+    () => sealBid({ value, nonce, round: -5, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+  await assert.rejects(
+    () => sealBid({ value, nonce, round: 1.5, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+  await assert.rejects(
+    () => sealBid({ value, nonce, round: NaN, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+});
+
+test("sealBid rejects invalid nonce lengths", async () => {
+  const client = quicknet();
+  const value = 100n;
+  const round = 1000;
+
+  await assert.rejects(
+    () => sealBid({ value, nonce: new Uint8Array(16), round, client }),
+    /nonce must be 32 bytes/,
+  );
+  await assert.rejects(
+    () => sealBid({ value, nonce: new Uint8Array(31), round, client }),
+    /nonce must be 32 bytes/,
+  );
+  await assert.rejects(
+    () => sealBid({ value, nonce: new Uint8Array(33), round, client }),
+    /nonce must be 32 bytes/,
+  );
+});
+
+test("openBid rejects empty ciphertext", async () => {
+  const client = quicknet();
+  await assert.rejects(
+    () => openBid(new Uint8Array(0), client),
+    /ciphertext is empty/,
+  );
+});
+
