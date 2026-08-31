@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { classifyDrandRound, DEFAULT_STALE_THRESHOLD_MS } from "./freshness.js";
+import { classifyDrandRound, computePublishAtMs, DEFAULT_STALE_THRESHOLD_MS } from "./freshness.js";
 
 test("freshness: missing or invalid round returns unknown", () => {
   const info = { genesis_time: 1677685200, period: 3 };
@@ -75,4 +75,33 @@ test("freshness: stale round", () => {
 
   // Custom threshold stale
   assert.equal(classifyDrandRound(round, info, 1030011, 10).status, "stale");
+});
+
+test("computePublishAtMs rejects unsafe round and period combinations", () => {
+  const info = { genesis_time: 1_000_000_000, period: 3 };
+
+  assert.equal(computePublishAtMs(info, Number.MAX_SAFE_INTEGER), null);
+  assert.equal(
+    computePublishAtMs({ genesis_time: Number.MAX_SAFE_INTEGER, period: 2 }, 1_000),
+    null,
+  );
+  assert.equal(computePublishAtMs({ genesis_time: 0, period: 3 }, 1), 3000);
+});
+
+test("freshness: unsafe timestamp math returns unknown near MAX_SAFE_INTEGER", () => {
+  const info = { genesis_time: Number.MAX_SAFE_INTEGER - 1, period: 2 };
+  const round = 2;
+  const now = 1_700_000_000_000;
+
+  const res = classifyDrandRound(round, info, now);
+  assert.equal(res.status, "unknown");
+  assert.match(String(res.reason ?? ""), /overflow|unsafe/i);
+});
+
+test("freshness: valid boundary round still classifies correctly", () => {
+  const info = { genesis_time: 1000, period: 1 };
+  const round = 1_000_000;
+  const publishAtMs = computePublishAtMs(info, round);
+  assert.equal(publishAtMs, 1_001_000_000);
+  assert.equal(classifyDrandRound(round, info, publishAtMs!).status, "fresh");
 });
