@@ -126,6 +126,7 @@ export {
 export {
   KeeperStatusClient,
   StatusApiError,
+  StatusJsonParseError,
   type StatusClientOptions,
   fetchKeeperStatus,
 } from "./status-client.js";

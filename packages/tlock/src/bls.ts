@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Drand signature → Soroban G1 encoding.
 //
 // The Round contract verifies round R's threshold signature on-chain with

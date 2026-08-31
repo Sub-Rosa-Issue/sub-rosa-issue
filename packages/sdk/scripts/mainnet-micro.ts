@@ -20,6 +20,7 @@ import {
   runMainnetReadiness,
 } from "../src/mainnet-readiness.js";
 import { generateAuditorKeypair, generateNonce, quicknet, sealBid } from "@sub-rosa/tlock";
+import { systemClock } from "@sub-rosa/time";
 
 const DRAND_GENESIS = 1_692_803_367;
 const DRAND_PERIOD = 3;
@@ -125,7 +126,7 @@ async function main() {
     }
   }
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = systemClock.nowSeconds();
   const revealRound = Math.ceil((now + 300 - DRAND_GENESIS) / DRAND_PERIOD);
   const commitDeadline = now + 120;
   const revealDeadline = DRAND_GENESIS + DRAND_PERIOD * revealRound + 180;

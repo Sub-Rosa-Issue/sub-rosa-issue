@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  # Los cuatro workflows solo leen el repo: clonan, instalan y corren
+  # tests. Ninguno hace push, ni comenta, ni publica, ni toca secrets.
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

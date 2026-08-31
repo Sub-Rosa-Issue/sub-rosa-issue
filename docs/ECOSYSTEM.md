@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Ecosystem Integration — Passkey, Relayer, Scaffold
 
 Sub Rosa's live path uses **Ed25519 session keys + signed mandates** and **direct Soroban RPC**. It also ships optional ecosystem adapters that do not change the core protocol: Passkey-Kit in the web wallet panel, and OpenZeppelin Relayer Channels as an SDK submitter.

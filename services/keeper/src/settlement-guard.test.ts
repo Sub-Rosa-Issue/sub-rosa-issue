@@ -25,7 +25,7 @@ function mockRound(tag: string) {
   return {
     status: { tag },
     reveal_round: 1n,
-    reveal_deadline: BigInt(Math.floor(Date.now() / 1000) - 3600),
+    reveal_deadline: BigInt(1_700_000_000 - 3600),
     winner: tag === "Cleared" ? "GABC" : undefined,
   };
 }

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { motion, useReducedMotion } from "framer-motion";
 import { DEMO_TRACE } from "../demo/trace";
 import { USE_CASES, type UseCaseId } from "../config/useCases";
@@ -47,7 +48,7 @@ export function LandingPage({
         <div className="landing-nav-actions">
           <span className="landing-status-pill winner">Hack Privacy #1</span>
           <span className="landing-status-pill">testnet · live</span>
-          <a href="https://github.com/karagozemin/Sub-Rosa" target="_blank" rel="noreferrer">
+          <a href="https://github.com/Sub-Rosa-Issue/sub-rosa-issue" target="_blank" rel="noreferrer">
             GitHub
           </a>
           <a href="#/dashboard" className="secondary-action compact">

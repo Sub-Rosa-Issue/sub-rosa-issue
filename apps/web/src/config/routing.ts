@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { UseCaseId } from "./useCases";
 import { USE_CASES } from "./useCases";
 

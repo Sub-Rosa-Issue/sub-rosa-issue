@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export function shortAddr(g: string, n = 6): string {
   if (g.length <= n * 2 + 3) return g;
   return `${g.slice(0, n)}…${g.slice(-n)}`;

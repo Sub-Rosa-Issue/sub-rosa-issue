@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export const DEFAULT_STALE_THRESHOLD_MS = 60_000;
 
 export interface DrandRoundInfo {

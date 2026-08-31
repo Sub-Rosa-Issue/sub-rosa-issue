@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
 import { getUseCase } from "./config/useCases";
 import type { UseCaseId } from "./config/useCases";
@@ -8,6 +9,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { DemoPage } from "./pages/DemoPage";
 import { LandingPage } from "./pages/LandingPage";
 import { ToastProvider } from "./ui/Toast";
+import { TimeProvider } from "./lib/time";
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>(routeFromHash);
@@ -26,7 +28,8 @@ export default function App() {
   const active = getUseCase(route.useCase);
 
   return (
-    <ToastProvider>
+    <TimeProvider>
+      <ToastProvider>
       {route.page === "landing" ? (
         <LandingPage
           onDemo={() => navigate("demo", "auction")}
@@ -48,6 +51,7 @@ export default function App() {
           )}
         </>
       )}
-    </ToastProvider>
+      </ToastProvider>
+    </TimeProvider>
   );
 }

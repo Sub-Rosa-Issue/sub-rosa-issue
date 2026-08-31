@@ -24,6 +24,9 @@ importers:
       '@sub-rosa/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       '@sub-rosa/tlock':
         specifier: workspace:*
         version: link:../../packages/tlock
@@ -110,9 +113,24 @@ importers:
       '@sub-rosa/round-bindings':
         specifier: workspace:*
         version: link:../round-bindings
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../time
       '@sub-rosa/tlock':
         specifier: workspace:*
         version: link:../tlock
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  packages/time:
     devDependencies:
       '@types/node':
         specifier: ^25.9.1
@@ -135,6 +153,9 @@ importers:
       '@noble/hashes':
         specifier: ^2.2.0
         version: 2.2.0
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../time
       drand-client:
         specifier: ^1.4.2
         version: 1.4.2
@@ -166,6 +187,9 @@ importers:
       '@sub-rosa/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       '@sub-rosa/tlock':
         specifier: workspace:*
         version: link:../../packages/tlock
@@ -213,6 +237,9 @@ importers:
       '@sub-rosa/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       '@sub-rosa/tlock':
         specifier: workspace:*
         version: link:../../packages/tlock
@@ -254,6 +281,9 @@ importers:
       '@sub-rosa/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       '@sub-rosa/tlock':
         specifier: workspace:*
         version: link:../../packages/tlock
@@ -276,6 +306,9 @@ importers:
       '@sub-rosa/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       '@sub-rosa/tlock':
         specifier: workspace:*
         version: link:../../packages/tlock

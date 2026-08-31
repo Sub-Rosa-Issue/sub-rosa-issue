@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Risk-2 validation report. Fetches live quicknet data, confirms the message/DST
 // the contract must use, and emits the exact Soroban-encoded constants for the
 // deploy configuration (drand_pubkey, negated G2 generator, DST).

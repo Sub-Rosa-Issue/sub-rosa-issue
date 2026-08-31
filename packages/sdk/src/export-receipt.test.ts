@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // exportReceipt integration test — no network, no deploy.
 //
 // Verifies that the receipt produced by SubRosaClient.exportReceipt() includes

@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/demo/trace-health-check.test.ts src/lib/config.test.ts src/dashboard/fixture-health-check.test.ts src/lib/round-status.test.ts src/components/dashboard/RoundStatusCard.test.tsx",
+    "test": "node --import tsx --test src/demo/trace-health-check.test.ts src/lib/config.test.ts src/lib/chain.test.ts src/dashboard/fixture-health-check.test.ts src/lib/round-status.test.ts src/components/dashboard/RoundStatusCard.test.tsx src/hooks/useDashboardData.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
     "@stellar/stellar-sdk": "^15.1.0",
     "@sub-rosa/agent": "workspace:*",
     "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/tlock": "workspace:*",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa Round Contract
 
 Soroban primitive that runs a sealed commit → verifiable-reveal →

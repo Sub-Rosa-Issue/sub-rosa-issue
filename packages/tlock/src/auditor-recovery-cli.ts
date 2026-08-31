@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { readFileSync } from "node:fs";
 
 import { openIdentity } from "./auditor.js";

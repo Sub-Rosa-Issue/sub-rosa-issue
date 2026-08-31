@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Keeper CLI entry. Runs one full pass over a round (wait for R → open → reveal
 // all) and prints the result. Re-running is safe: completed work is skipped.
 //

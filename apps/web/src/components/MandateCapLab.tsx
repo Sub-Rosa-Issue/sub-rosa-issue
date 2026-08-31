@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useState } from "react";
 import { CAP_SAFETY_COPY } from "../demo/trace";
 import type { CapDemoResult } from "../lib/demoTypes";

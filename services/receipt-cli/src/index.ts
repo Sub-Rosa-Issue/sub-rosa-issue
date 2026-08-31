@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Sub Rosa contributors
 // receipt-cli — export a round receipt from RPC or verify a local file.
 
 import { readFileSync, writeFileSync } from "node:fs";
