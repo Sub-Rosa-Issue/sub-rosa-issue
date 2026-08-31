@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { motion } from "framer-motion";
 import type { UseCase } from "../config/useCases";
 

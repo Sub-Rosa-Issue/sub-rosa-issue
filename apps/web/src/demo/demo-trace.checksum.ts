@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Checksum guard for the canonical demo trace.
 // Prevents accidental edits to demo-trace.generated.ts that break the public web demo.
 //

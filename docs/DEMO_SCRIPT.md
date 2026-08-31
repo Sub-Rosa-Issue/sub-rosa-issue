@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Demo Script (~5 Minutes)
 
 Walkthrough for `pnpm web:dev` (default http://localhost:5173).

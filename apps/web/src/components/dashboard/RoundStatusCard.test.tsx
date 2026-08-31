@@ -1,13 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createFakeTime } from "@sub-rosa/time";
 
 import { DASHBOARD_FIXTURE } from "../../dashboard/fixture";
 import type { DashboardData } from "../../dashboard/types";
+import { TimeProvider } from "../../lib/time";
 import { RoundStatusCard } from "./RoundStatusCard";
 
-function renderCard(data: DashboardData): string {
-  return renderToStaticMarkup(<RoundStatusCard data={data} />);
+const QUICKNET_GENESIS = 1_692_803_367;
+const QUICKNET_PERIOD = 3;
+
+function drandPublishedNowMs(revealRound: number): number {
+  return (QUICKNET_GENESIS + QUICKNET_PERIOD * revealRound + 1) * 1000;
+}
+
+function renderCard(data: DashboardData, nowMs?: number): string {
+  const fake = createFakeTime(nowMs ?? drandPublishedNowMs(data.round.revealRound));
+  return renderToStaticMarkup(
+    <TimeProvider value={fake}>
+      <RoundStatusCard data={data} />
+    </TimeProvider>,
+  );
 }
 
 test("round status card renders settled phase and past Drand countdown", () => {
@@ -19,7 +33,7 @@ test("round status card renders settled phase and past Drand countdown", () => {
 });
 
 test("round status card renders open phase and live countdown copy", () => {
-  const nowSeconds = Math.floor(Date.now() / 1000);
+  const nowSeconds = 1_700_000_000;
   const data: DashboardData = {
     ...DASHBOARD_FIXTURE,
     round: {
@@ -33,7 +47,7 @@ test("round status card renders open phase and live countdown copy", () => {
     },
   };
 
-  const html = renderCard(data);
+  const html = renderCard(data, nowSeconds * 1000);
 
   assert.match(html, /Open/);
   assert.match(html, /until R 99,999,999/);

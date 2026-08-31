@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Soroban BLS12-381 serialization helpers.
 //
 // Soroban host functions expect *uncompressed, big-endian* points:

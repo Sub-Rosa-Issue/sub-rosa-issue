@@ -42,6 +42,13 @@ import {
 } from "./errors.js";
 import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 import { validateContractNetwork } from "./network.js";
+import {
+  resolveTimeContext,
+  systemTime,
+  type Clock,
+  type PartialTimeContext,
+  type Scheduler,
+} from "@sub-rosa/time";
 
 export interface SubRosaClientConfig {
   /** Soroban RPC endpoint, e.g. https://soroban-testnet.stellar.org */
@@ -75,7 +82,10 @@ export interface SubRosaClientConfig {
    * using an external submitter. Must be at least 100. Default: 1_500.
    */
   pollInterval?: number;
+  /** Injectable wall clock and scheduler. Default: systemTime. */
+  time?: PartialTimeContext;
   /**
+   * @deprecated Use `time.scheduler.sleep` or inject `time`.
    * @internal Testing hook: override the poll-loop sleep function.
    */
   _sleep?: (ms: number) => Promise<void>;
@@ -139,6 +149,8 @@ export class SubRosaClient {
   readonly #submitter?: TransactionSubmitter;
   readonly #confirmTimeout: number;
   readonly #pollInterval: number;
+  readonly #clock: Clock;
+  readonly #scheduler: Scheduler;
   readonly #server: rpc.Server;
   #networkValidation?: Promise<void>;
 
@@ -180,8 +192,12 @@ export class SubRosaClient {
     this.#submitter = config.submitter;
     this.#confirmTimeout = confirmTimeout;
     this.#pollInterval = pollInterval;
+    const time = resolveTimeContext(systemTime, config.time);
+    this.#clock = time.clock;
+    this.#scheduler = time.scheduler;
     this.#server = config._server ?? new rpc.Server(config.rpcUrl, { allowHttp });
     if (config._sleep) this.#sleep = config._sleep;
+    else this.#sleep = (ms) => this.#scheduler.sleep(ms);
     this.contract = new RoundContract({
       contractId: this.contractId,
       networkPassphrase: config.networkPassphrase,
@@ -250,9 +266,9 @@ export class SubRosaClient {
       );
     }
     const server = new rpc.Server(this.#rpcUrl, { allowHttp: this.#allowHttp });
-    const deadline = Date.now() + this.#confirmTimeout;
+    const deadline = this.#clock.nowMs() + this.#confirmTimeout;
     let lastStatus = "NOT_FOUND";
-    while (Date.now() < deadline) {
+    while (this.#clock.nowMs() < deadline) {
       let res;
       try {
         res = await server.getTransaction(submitted.hash);
@@ -283,8 +299,7 @@ export class SubRosaClient {
     });
   }
 
-  #sleep: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
+  #sleep: (ms: number) => Promise<void> = (ms) => this.#scheduler.sleep(ms);
 
   // ── State-changing calls (sign + submit over RPC) ──────────────────────
 
@@ -646,7 +661,7 @@ export class SubRosaClient {
       network: this.networkPassphrase,
       networkFingerprint: networkFingerprint(this.networkPassphrase),
       contractId: this.contractId,
-      exportedAt: new Date().toISOString(),
+      exportedAt: this.#clock.toISOString(),
       roundId: rid.toString(),
       itemRef: toHex(round.item_ref),
       revealRound: Number(round.reveal_round),

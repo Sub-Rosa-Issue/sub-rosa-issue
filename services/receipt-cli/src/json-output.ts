@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { serializeReceipt, type RoundReceipt, type VerificationResult } from "@sub-rosa/sdk";
+import { systemClock } from "@sub-rosa/time";
 
 export interface JsonIssue {
   code: string;
@@ -21,7 +22,7 @@ export function buildJsonOutput(
   result: VerificationResult | null,
   parseError: string | null,
 ): JsonVerifyOutput {
-  const checkedAt = new Date().toISOString();
+  const checkedAt = systemClock.toISOString();
 
   if (parseError !== null || receipt === null || result === null) {
     return {

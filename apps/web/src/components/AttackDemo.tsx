@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useState } from "react";
 import type { AttackStep } from "../lib/demoTypes";
 import { useToast } from "../ui/Toast";

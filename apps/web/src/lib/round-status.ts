@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export type BadgeState = "loading" | "empty" | "error" | "stale" | "found";
 
 export interface RoundStatusInfo {

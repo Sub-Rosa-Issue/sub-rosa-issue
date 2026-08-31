@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DemoTrace } from "./trace";
 
 type UnknownRecord = Record<string, unknown>;

@@ -20,8 +20,11 @@ import {
   quicknet,
   sealBid,
 } from "@sub-rosa/tlock";
+import { systemTime } from "@sub-rosa/time";
 
 import { keepRound } from "../src/keeper.js";
+
+const { clock, scheduler } = systemTime;
 
 const DRAND_GENESIS = 1_692_803_367;
 const DRAND_PERIOD = 3;
@@ -85,7 +88,7 @@ async function main() {
 
   // 2. createRound with R ~150s out.
   const operator = new SubRosaClient({ rpcUrl: RPC_URL, networkPassphrase: NETWORK, contractId, secretKey: operatorSecret });
-  const now = Math.floor(Date.now() / 1000);
+  const now = clock.nowSeconds();
   const commitDeadline = now + 90;
   const revealRound = Math.ceil((now + 150 - DRAND_GENESIS) / DRAND_PERIOD);
   const tReveal = DRAND_GENESIS + DRAND_PERIOD * revealRound;
@@ -129,7 +132,7 @@ async function main() {
   let res = await keepRound({ sdk: keeperSdk, drand, log, maxWaitSeconds: 240, pollMs: 5000 }, roundId);
   // Tolerate API replica lag at the R boundary with a couple of re-passes.
   for (let i = 0; i < 3 && res.finalStatus === "Open"; i++) {
-    await new Promise((r) => setTimeout(r, 5000));
+    await scheduler.sleep(5000);
     res = await keepRound({ sdk: keeperSdk, drand, log, maxWaitSeconds: 60, pollMs: 5000 }, roundId);
   }
   console.log("    keeper pass #1:", JSON.stringify(res, bigintReplacer));

@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useDrandCountdown, formatCountdown } from "../../hooks/useDrandCountdown";
 import { shortAddr } from "../../lib/format";
 import { classifyRoundPhase, type RoundPhase } from "../../lib/round-phase";
+import { useTime } from "../../lib/time";
 import type { DashboardData, RoundStatus } from "../../dashboard/types";
 
 function StatusPill({ status }: { status: RoundStatus }) {
@@ -27,18 +29,18 @@ function DeadlineRow({
   label,
   deadline,
   isPast,
+  nowSeconds,
 }: {
   label: string;
   deadline: number;
   isPast: boolean;
+  nowSeconds: number;
 }) {
-  const date = new Date(deadline * 1000);
-  const formatted = date.toLocaleString(undefined, {
+  const formatted = new Intl.DateTimeFormat(undefined, {
     dateStyle: "short",
     timeStyle: "short",
-  });
-  const now = Math.floor(Date.now() / 1000);
-  const remaining = deadline - now;
+  }).format(deadline * 1000);
+  const remaining = deadline - nowSeconds;
 
   return (
     <div className="dashboard-deadline-row">
@@ -56,8 +58,9 @@ function DeadlineRow({
 }
 
 export function RoundStatusCard({ data }: { data: DashboardData }) {
+  const { clock } = useTime();
   const drand = useDrandCountdown(data.round.revealRound);
-  const now = Math.floor(Date.now() / 1000);
+  const now = clock.nowSeconds();
   const commitPast = now > data.round.commitDeadline;
   const revealPast = now > data.round.revealDeadline;
   const phase = classifyRoundPhase({
@@ -133,11 +136,13 @@ export function RoundStatusCard({ data }: { data: DashboardData }) {
             label="Commit deadline"
             deadline={data.round.commitDeadline}
             isPast={commitPast}
+            nowSeconds={now}
           />
           <DeadlineRow
             label="Reveal deadline"
             deadline={data.round.revealDeadline}
             isPast={revealPast}
+            nowSeconds={now}
           />
         </div>
       </div>

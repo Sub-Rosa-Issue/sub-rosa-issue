@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { formatCountdown, useDrandCountdown } from "../hooks/useDrandCountdown";
 
 type ChipMode = "live-round" | "proof" | "idle";

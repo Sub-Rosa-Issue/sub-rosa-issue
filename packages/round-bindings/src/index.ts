@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { Buffer } from "buffer";
 import { Address } from "@stellar/stellar-sdk";
 import {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 Sub Rosa contributors
 'use strict';
 
 const fs = require('fs');
@@ -16,7 +17,7 @@ const FILES = [
   'docs/DEMO_SCRIPT.md',
   'docs/INTEGRATION.md',
   'docs/RECEIPTS.md',
-  'docs/SCF_PLAN.md',
+  'docs/SCF_TRANCHE_PLAN.md',
   'docs/CV_LABS_APPLICATION.md',
   'docs/LIMITATIONS.md',
   'docs/ECOSYSTEM.md',
