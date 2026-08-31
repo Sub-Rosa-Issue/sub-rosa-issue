@@ -16,6 +16,39 @@ export interface FreshnessResult {
 }
 
 /**
+ * Derives a Drand round publication timestamp in milliseconds, rejecting
+ * intermediate calculations that would exceed Number.MAX_SAFE_INTEGER.
+ */
+export function computePublishAtMs(info: DrandRoundInfo, round: number): number | null {
+  if (!Number.isSafeInteger(round) || round <= 0) {
+    return null;
+  }
+  if (!Number.isSafeInteger(info.period) || info.period <= 0) {
+    return null;
+  }
+  if (!Number.isSafeInteger(info.genesis_time) || info.genesis_time < 0) {
+    return null;
+  }
+
+  const offsetSeconds = info.period * round;
+  if (!Number.isSafeInteger(offsetSeconds)) {
+    return null;
+  }
+
+  const publishAtSeconds = info.genesis_time + offsetSeconds;
+  if (!Number.isSafeInteger(publishAtSeconds) || publishAtSeconds < 0) {
+    return null;
+  }
+
+  const publishAtMs = publishAtSeconds * 1000;
+  if (!Number.isSafeInteger(publishAtMs)) {
+    return null;
+  }
+
+  return publishAtMs;
+}
+
+/**
  * Classifies a Drand round's freshness deterministically using the current time
  * and Drand network info.
  */
@@ -41,8 +74,10 @@ export function classifyDrandRound(
     return { status: "unknown", reason: "invalid timestamp" };
   }
 
-  // Compute publish time matching the existing keeper logic convention.
-  const publishAtMs = (info.genesis_time + info.period * round) * 1000;
+  const publishAtMs = computePublishAtMs(info, round);
+  if (publishAtMs == null) {
+    return { status: "unknown", reason: "timestamp overflow or unsafe calculation" };
+  }
 
   if (nowMs < publishAtMs) {
     return {
