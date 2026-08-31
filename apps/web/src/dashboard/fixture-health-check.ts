@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DashboardData, KeeperDryRunPhase, RoundStatus } from "./types";
 
 type UnknownRecord = Record<string, unknown>;

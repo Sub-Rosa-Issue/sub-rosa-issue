@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Session mandate — scoped authorization for an autonomous bidder agent.
 //
 // A human/principal wallet signs a mandate that binds a session public key to a
@@ -10,6 +11,7 @@
 import { createHash } from "node:crypto";
 
 import { Keypair } from "@stellar/stellar-sdk";
+import { systemClock } from "@sub-rosa/time";
 
 export const MANDATE_VERSION = 1;
 
@@ -47,6 +49,44 @@ export interface SessionMandate extends SessionMandatePayload {
 export class MandateError extends Error {}
 export class MandateCapError extends MandateError {}
 
+function invalidNumericField(field: string): never {
+  throw new MandateError(`invalid mandate ${field}`);
+}
+
+function assertSafeMandateInteger(value: number, field: string, minimum = 0): void {
+  if (!Number.isSafeInteger(value) || value < minimum) invalidNumericField(field);
+}
+
+function assertMandateIntegerString(value: string, field: string, minimum = 0n): void {
+  if (!/^(0|[1-9]\d*)$/.test(value)) invalidNumericField(field);
+  const parsed = BigInt(value);
+  if (parsed < minimum) invalidNumericField(field);
+}
+
+function validateMandateNumbers(payload: SessionMandatePayload): void {
+  assertSafeMandateInteger(payload.basePriceUsdc, "basePriceUsdc");
+  assertSafeMandateInteger(payload.commitDeadline, "commitDeadline");
+  assertSafeMandateInteger(payload.issuedAt, "issuedAt");
+  assertSafeMandateInteger(payload.expiresAt, "expiresAt");
+  assertMandateIntegerString(payload.roundId, "roundId", 1n);
+  assertMandateIntegerString(payload.maxBidStroops, "maxBidStroops");
+  assertMandateIntegerString(payload.maxEscrowStroops, "maxEscrowStroops");
+  assertMandateIntegerString(payload.maxAppraisalSpendStroops, "maxAppraisalSpendStroops");
+  assertMandateIntegerString(payload.appraisalPriceStroops, "appraisalPriceStroops");
+}
+
+function validateMandateTimestampOrdering(payload: SessionMandatePayload): void {
+  if (payload.issuedAt > payload.expiresAt) {
+    throw new MandateError("issuedAt must be <= expiresAt");
+  }
+  if (payload.issuedAt > payload.commitDeadline) {
+    throw new MandateError("issuedAt must be <= commitDeadline");
+  }
+  if (payload.commitDeadline > payload.expiresAt) {
+    throw new MandateError("commitDeadline must be <= expiresAt");
+  }
+}
+
 const canonical = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object") {
@@ -65,11 +105,31 @@ export function mandateDigest(payload: SessionMandatePayload): Buffer {
 }
 
 export function usdcToStroops(amount: number): bigint {
-  return BigInt(Math.round(amount * 1e7));
+  if (!Number.isFinite(amount)) {
+    throw new MandateError(`usdc amount must be a finite number, got ${amount}`);
+  }
+  if (amount < 0) {
+    throw new MandateError(`usdc amount must be non-negative, got ${amount}`);
+  }
+  const scaled = Math.round(amount * 1e7);
+  if (!Number.isSafeInteger(scaled)) {
+    throw new MandateError(`usdc amount ${amount} is out of stroop-safe range`);
+  }
+  return BigInt(scaled);
 }
 
 export function stroopsToUsdc(stroops: bigint): number {
-  return Number(stroops) / 1e7;
+  if (typeof stroops !== "bigint") {
+    throw new MandateError(`stroops must be a bigint, got ${typeof stroops}`);
+  }
+  if (stroops < 0n) {
+    throw new MandateError(`stroops must be non-negative, got ${stroops}`);
+  }
+  // Split whole/fraction to avoid `Number(bigint)` precision loss for large
+  // escrow/bid values that exceed Number's safe integer range.
+  const whole = Number(stroops / 10_000_000n);
+  const frac = Number(stroops % 10_000_000n) / 1e7;
+  return whole + frac;
 }
 
 export interface CreateMandateParams {
@@ -88,6 +148,8 @@ export interface CreateMandateParams {
   ttlSeconds?: number;
   /** Optional pre-generated session secret; otherwise a fresh keypair is created. */
   sessionSecret?: string;
+  /** Injectable wall clock. Default: systemClock. */
+  clock?: import("@sub-rosa/time").Clock;
 }
 
 /** Issue a fresh session key + principal-signed mandate. */
@@ -99,7 +161,8 @@ export function createSessionMandate(params: CreateMandateParams): {
   const session = params.sessionSecret
     ? Keypair.fromSecret(params.sessionSecret)
     : Keypair.random();
-  const now = Math.floor(Date.now() / 1000);
+  const clock = params.clock ?? systemClock;
+  const now = clock.nowSeconds();
   const payload: SessionMandatePayload = {
     version: MANDATE_VERSION,
     principal: principal.publicKey(),
@@ -117,6 +180,8 @@ export function createSessionMandate(params: CreateMandateParams): {
     issuedAt: now,
     expiresAt: now + (params.ttlSeconds ?? 3600),
   };
+  validateMandateNumbers(payload);
+  validateMandateTimestampOrdering(payload);
   const sig = principal.sign(mandateDigest(payload));
   return {
     mandate: { ...payload, signature: sig.toString("base64") },
@@ -127,7 +192,7 @@ export function createSessionMandate(params: CreateMandateParams): {
 /** Verify principal signature, expiry, and round binding. */
 export function verifySessionMandate(
   mandate: SessionMandate,
-  opts?: { contractId?: string; roundId?: bigint | number; now?: number },
+  opts?: { contractId?: string; roundId?: bigint | number; now?: number; clock?: import("@sub-rosa/time").Clock },
 ): void {
   if (mandate.version !== MANDATE_VERSION) {
     throw new MandateError(`unsupported mandate version ${mandate.version}`);
@@ -140,7 +205,10 @@ export function verifySessionMandate(
   );
   if (!ok) throw new MandateError("invalid mandate signature");
 
-  const now = opts?.now ?? Math.floor(Date.now() / 1000);
+  validateMandateNumbers(payload);
+  validateMandateTimestampOrdering(payload);
+
+  const now = opts?.now ?? (opts?.clock ?? systemClock).nowSeconds();
   if (now > mandate.expiresAt) throw new MandateError("mandate expired");
   if (now > mandate.commitDeadline) throw new MandateError("commit deadline passed");
 
@@ -176,6 +244,26 @@ export function assertAppraisalSpendAllowed(
       `appraisal spend ${next} would exceed mandate cap ${mandate.maxAppraisalSpendStroops}`,
     );
   }
+}
+
+/** Remaining x402 appraisal budget (stroops) before the mandate cap is hit. */
+export function remainingAppraisalSpend(
+  mandate: SessionMandate,
+  spentSoFarStroops: bigint = 0n,
+): bigint {
+  if (typeof spentSoFarStroops !== "bigint" || spentSoFarStroops < 0n) {
+    throw new MandateError(
+      `spentSoFarStroops must be a non-negative bigint, got ${String(spentSoFarStroops)}`,
+    );
+  }
+  const cap = BigInt(mandate.maxAppraisalSpendStroops);
+  const remaining = cap - spentSoFarStroops;
+  if (remaining < 0n) {
+    throw new MandateCapError(
+      `appraisal spend ${spentSoFarStroops} already exceeds mandate cap ${cap}`,
+    );
+  }
+  return remaining;
 }
 
 /** Refuse a bid/escrow pair that exceeds mandate caps (agent-side guard). */

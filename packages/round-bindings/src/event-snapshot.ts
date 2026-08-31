@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Round contract event snapshot.
 //
 // Generated Soroban bindings (`@sub-rosa/round-bindings`) expose the contract's

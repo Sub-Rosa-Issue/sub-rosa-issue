@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { motion, useReducedMotion } from "framer-motion";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { LOGO_SRC } from "../lib/chain";
@@ -11,7 +12,10 @@ import {
 } from "../components/dashboard";
 
 function StaleBanner({ fetchedAt }: { fetchedAt: string }) {
-  const date = new Date(fetchedAt);
+  const formatted = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(Date.parse(fetchedAt));
   return (
     <div className="dashboard-stale-banner">
       <svg
@@ -30,7 +34,7 @@ function StaleBanner({ fetchedAt }: { fetchedAt: string }) {
       </svg>
       <span>
         Data may be stale. Last fetched:{" "}
-        {date.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
+        {formatted}
       </span>
     </div>
   );

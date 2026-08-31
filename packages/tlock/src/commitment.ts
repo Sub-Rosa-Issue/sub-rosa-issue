@@ -103,4 +103,3 @@ export function fromHex(hex: string): Uint8Array {
   }
   return out;
 }
-

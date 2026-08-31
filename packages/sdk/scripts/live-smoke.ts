@@ -20,6 +20,7 @@ import {
   quicknet,
   sealBid,
 } from "@sub-rosa/tlock";
+import { systemClock } from "@sub-rosa/time";
 
 import { RoundContract, SubRosaClient } from "../src/index.js";
 
@@ -92,7 +93,7 @@ async function main() {
     secretKey: operatorSecret,
   });
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = systemClock.nowSeconds();
   // Pick R so time(R) = genesis + period·R lands ~5 min in the future, then
   // bracket it: now < commit_deadline < time(R) < reveal_deadline.
   const tReveal = now + 300;

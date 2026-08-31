@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Emit a frozen quicknet test vector for the contract's Rust BLS test.
 // Real network data captured at a fixed finalized round — not a mock.
 

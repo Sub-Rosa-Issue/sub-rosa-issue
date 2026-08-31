@@ -110,6 +110,23 @@ export {
   type Severity,
 } from "./verify.js";
 
+// Round-status predicates and human-readable labels. Mirror
+// services/keeper/src/status.ts status vocab.
+export {
+  ACTIVE_ROUND_STATUSES,
+  TERMINAL_ROUND_STATUSES,
+  ERROR_ROUND_STATUSES,
+  type RoundStatusClass,
+  classifyRoundStatus,
+  isActiveRoundStatus,
+  isTerminalRoundStatus,
+  isErrorRoundStatus,
+  roundStatusLabel,
+  isKeeperRoundActive,
+  isKeeperRoundTerminal,
+  isKeeperRoundSettlementPending,
+} from "./round-status.js";
+
 // Keeper status-API response shapes. Mirror services/keeper/src/status.ts.
 export {
   type RoundStatus,
@@ -126,6 +143,7 @@ export {
 export {
   KeeperStatusClient,
   StatusApiError,
+  StatusJsonParseError,
   type StatusClientOptions,
   fetchKeeperStatus,
 } from "./status-client.js";

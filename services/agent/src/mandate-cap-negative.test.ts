@@ -15,19 +15,24 @@ import {
   MandateCapError,
   usdcToStroops,
 } from "./mandate.js";
+import { createFakeTime } from "@sub-rosa/time";
 
-const base = () => ({
-  principalSecret: Keypair.random().secret(),
-  contractId: "CDEMOCONTRACT",
-  roundId: 1,
-  itemRef: "demo-item",
-  basePriceUsdc: 500,
-  maxBidStroops: usdcToStroops(100),
-  maxEscrowStroops: usdcToStroops(100),
-  maxAppraisalSpendStroops: usdcToStroops(0.5),
-  appraisalPriceStroops: usdcToStroops(0.1),
-  commitDeadline: Math.floor(Date.now() / 1000) + 3600,
-});
+const base = () => {
+  const { clock } = createFakeTime(1_700_000_000_000);
+  return {
+    principalSecret: Keypair.random().secret(),
+    contractId: "CDEMOCONTRACT",
+    roundId: 1,
+    itemRef: "demo-item",
+    basePriceUsdc: 500,
+    maxBidStroops: usdcToStroops(100),
+    maxEscrowStroops: usdcToStroops(100),
+    maxAppraisalSpendStroops: usdcToStroops(0.5),
+    appraisalPriceStroops: usdcToStroops(0.1),
+    commitDeadline: clock.nowSeconds() + 3600,
+    clock,
+  };
+};
 
 test("NEGATIVE: agent rejects x402 price above mandate appraisalPriceStroops", () => {
   const { mandate } = createSessionMandate(base());

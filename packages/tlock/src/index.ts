@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export {
   commitment,
   encodeBidPreimage,
@@ -32,6 +33,13 @@ export {
 } from "./quicknet.js";
 
 export { drandSignatureToSoroban, encodeG1Soroban } from "./bls.js";
+
+export {
+  assertChainInfo,
+  assertBeacon,
+  type RawChainInfo,
+  type RawBeacon,
+} from "./validate.js";
 
 export {
   sealBid,

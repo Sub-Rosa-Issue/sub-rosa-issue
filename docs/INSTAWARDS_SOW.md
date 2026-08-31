@@ -22,10 +22,10 @@
 
 ### Supporting Links (Existing Work)
 
-- GitHub repo: https://github.com/karagozemin/Sub-Rosa
+- GitHub repo: https://github.com/Sub-Rosa-Issue/sub-rosa-issue
 - Live demo: https://sub-rosa-web.vercel.app
 - Demo video: https://youtu.be/NDuR5B2ztQo
-- Architecture: https://github.com/karagozemin/Sub-Rosa/blob/main/ARCHITECTURE.md
+- Architecture: https://github.com/Sub-Rosa-Issue/sub-rosa-issue/blob/main/ARCHITECTURE.md
 - Pitch deck: https://gamma.app/docs/SUB-ROSA-g8o9ulvc7nezz4j?mode=doc
 
 ---

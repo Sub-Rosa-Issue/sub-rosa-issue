@@ -4,8 +4,10 @@ import { test } from "node:test";
 import { Keypair } from "@stellar/stellar-sdk";
 
 import { bidFromAppraisal, createSessionMandate, usdcToStroops } from "./mandate.js";
+import { createFakeTime } from "@sub-rosa/time";
 
 test("two agents with different appraisal inputs produce different bid sizes under same cap", () => {
+  const { clock } = createFakeTime(1_700_000_000_000);
   const common = {
     contractId: "CCONTRACT123456789012345678901234567890123456789012345678901234",
     roundId: 7n,
@@ -16,7 +18,8 @@ test("two agents with different appraisal inputs produce different bid sizes und
     maxEscrowStroops: usdcToStroops(200),
     maxAppraisalSpendStroops: usdcToStroops(1),
     appraisalPriceStroops: usdcToStroops(0.1),
-    commitDeadline: Math.floor(Date.now() / 1000) + 3600,
+    commitDeadline: clock.nowSeconds() + 3600,
+    clock,
   };
 
   // Suggested max bids (USDC) that stay under the shared cap and differ.

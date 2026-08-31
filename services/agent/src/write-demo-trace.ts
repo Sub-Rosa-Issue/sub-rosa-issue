@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 

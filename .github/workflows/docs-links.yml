@@ -12,6 +12,11 @@ on:
       - 'scripts/check-links.js'
       - '.github/workflows/docs-links.yml'
 
+permissions:
+  # Los cuatro workflows solo leen el repo: clonan, instalan y corren
+  # tests. Ninguno hace push, ni comenta, ni publica, ni toca secrets.
+  contents: read
+
 jobs:
   check-links:
     runs-on: ubuntu-latest

@@ -32,8 +32,11 @@ import {
   quicknet,
   sealBid,
 } from "@sub-rosa/tlock";
+import { systemTime } from "@sub-rosa/time";
 
 import { closeRound, keepRound } from "../src/keeper.js";
+
+const { clock, scheduler } = systemTime;
 
 const DRAND_GENESIS = 1_692_803_367;
 const DRAND_PERIOD = 3;
@@ -49,7 +52,7 @@ const NETWORK =
 
 const hex = (s: string) => Buffer.from(s, "hex");
 const sha256 = (s: string) => createHash("sha256").update(s).digest();
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => scheduler.sleep(ms);
 const reqEnv = (n: string): string => {
   const v = process.env[n];
   if (!v) throw new Error(`missing required env var ${n}`);
@@ -129,7 +132,7 @@ async function main() {
 
   // ── 2. createRound (HighestBid) with a short, near-future R ────────────
   const operator = new SubRosaClient({ rpcUrl: RPC_URL, networkPassphrase: NETWORK, contractId, secretKey: operatorSecret });
-  const now = Math.floor(Date.now() / 1000);
+  const now = clock.nowSeconds();
   const commitDeadline = now + 75;
   const revealRound = Math.ceil((now + 135 - DRAND_GENESIS) / DRAND_PERIOD);
   const tReveal = DRAND_GENESIS + DRAND_PERIOD * revealRound;
@@ -183,7 +186,7 @@ async function main() {
   ];
   await writeAuditorTrace("artifacts/lifecycle-auditor-trace.json", {
     source: "lifecycle:e2e",
-    generatedAt: new Date().toISOString(),
+    generatedAt: clock.toISOString(),
     network: "Stellar Testnet",
     contractId,
     roundId: Number(roundId),
@@ -215,8 +218,8 @@ async function main() {
 
   // ── 5. Wait out the reveal deadline ────────────────────────────────────
   console.log("\n[5/8] waiting for the reveal deadline to pass…");
-  while (Math.floor(Date.now() / 1000) <= revealDeadline + 3) {
-    const remain = revealDeadline + 4 - Math.floor(Date.now() / 1000);
+  while (clock.nowSeconds() <= revealDeadline + 3) {
+    const remain = revealDeadline + 4 - clock.nowSeconds();
     if (remain > 0) { log(`~${remain}s until reveal deadline`); await sleep(Math.min(5000, remain * 1000)); }
   }
 

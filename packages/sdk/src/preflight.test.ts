@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { rpc } from "@stellar/stellar-sdk";

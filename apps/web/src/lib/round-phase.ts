@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { RoundStatus } from "../dashboard/types";
 
 export type RoundPhase = "Open" | "Reveal" | "Settled";

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { BadgeState } from "../lib/round-status";
 
 export interface RoundStatusBadgeProps {

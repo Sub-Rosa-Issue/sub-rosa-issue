@@ -76,7 +76,7 @@ export async function openBid(
   client: DrandClient,
 ): Promise<OpenedBid> {
   if (!ciphertext || ciphertext.length === 0) {
-    throw new Error("ciphertext is empty");
+    throw new Error("ciphertext is empty; ciphertext must not be empty");
   }
   const armored = utf8Decode.decode(ciphertext);
   const plaintext = await timelockDecrypt(armored, client);

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -111,3 +112,13 @@ test("toHex produces clean lowercase hex strings", () => {
   assert.equal(toHex(new Uint8Array([])), "");
 });
 
+test("isValidHex agrees with fromHex's accept/reject decisions", () => {
+  for (const hex of ["abcdef", "ABCDEF", "0xAbCdEf", "0XABCDEF", "", "0x"]) {
+    assert.equal(isValidHex(hex), true, hex);
+    assert.doesNotThrow(() => fromHex(hex));
+  }
+  for (const hex of ["abc", "zz", "12 3", "0x12gg"]) {
+    assert.equal(isValidHex(hex), false, hex);
+    assert.throws(() => fromHex(hex));
+  }
+});

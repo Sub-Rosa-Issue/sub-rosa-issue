@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as sdk from "./index.js";
@@ -5,6 +6,8 @@ import * as sdk from "./index.js";
 const EXPECTED_EXPORTS = [
   "ASSET_FIXTURES",
   "AssetConfigError",
+  "ACTIVE_ROUND_STATUSES",
+  "ERROR_ROUND_STATUSES",
   "KeeperStatusClient",
   "MAINNET_ARTIFACTS",
   "MAINNET_CONFIRM_PHRASE",
@@ -17,6 +20,7 @@ const EXPECTED_EXPORTS = [
   "RoundContract",
   "RoundErrors",
   "StatusApiError",
+  "StatusJsonParseError",
   "SubRosaClient",
   "SubRosaClientConfigError",
   "SubRosaMissingReturnValueError",
@@ -25,9 +29,11 @@ const EXPECTED_EXPORTS = [
   "SubRosaSubmitError",
   "SubRosaTimeoutError",
   "SubRosaTransactionError",
+  "TERMINAL_ROUND_STATUSES",
   "assertMainnetConfirmed",
   "assertMicroAmounts",
   "assertReadinessForExecute",
+  "classifyRoundStatus",
   "contractErrorCode",
   "createOzChannelsSubmitter",
   "createOzChannelsSubmitterFromEnv",
@@ -38,12 +44,19 @@ const EXPECTED_EXPORTS = [
   "fetchKeeperStatus",
   "formatReadinessReport",
   "hasBlockingFailures",
+  "isActiveRoundStatus",
+  "isErrorRoundStatus",
+  "isKeeperRoundActive",
+  "isKeeperRoundSettlementPending",
+  "isKeeperRoundTerminal",
+  "isTerminalRoundStatus",
   "nativeXlmSacId",
   "networkFingerprint",
   "normalizeRoundId",
   "normalizeSorobanContractId",
   "parseReceipt",
   "redactReceipt",
+  "roundStatusLabel",
   "runMainnetReadiness",
   "serializeReceipt",
   "tryDecodeBase64",

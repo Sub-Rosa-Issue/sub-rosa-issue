@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Autonomous bidder agent — appraisal (x402) → seal → commit.
 //
 // The agent never uses the principal key on-chain. It verifies its session

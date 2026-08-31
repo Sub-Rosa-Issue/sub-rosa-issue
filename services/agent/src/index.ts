@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 export {
   MANDATE_VERSION,
   createSessionMandate,
@@ -5,6 +6,7 @@ export {
   assertAppraisalSpendAllowed,
   assertBidWithinMandate,
   bidFromAppraisal,
+  remainingAppraisalSpend,
   mandateDigest,
   usdcToStroops,
   stroopsToUsdc,

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Offline receipt verifier — schema version rejection tests.
 //
 // The verifier must produce a clean, deterministic failure for any receipt

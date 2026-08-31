@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa Round — Contract Error Codes
 
 Every failure mode from the Sub Rosa round contract has a defined code. There

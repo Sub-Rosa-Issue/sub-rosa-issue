@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Shared watch loop. Keeps in-flight rounds moving through
 // void-if-stale → keep → close, persisting status into the KeeperStore and
 // emitting lightweight logs. Independent of how the loop is started
@@ -10,6 +11,7 @@
 
 import type { SubRosaClient } from "@sub-rosa/sdk";
 import type { DrandClient } from "@sub-rosa/tlock";
+import { resolveTimeContext, systemTime, type PartialTimeContext } from "@sub-rosa/time";
 
 import {
   discoverRoundIds,
@@ -32,9 +34,9 @@ export interface RunWatchLoopParams {
   store: KeeperStore;
   settlementGuard: SettlementGuard;
   isStopping: () => boolean;
+  /** Injectable wall clock and scheduler. Default: systemTime. */
+  time?: PartialTimeContext;
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const bigintReplacer = (_k: string, v: unknown): unknown =>
   typeof v === "bigint" ? v.toString() : v;
@@ -71,12 +73,15 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
     store,
     settlementGuard,
     isStopping,
+    time,
   } = params;
 
-  const deps: KeeperDeps = { sdk, drand, log };
+  const resolvedTime = resolveTimeContext(systemTime, time);
+  const { clock, scheduler } = resolvedTime;
+  const deps: KeeperDeps = { sdk, drand, log, time: resolvedTime };
 
   while (!isStopping()) {
-    const started = Date.now();
+    const started = clock.nowMs();
     let discoveredIds: bigint[] = [];
     try {
       discoveredIds = await resolveRoundIds(sdk);
@@ -152,8 +157,8 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
     }
 
     if (isStopping()) break;
-    const elapsed = Date.now() - started;
+    const elapsed = clock.nowMs() - started;
     const wait = Math.max(0, pollMs - elapsed);
-    if (wait > 0) await sleep(wait);
+    if (wait > 0) await scheduler.sleep(wait);
   }
 }
