@@ -7,11 +7,16 @@ function toTrimmedString(value: string | undefined): string | undefined {
 }
 
 export function normalizeRoundId(value: string | number | bigint): bigint {
-  if (typeof value === "bigint") return value;
+  if (typeof value === "bigint") {
+    if (value <= 0n) {
+      throw new Error(`roundId must be a positive integer, got ${value}`);
+    }
+    return value;
+  }
 
   if (typeof value === "number") {
-    if (!Number.isInteger(value)) {
-      throw new Error(`roundId must be an integer, got ${JSON.stringify(value)}`);
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new Error(`roundId must be a positive integer, got ${value}`);
     }
     return BigInt(value);
   }
@@ -21,18 +26,15 @@ export function normalizeRoundId(value: string | number | bigint): bigint {
     throw new Error("roundId must be a non-empty decimal string");
   }
 
-  try {
-    const parsed = BigInt(trimmed);
-    if (parsed < 1n) {
-      throw new Error(`roundId must be a positive integer, got ${JSON.stringify(trimmed)}`);
-    }
-    return parsed;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("roundId")) {
-      throw error;
-    }
+  if (!/^\d+$/.test(trimmed)) {
     throw new Error(`roundId must be a positive integer, got ${JSON.stringify(trimmed)}`);
   }
+
+  const parsed = BigInt(trimmed);
+  if (parsed <= 0n) {
+    throw new Error(`roundId must be a positive integer, got ${JSON.stringify(trimmed)}`);
+  }
+  return parsed;
 }
 
 export function normalizeSorobanContractId(value: string): string {
