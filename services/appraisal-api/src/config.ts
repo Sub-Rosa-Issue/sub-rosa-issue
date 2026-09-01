@@ -116,12 +116,12 @@ function parseRpcUrl(
     return DEFAULT_TESTNET_RPC_URL;
   }
 
+  let url: URL;
   try {
-    const url = new URL(value);
+    url = new URL(value);
     if (url.protocol !== "https:" && url.protocol !== "http:") {
       throw new Error("unsupported protocol");
     }
-    return url.toString().replace(/\/$/, "");
   } catch (cause) {
     throw new AppraisalConfigError(
       "RPC_URL",
@@ -129,6 +129,15 @@ function parseRpcUrl(
       { cause },
     );
   }
+
+  if (url.username || url.password) {
+    throw new AppraisalConfigError(
+      "RPC_URL",
+      "must not contain credentials",
+    );
+  }
+
+  return url.toString().replace(/\/$/, "");
 }
 
 function validateFacilitatorSecret(secret: string): void {
