@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Sub Rosa contributors
+// Copyright 2026 Sub Rosa contributors
 import { Buffer } from "buffer";
 import { Address } from "@stellar/stellar-sdk";
 import {
@@ -100,7 +100,7 @@ auditor_pubkey: Buffer;
  */
 commit_deadline: u64;
   /**
- * Opaque reference to the auction lot or item being sold (hash of an
+ * Opaque reference to the item being sold (hash of an
  * off-chain description). The contract is agnostic to its meaning.
  */
 item_ref: Buffer;
