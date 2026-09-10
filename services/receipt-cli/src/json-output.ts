@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { createHash } from "node:crypto";
 import { serializeReceipt, type RoundReceipt, type VerificationResult } from "@sub-rosa/sdk";
 import { systemClock } from "@sub-rosa/time";
