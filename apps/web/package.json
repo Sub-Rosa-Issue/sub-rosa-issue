@@ -13,7 +13,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/demo/trace-health-check.test.ts src/lib/config.test.ts src/lib/hex.test.ts src/lib/chain.test.ts src/dashboard/fixture-health-check.test.ts src/lib/round-status.test.ts src/components/dashboard/RoundStatusCard.test.tsx src/hooks/useDashboardData.test.ts src/lib/countdown.test.ts && node --experimental-test-module-mocks --import tsx --test src/hooks/useRoundSession.reveal.test.tsx",
+    "test": "node --import tsx --test src/demo/trace-health-check.test.ts src/lib/config.test.ts src/lib/hex.test.ts src/lib/chain.test.ts src/dashboard/fixture-health-check.test.ts src/lib/round-status.test.ts src/components/dashboard/RoundStatusCard.test.tsx src/hooks/useDashboardData.test.ts src/lib/countdown.test.ts && node --experimental-test-module-mocks --import tsx --test src/hooks/useRoundSession.reveal.test.tsx src/hooks/useRoundSession.refresh.test.tsx",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
