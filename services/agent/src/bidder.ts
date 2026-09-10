@@ -10,7 +10,8 @@ import { Keypair } from "@stellar/stellar-sdk";
 import type { Network, SettleResponse } from "@x402/core/types";
 import type { Appraisal, AppraisalAttributes, AppraisalRequest } from "@sub-rosa/appraisal-api";
 import { createPaidFetch } from "@sub-rosa/appraisal-api";
-import { SubRosaClient } from "@sub-rosa/sdk";
+import { systemClock, type Clock } from "@sub-rosa/time";
+import { SubRosaClient, type Round } from "@sub-rosa/sdk";
 import {
   generateNonce,
   quicknet,
@@ -43,6 +44,7 @@ export interface BidderAgentConfig {
   x402Network?: Network;
   drand?: DrandClient;
   log?: (msg: string) => void;
+  clock?: Clock;
 }
 
 export interface BidderAgentResult {
@@ -64,8 +66,32 @@ function appraisalRequest(mandate: SessionMandate, attributes: AppraisalAttribut
   };
 }
 
+export interface BidderDependencies {
+  createClient: (options: ConstructorParameters<typeof SubRosaClient>[0]) => Pick<SubRosaClient, "getRound" | "commit">;
+  createPaidFetch: typeof createPaidFetch;
+  sealBid: typeof sealBid;
+}
+
+const defaultDependencies: BidderDependencies = {
+  createClient: (options) => new SubRosaClient(options),
+  createPaidFetch,
+  sealBid,
+};
+
+function assertCommitEligible(round: Round, roundId: bigint, clock: Clock): void {
+  if (round.status.tag !== "Open") {
+    throw new Error(`round ${roundId} is not open for commits (status=${round.status.tag})`);
+  }
+  const now = clock.nowSeconds();
+  if (!Number.isSafeInteger(now) || now < 0) throw new Error("invalid commit eligibility clock");
+  if (BigInt(now) >= round.commit_deadline) {
+    throw new Error(`round ${roundId} commit deadline has passed`);
+  }
+}
+
 /** Run one autonomous bid: verify mandate → pay appraisal → seal → commit. */
-export async function runBidderAgent(config: BidderAgentConfig): Promise<BidderAgentResult> {
+export async function runBidderAgent(config: BidderAgentConfig, dependencies: BidderDependencies = defaultDependencies): Promise<BidderAgentResult> {
+  const clock = config.clock ?? systemClock;
   const log = config.log ?? (() => {});
   const roundId = BigInt(config.mandate.roundId);
   const sessionKp = Keypair.fromSecret(config.sessionSecret);
@@ -76,25 +102,37 @@ export async function runBidderAgent(config: BidderAgentConfig): Promise<BidderA
   verifySessionMandate(config.mandate, {
     contractId: config.mandate.contractId,
     roundId,
+    clock,
   });
 
-  const reader = new SubRosaClient({
+  const reader = dependencies.createClient({
     rpcUrl: config.rpcUrl,
     networkPassphrase: config.networkPassphrase,
     contractId: config.mandate.contractId,
     publicKey: config.mandate.principal,
   });
   const round = await reader.getRound(roundId);
-  if (round.status.tag !== "Open") {
-    throw new Error(`round ${roundId} is not open for commits (status=${round.status.tag})`);
+  assertCommitEligible(round, roundId, clock);
+  if (!Number.isSafeInteger(config.revealRound) || config.revealRound < 1 ||
+      round.reveal_round < 1n || round.reveal_round > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("reveal round must be a positive safe integer for tlock");
   }
+  if (BigInt(config.revealRound) !== round.reveal_round) {
+    throw new Error("reveal round mismatch with authoritative round");
+  }
+  if (config.auditorPubkey.length !== round.auditor_pubkey.length ||
+      !config.auditorPubkey.every((byte, index) => byte === round.auditor_pubkey[index])) {
+    throw new Error("auditor public key mismatch with authoritative round");
+  }
+  const revealRound = Number(round.reveal_round);
+  const auditorPublicKey = new Uint8Array(round.auditor_pubkey);
 
   const req = appraisalRequest(config.mandate, config.attributes);
   const quotedPrice = BigInt(config.mandate.appraisalPriceStroops);
   assertAppraisalSpendAllowed(config.mandate, quotedPrice, 0n);
 
   log(`paying appraisal (${stroopsToUsdc(quotedPrice)} USDC)…`);
-  const paidFetch = createPaidFetch({
+  const paidFetch = dependencies.createPaidFetch({
     secret: config.sessionSecret,
     network: config.x402Network ?? "stellar:testnet",
     rpcUrl: config.rpcUrl,
@@ -116,23 +154,27 @@ export async function runBidderAgent(config: BidderAgentConfig): Promise<BidderA
   assertBidWithinMandate(config.mandate, bidValue, escrow);
   log(`appraisal → bid ${stroopsToUsdc(bidValue)} USDC (escrow ${stroopsToUsdc(escrow)})`);
 
+  assertCommitEligible(await reader.getRound(roundId), roundId, clock);
   const drand = config.drand ?? quicknet();
   const nonce = generateNonce();
-  const sealed = await sealBid({
+  const sealed = await dependencies.sealBid({
     value: bidValue,
     nonce,
-    round: config.revealRound,
+    round: revealRound,
     client: drand,
     identity: new TextEncoder().encode(`agent:${sessionKp.publicKey()}`),
-    auditorPublicKey: config.auditorPubkey,
+    auditorPublicKey,
   });
 
-  const bidder = new SubRosaClient({
+  const bidder = dependencies.createClient({
     rpcUrl: config.rpcUrl,
     networkPassphrase: config.networkPassphrase,
     contractId: config.mandate.contractId,
     secretKey: config.sessionSecret,
   });
+  // Sealing and simulation may consume the remaining window; the contract is final authority.
+  assertCommitEligible(await reader.getRound(roundId), roundId, clock);
+  verifySessionMandate(config.mandate, { clock, roundId, contractId: config.mandate.contractId });
   await bidder.commit({ roundId, sealed, escrow });
   log(`committed sealed bid for round ${roundId}`);
 

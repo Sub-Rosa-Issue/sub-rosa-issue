@@ -1,5 +1,5 @@
-import { normalizeError, redactValue } from "../packages/logging/src/errors.cjs";
 #!/usr/bin/env node
+import { normalizeError, redactValue } from "../packages/logging/src/errors.cjs";
 import { createLogger } from '../packages/logging/src/index.cjs';
 const diagnostics = createLogger("scripts.run-ts-coverage");
 /**

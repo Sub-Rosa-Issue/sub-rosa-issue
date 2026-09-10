@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.appraisal-api.src.run");
 import { configFromEnv } from "./config.js";

@@ -1,7 +1,7 @@
 import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { Buffer } from "buffer";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getNetworkDetails,
   isConnected,
@@ -92,6 +92,20 @@ export function useRoundSession(active: UseCase) {
     null,
   );
   const contract = useWalletContract(address);
+  const generation = useRef(0);
+  const latestRefresh = useRef(0);
+  const mounted = useRef(true);
+  const roundIds = useRef<Record<UseCaseId, bigint | null>>({ auction: null });
+  const context = useRef({ contract, address, id: active.id });
+  context.current = { contract, address, id: active.id };
+  useEffect(() => {
+    mounted.current = true;
+    generation.current++;
+    return () => {
+      mounted.current = false;
+      generation.current++;
+    };
+  }, [contract, address, active.id]);
   const session = sessions[active.id];
   const { auditorPublicKey, commitValue, sealedCiphertext, live, log, roundId, roundCreatedAt } =
     session;
@@ -113,6 +127,10 @@ export function useRoundSession(active: UseCase) {
   }, [active.id, active.defaultValue]);
 
   function updateSession(id: UseCaseId, patch: Partial<CaseSession>) {
+    if ("roundId" in patch) {
+      roundIds.current[id] = patch.roundId ?? null;
+      generation.current++;
+    }
     setSessions((prev) => ({
       ...prev,
       [id]: { ...prev[id], ...patch },
@@ -127,17 +145,29 @@ export function useRoundSession(active: UseCase) {
   }
 
   async function refresh(targetRoundId = roundId, id = active.id) {
-    if (!contract || targetRoundId == null) return;
-    const round = await contract.get_round({ round_id: targetRoundId });
-    const bidders = await contract.get_bidders({ round_id: targetRoundId });
-    const bidStates: Record<string, BidState> = {};
-    for (const bidder of bidders.result.unwrap()) {
-      const state = await contract.get_bid_state({ round_id: targetRoundId, bidder });
-      bidStates[bidder] = state.result.unwrap();
+    if (!contract || targetRoundId == null || !mounted.current ||
+        context.current.contract !== contract || context.current.address !== address ||
+        context.current.id !== id || roundIds.current[id] !== targetRoundId) return;
+    const startedGeneration = generation.current;
+    const request = ++latestRefresh.current;
+    const isCurrent = () => mounted.current && generation.current === startedGeneration &&
+      latestRefresh.current === request && roundIds.current[id] === targetRoundId &&
+      context.current.contract === contract && context.current.address === address && context.current.id === id;
+    try {
+      const round = await contract.get_round({ round_id: targetRoundId });
+      const bidders = await contract.get_bidders({ round_id: targetRoundId });
+      const bidStates: Record<string, BidState> = {};
+      for (const bidder of bidders.result.unwrap()) {
+        const state = await contract.get_bid_state({ round_id: targetRoundId, bidder });
+        bidStates[bidder] = state.result.unwrap();
+      }
+      if (!isCurrent()) return;
+      updateSession(id, {
+        live: { round: round.result.unwrap(), bidders: bidders.result.unwrap(), bidStates },
+      });
+    } catch (error) {
+      if (isCurrent()) throw error;
     }
-    updateSession(id, {
-      live: { round: round.result.unwrap(), bidders: bidders.result.unwrap(), bidStates },
-    });
   }
 
   async function connect() {
@@ -387,26 +417,28 @@ export function useRoundSession(active: UseCase) {
           `Revealing bid ${i + 1} of ${pending.length}`,
           shortAddr(bidder),
         );
-        const seal = (await contract.get_seal({ round_id: roundId, bidder })).result;
-        let ciphertext: Uint8Array | null = seal ? new Uint8Array(seal.ciphertext) : null;
-        if (!ciphertext && address === bidder && sealedCiphertext) {
-          ciphertext = sealedCiphertext;
-        }
-        if (!ciphertext) {
-          skipped.push(`${shortAddr(bidder)}: seal expired or missing`);
+        try {
+          const seal = (await contract.get_seal({ round_id: roundId, bidder })).result;
+          let ciphertext: Uint8Array | null = seal ? new Uint8Array(seal.ciphertext) : null;
+          if (!ciphertext && address === bidder && sealedCiphertext) {
+            ciphertext = sealedCiphertext;
+          }
+          if (!ciphertext) {
+            skipped.push(`${shortAddr(bidder)}: seal expired or missing`);
+            continue;
+          }
+          const opened = await openBid(ciphertext, drand);
+          const revealTx = await contract.reveal({
+            round_id: roundId,
+            bidder,
+            value: opened.value,
+            nonce: Buffer.from(opened.nonce),
+          });
+          await revealTx.signAndSend();
+          revealed += 1;
+        } finally {
           toast.dismiss(stepId);
-          continue;
         }
-        const opened = await openBid(ciphertext, drand);
-        const revealTx = await contract.reveal({
-          round_id: roundId,
-          bidder,
-          value: opened.value,
-          nonce: Buffer.from(opened.nonce),
-        });
-        await revealTx.signAndSend();
-        revealed += 1;
-        toast.dismiss(stepId);
       }
       setRevealProgress(null);
       if (revealed === 0) {
