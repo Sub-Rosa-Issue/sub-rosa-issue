@@ -386,26 +386,28 @@ export function useRoundSession(active: UseCase) {
           `Revealing bid ${i + 1} of ${pending.length}`,
           shortAddr(bidder),
         );
-        const seal = (await contract.get_seal({ round_id: roundId, bidder })).result;
-        let ciphertext: Uint8Array | null = seal ? new Uint8Array(seal.ciphertext) : null;
-        if (!ciphertext && address === bidder && sealedCiphertext) {
-          ciphertext = sealedCiphertext;
-        }
-        if (!ciphertext) {
-          skipped.push(`${shortAddr(bidder)}: seal expired or missing`);
+        try {
+          const seal = (await contract.get_seal({ round_id: roundId, bidder })).result;
+          let ciphertext: Uint8Array | null = seal ? new Uint8Array(seal.ciphertext) : null;
+          if (!ciphertext && address === bidder && sealedCiphertext) {
+            ciphertext = sealedCiphertext;
+          }
+          if (!ciphertext) {
+            skipped.push(`${shortAddr(bidder)}: seal expired or missing`);
+            continue;
+          }
+          const opened = await openBid(ciphertext, drand);
+          const revealTx = await contract.reveal({
+            round_id: roundId,
+            bidder,
+            value: opened.value,
+            nonce: Buffer.from(opened.nonce),
+          });
+          await revealTx.signAndSend();
+          revealed += 1;
+        } finally {
           toast.dismiss(stepId);
-          continue;
         }
-        const opened = await openBid(ciphertext, drand);
-        const revealTx = await contract.reveal({
-          round_id: roundId,
-          bidder,
-          value: opened.value,
-          nonce: Buffer.from(opened.nonce),
-        });
-        await revealTx.signAndSend();
-        revealed += 1;
-        toast.dismiss(stepId);
       }
       setRevealProgress(null);
       if (revealed === 0) {
