@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger, type Logger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.src.store");
@@ -102,7 +103,7 @@ export class KeeperStore {
       try {
         fs.renameSync(this.storePath, `${this.storePath}.corrupted.${systemClock.nowMs()}`);
       } catch (backupErr) {
-        this.logger.error("store-could-not-backup-corrupted-file", `[Store] Could not backup corrupted file:`, { "backupErr_0": backupErr });
+        this.logger.error("store-could-not-backup-corrupted-file", `[Store] Could not backup corrupted file:`, { "backupErr_0": normalizeError(backupErr) });
       }
       return { rounds: {} };
     }
@@ -117,7 +118,7 @@ export class KeeperStore {
       }
       fs.writeFileSync(this.storePath, JSON.stringify(this.data, null, 2), "utf-8");
     } catch (e) {
-      this.logger.error("store-failed-to-save-store-to", `[Store] Failed to save store to ${this.storePath}:`, { "e_0": e });
+      this.logger.error("store-failed-to-save-store-to", `[Store] Failed to save store to ${this.storePath}:`, { "e_0": normalizeError(e) });
     }
   }
 

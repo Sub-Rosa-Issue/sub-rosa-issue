@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // SPDX-License-Identifier: MIT
 import { rpc } from "@stellar/stellar-sdk";
 import {
@@ -115,8 +116,8 @@ export function classifyPreflightBuildError(
     return new SubRosaPreflightError({
       kind: "simulation_error",
       operation,
-      message: error.message,
-      simulationError: error.message,
+      message: normalizeError(error).message,
+      simulationError: normalizeError(error).message,
       cause: error,
     });
   }
@@ -124,7 +125,7 @@ export function classifyPreflightBuildError(
     return new SubRosaPreflightError({
       kind: "expired_state",
       operation,
-      message: error.message,
+      message: normalizeError(error).message,
       cause: error,
     });
   }
@@ -133,7 +134,7 @@ export function classifyPreflightBuildError(
   }
 
   const message =
-    error instanceof Error ? error.message : "RPC simulation request failed";
+    normalizeError(error).message;
   return new SubRosaPreflightError({
     kind: "rpc_error",
     operation,

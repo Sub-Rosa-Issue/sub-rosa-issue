@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 // Shared watch loop. Keeps in-flight rounds moving through
 // void-if-stale → keep → close, persisting status into the KeeperStore and
@@ -89,7 +90,7 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
         store.addRound(id, { contractId, network });
       }
     } catch (e) {
-      log(`watch: failed to list/discover rounds: ${e instanceof Error ? e.message : String(e)}`);
+      log(`watch: failed to list/discover rounds: ${normalizeError(e).message}`);
     }
 
     const activeRounds = store.listRounds().filter((r) => {
@@ -143,15 +144,15 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
           );
         }
       } catch (e) {
-        log(`[round ${roundId}] tick failed: ${e instanceof Error ? e.message : String(e)}`);
+        log(`[round ${roundId}] tick failed: ${normalizeError(e).message}`);
         settlementGuard.markRetryable(
           roundId,
-          e instanceof Error ? e.message : String(e),
+          normalizeError(e).message,
         );
         const stored = store.getRound(roundId);
         store.updateRound(roundId, {
           retryCount: (stored?.retryCount ?? 0) + 1,
-          lastError: e instanceof Error ? e.message : String(e),
+          lastError: normalizeError(e).message,
         });
       }
     }

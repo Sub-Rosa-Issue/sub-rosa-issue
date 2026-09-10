@@ -1,3 +1,4 @@
+import { normalizeError, publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger, type Logger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.src.status");
@@ -120,7 +121,7 @@ export async function buildRoundStatus(
   try {
     round = await reader.getRound(roundId);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = normalizeError(e).message;
     const notFound = /RoundNotFound/i.test(msg);
     return {
       roundId: ridStr,
@@ -141,7 +142,7 @@ export async function buildRoundStatus(
       clearingRule: null,
       settlement,
       lastKeeperAction: watched?.lastAction ?? null,
-      lastError: watched?.lastError ?? null,
+      lastError: watched?.lastError ? publicErrorMessage(watched.lastError) : null,
       retryCount: watched?.retryCount ?? 0,
       updatedAt: clock.toISOString(),
     };
@@ -198,7 +199,7 @@ export async function buildRoundStatus(
     clearingRule: round.clearing_rule?.tag ?? null,
     settlement: settlementIndicator,
     lastKeeperAction: watched?.lastAction ?? null,
-    lastError: watched?.lastError ?? null,
+    lastError: watched?.lastError ? publicErrorMessage(watched.lastError) : null,
     retryCount: watched?.retryCount ?? 0,
     updatedAt: clock.toISOString(),
   };
@@ -292,12 +293,12 @@ export async function checkHealth(
   } catch (e) {
     // A valid health probe can legitimately return RoundNotFound; that still
     // proves the RPC endpoint is reachable and returning well-formed errors.
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = normalizeError(e).message;
     if (/RoundNotFound|NotInitialized/i.test(msg)) {
       // healthy-enough: reachable
     } else {
       rpc = "down";
-      logger.error("keeper-health-rpc-probe-failed", "[keeper-health] rpc probe failed:", { "msg_0": msg });
+      logger.error("keeper-health-rpc-probe-failed", "[keeper-health] rpc probe failed:", { error: normalizeError(e) });
       reasons.push("rpc: unavailable");
     }
   }
@@ -306,8 +307,8 @@ export async function checkHealth(
     await drand.chain().info();
   } catch (e) {
     drandStatus = "down";
-    const msg = e instanceof Error ? e.message : String(e);
-    logger.error("keeper-health-drand-probe-failed", "[keeper-health] drand probe failed:", { "msg_0": msg });
+    const msg = normalizeError(e).message;
+    logger.error("keeper-health-drand-probe-failed", "[keeper-health] drand probe failed:", { error: normalizeError(e) });
     reasons.push("drand: unavailable");
   }
 

@@ -1,3 +1,4 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { Buffer } from "buffer";
 import { Keypair } from "@stellar/stellar-sdk";
@@ -55,7 +56,7 @@ export function runCapSafetyDemos(): CapDemoResult[] {
       title: "Appraisal price above mandate (0.20 > cap 0.10)",
       layer: "agent (off-chain)",
       expected: "reject",
-      outcome: e instanceof MandateCapError ? e.message : String(e),
+      outcome: publicErrorMessage(e),
       pass: e instanceof MandateCapError,
     });
   }

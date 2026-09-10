@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("packages.sdk.scripts.mainnet-ready");
 // Consolidated mainnet launch readiness — read-only by default.
@@ -89,6 +90,6 @@ async function main() {
 
 main().catch((err) => {
   diagnostics.error("mainnet-readiness-failed", "\n❌ MAINNET READINESS FAILED");
-  diagnostics.error("progress-2", err);
+  diagnostics.error("progress-2", normalizeError(err));
   process.exit(1);
 });

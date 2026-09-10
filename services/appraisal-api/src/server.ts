@@ -1,3 +1,6 @@
+import { createLogger } from "@sub-rosa/logging";
+const diagnostics = createLogger("appraisal-api.server");
+import { normalizeError, publicErrorMessage } from "@sub-rosa/logging/errors";
 // x402-gated appraisal API.
 //
 // `POST /appraise` is payment-protected. An agent that calls it without payment
@@ -196,7 +199,7 @@ export async function buildAppraisalServer(
         body = { appraisal: appraise(parseAppraisalRequest(parsedBody)) };
       } catch (e) {
         if (e instanceof AppraisalInputError) {
-          return send(res, 400, {}, { error: e.message });
+          return send(res, 400, {}, { error: "Invalid appraisal request" });
         }
         throw e;
       }
@@ -226,7 +229,8 @@ export async function buildAppraisalServer(
         },
       );
     } catch (err) {
-      send(res, 500, {}, { error: err instanceof Error ? err.message : String(err) });
+      diagnostics.error("request-failed", normalizeError(err));
+      send(res, 500, {}, { error: publicErrorMessage(err) });
     }
   });
 }

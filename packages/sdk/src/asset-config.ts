@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // SPDX-License-Identifier: MIT
 import { StrKey } from "@stellar/stellar-sdk";
 
@@ -161,7 +162,7 @@ export function validateAssetConfigs(input: unknown[]): AssetConfig[] {
       if (e instanceof AssetConfigError) {
         throw new AssetConfigError(
           `[${i}].${e.field}`,
-          e.message,
+          normalizeError(e).message,
         );
       }
       throw e;

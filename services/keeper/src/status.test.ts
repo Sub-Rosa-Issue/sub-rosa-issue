@@ -324,7 +324,7 @@ describe("buildKeeperStatus — upstream failure", () => {
     assert.equal(res.rounds.length, 1);
     const r = res.rounds[0];
     assert.equal(r.status, "NotFound");
-    assert.equal(r.lastError, "rpc connection refused");
+    assert.equal(r.lastError, "The operation could not be completed. Please try again or contact support.");
     assert.equal(r.retryCount, 1);
   });
 
@@ -344,7 +344,7 @@ describe("buildKeeperStatus — upstream failure", () => {
     assert.equal(res.rounds.length, 1);
     const r = res.rounds[0];
     assert.equal(r.status, "Unknown");
-    assert.equal(r.lastError, "rpc connection refused");
+    assert.equal(r.lastError, "The operation could not be completed. Please try again or contact support.");
     assert.equal(r.retryCount, 2);
   });
 });

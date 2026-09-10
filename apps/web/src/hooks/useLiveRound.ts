@@ -1,3 +1,4 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
 import type { Round, BidState } from "@sub-rosa/sdk";
@@ -48,7 +49,7 @@ export function useLiveRound(enabled: boolean, pollMs = 12_000) {
           setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(publicErrorMessage(e));
       }
     }
 

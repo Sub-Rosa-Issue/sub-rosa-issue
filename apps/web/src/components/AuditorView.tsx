@@ -1,3 +1,4 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useMemo, useState } from "react";
 import type { DemoTrace } from "../demo/trace";
@@ -53,13 +54,13 @@ export function AuditorView({ trace }: { trace: DemoTrace }) {
             label,
             address,
             identity: null,
-            error: e instanceof Error ? e.message : String(e),
+            error: publicErrorMessage(e),
           };
         }
       });
       setRows(decoded);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(publicErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -80,7 +81,7 @@ export function AuditorView({ trace }: { trace: DemoTrace }) {
       if (opened.value !== value) throw new Error("opened value mismatch");
       setBidDemo({ value: (Number(value) / 1e7).toFixed(2), round });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(publicErrorMessage(e));
     } finally {
       setBusy(false);
     }

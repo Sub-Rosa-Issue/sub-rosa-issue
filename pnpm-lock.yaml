@@ -21,6 +21,9 @@ importers:
       '@sub-rosa/agent':
         specifier: workspace:*
         version: link:../../services/agent
+      '@sub-rosa/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
       '@sub-rosa/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -158,6 +161,9 @@ importers:
       '@noble/hashes':
         specifier: ^2.2.0
         version: 2.2.0
+      '@sub-rosa/logging':
+        specifier: workspace:*
+        version: link:../logging
       '@sub-rosa/time':
         specifier: workspace:*
         version: link:../time

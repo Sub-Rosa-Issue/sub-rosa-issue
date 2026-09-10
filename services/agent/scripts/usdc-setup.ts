@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.agent.scripts.usdc-setup");
 // USDC setup for multi-agent e2e: trustlines + mint for both principals and the
@@ -64,6 +65,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": err?.response?.data ?? err });
+  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": normalizeError(err) });
   process.exit(1);
 });

@@ -5,6 +5,17 @@
   "description": "Structured JSON diagnostics with safe serialization and injectable sinks.",
   "main": "src/index.cjs",
   "types": "src/index.d.cts",
-  "exports": { ".": { "types": "./src/index.d.cts", "default": "./src/index.cjs" } },
-  "scripts": { "test": "node --test src/index.test.cjs" }
+  "exports": {
+    ".": {
+      "types": "./src/index.d.cts",
+      "default": "./src/index.cjs"
+    },
+    "./errors": {
+      "types": "./src/errors.d.cts",
+      "default": "./src/errors.cjs"
+    }
+  },
+  "scripts": {
+    "test": "node --test src/index.test.cjs src/errors.test.cjs"
+  }
 }

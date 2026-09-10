@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { readFileSync } from "node:fs";
 
@@ -179,7 +180,7 @@ function recoverRows(
         identityUtf8: new TextDecoder().decode(plain),
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = normalizeError(error).message;
       return { label, error: message };
     }
   });
@@ -242,7 +243,7 @@ export function runAuditorRecoveryCli(argv: string[], stdin = ""): CliRun {
     const rows = recoverRows(blobs, auditorSecret);
     return { exitCode: 0, output: { ok: true, source: "json", rows } };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = normalizeError(error).message;
     return {
       exitCode: 1,
       output: {

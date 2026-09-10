@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("packages.sdk.scripts.mainnet-micro");
 // Optional mainnet micro commit on an EXISTING deployed Round contract.
@@ -181,6 +182,6 @@ async function main() {
 
 main().catch((err) => {
   diagnostics.error("mainnet-micro-failed", "\n❌ MAINNET MICRO FAILED");
-  diagnostics.error("progress-3", err);
+  diagnostics.error("progress-3", normalizeError(err));
   process.exit(1);
 });

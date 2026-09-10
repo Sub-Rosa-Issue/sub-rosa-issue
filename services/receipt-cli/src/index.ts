@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger, writeData } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.receipt-cli.src.index");
@@ -54,9 +55,9 @@ async function cmdVerify(path: string, jsonMode: boolean, artifactPath?: string)
     rawJson = readFileSync(path, "utf-8");
   } catch (e) {
     if (jsonMode) {
-      writeData(JSON.stringify(buildJsonOutput(null, null, `Cannot read file: ${e}`), null, 2));
+      writeData(JSON.stringify(buildJsonOutput(null, null, `Cannot read file: ${normalizeError(e).message}`), null, 2));
     } else {
-      diagnostics.error("cannot-read", `Cannot read ${path}: ${e}`);
+      diagnostics.error("cannot-read", `Cannot read ${path}: ${normalizeError(e).message}`);
     }
     process.exit(1);
   }
@@ -66,9 +67,9 @@ async function cmdVerify(path: string, jsonMode: boolean, artifactPath?: string)
     receipt = parseReceipt(rawJson);
   } catch (e) {
     if (jsonMode) {
-      writeData(JSON.stringify(buildJsonOutput(null, null, `Invalid JSON: ${e}`), null, 2));
+      writeData(JSON.stringify(buildJsonOutput(null, null, `Invalid JSON: ${normalizeError(e).message}`), null, 2));
     } else {
-      diagnostics.error("invalid-json", `Invalid JSON: ${e}`);
+      diagnostics.error("invalid-json", `Invalid JSON: ${normalizeError(e).message}`);
     }
     process.exit(1);
   }
@@ -81,7 +82,7 @@ async function cmdVerify(path: string, jsonMode: boolean, artifactPath?: string)
       const data = readFileSync(artifactPath);
       computedChecksum = createHash("sha256").update(data).digest("hex");
     } catch (e: any) {
-      const message = `Cannot read artifact file: ${e.message}`;
+      const message = `Cannot read artifact file: ${normalizeError(e).message}`;
       result.valid = false;
       result.issues.push({
         severity: "error",
@@ -156,7 +157,7 @@ async function cmdRedact(inputPath: string, outputPath?: string) {
   try {
     json = readFileSync(inputPath, "utf-8");
   } catch (e) {
-    diagnostics.error("cannot-read-2", `Cannot read ${inputPath}: ${e}`);
+    diagnostics.error("cannot-read-2", `Cannot read ${inputPath}: ${normalizeError(e).message}`);
     process.exit(1);
   }
 
@@ -164,7 +165,7 @@ async function cmdRedact(inputPath: string, outputPath?: string) {
   try {
     receipt = parseReceipt(json);
   } catch (e) {
-    diagnostics.error("invalid-json-2", `Invalid JSON: ${e}`);
+    diagnostics.error("invalid-json-2", `Invalid JSON: ${normalizeError(e).message}`);
     process.exit(1);
   }
 
@@ -218,6 +219,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  diagnostics.error("progress-8", e);
+  diagnostics.error("progress-8", normalizeError(e));
   process.exit(1);
 });

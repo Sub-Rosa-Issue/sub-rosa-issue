@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.scripts.keeper-e2e");
 // Live keeper end-to-end proof.
@@ -171,6 +172,6 @@ function bigintReplacer(_k: string, v: unknown): unknown {
 
 main().catch((err) => {
   diagnostics.error("keeper-e2e-failed", "\n❌ KEEPER E2E FAILED");
-  diagnostics.error("progress-3", err);
+  diagnostics.error("progress-3", normalizeError(err));
   process.exit(1);
 });

@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.appraisal-api.scripts.x402-e2e");
 // Live x402 e2e on testnet.
@@ -153,6 +154,6 @@ async function main() {
 
 main().catch((err) => {
   diagnostics.error("x402-e2e-failed", "\n❌ x402 E2E FAILED");
-  diagnostics.error("progress", err);
+  diagnostics.error("progress", normalizeError(err));
   process.exit(1);
 });

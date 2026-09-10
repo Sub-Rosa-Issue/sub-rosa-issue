@@ -1,3 +1,4 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { Buffer } from "buffer";
 import { useEffect, useState } from "react";
@@ -163,7 +164,7 @@ export function useRoundSession(active: UseCase) {
       toast.dismiss(workingId);
       toast.push("success", "Wallet connected", netMsg);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = publicErrorMessage(error);
       setWalletStatus(msg);
       setStatus("error");
       toast.dismiss(workingId);

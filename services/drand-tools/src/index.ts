@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.drand-tools.src.index");
@@ -82,6 +83,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  diagnostics.error("harness-error", "harness error:", { "err_0": err });
+  diagnostics.error("harness-error", "harness error:", { "err_0": normalizeError(err) });
   process.exitCode = 1;
 });
