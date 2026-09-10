@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // x402-gated appraisal API.
 //
 // `POST /appraise` is payment-protected. An agent that calls it without payment
