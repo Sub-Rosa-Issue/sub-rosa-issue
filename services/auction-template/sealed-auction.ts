@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.auction-template.sealed-auction");
 import { createHash } from "node:crypto";
