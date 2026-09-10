@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.scripts.usdc-setup");
 // USDC asset provisioning (classic operations via Horizon).
@@ -73,6 +74,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": err?.response?.data ?? err });
+  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": normalizeError(err) });
   process.exit(1);
 });

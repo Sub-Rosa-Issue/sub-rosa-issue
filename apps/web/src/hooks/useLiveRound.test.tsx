@@ -82,7 +82,7 @@ test("failure exposes an error then successful polling clears it", async () => {
   read = async () => { throw new Error("RPC unavailable"); };
   const h = await mount();
   try {
-    assert.equal(h.result.error, "RPC unavailable"); assert.equal(time.scheduler.pendingCount(), 1);
+    assert.equal(h.result.error, "The operation could not be completed. Please try again or contact support."); assert.equal(time.scheduler.pendingCount(), 1);
     read = async () => ({ label: "recovered" });
     await act(async () => time.scheduler.advance(1000));
     assert.equal(h.result.error, null); assert.ok(h.result.live);

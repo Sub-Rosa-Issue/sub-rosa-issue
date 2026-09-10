@@ -81,6 +81,8 @@
     "receipt:typecheck": "pnpm --filter @sub-rosa/receipt-cli typecheck",
     "time:test": "pnpm --filter @sub-rosa/time test",
     "time:guard": "node scripts/check-direct-time-access.mjs",
-    "time:guard:test": "node --test scripts/check-direct-time-access.test.mjs"
+    "time:guard:test": "node --test scripts/check-direct-time-access.test.mjs",
+    "errors:normalize:check": "node scripts/check-error-normalization.mjs",
+    "errors:normalize:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-error-normalization.test.mjs"
   }
 }

@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.src.run");
@@ -65,6 +66,6 @@ function bigintReplacer(_key: string, value: unknown): unknown {
 }
 
 main().catch((err) => {
-  diagnostics.error("keeper-failed", "keeper failed:", { "err_0": err });
+  diagnostics.error("keeper-failed", "keeper failed:", { "err_0": normalizeError(err) });
   process.exit(1);
 });

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { normalizeError } from "../packages/logging/src/errors.cjs";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger } from '../packages/logging/src/index.cjs';
 const diagnostics = createLogger("scripts.check-snapshots");
@@ -112,7 +113,7 @@ try {
   files = readdirSync(SNAPSHOT_DIR).filter((f) => f.endsWith(".json"));
 } catch (err) {
   diagnostics.error("cannot-read-snapshot-directory", `\n✗ Cannot read snapshot directory: ${SNAPSHOT_DIR}`);
-  diagnostics.error("progress", `  ${err.message}`);
+  diagnostics.error("progress", `  ${normalizeError(err).message}`);
   process.exit(1);
 }
 

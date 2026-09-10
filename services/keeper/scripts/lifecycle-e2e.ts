@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.scripts.lifecycle-e2e");
 // Full live testnet lifecycle proof.
@@ -265,6 +266,6 @@ async function main() {
 
 main().catch((err) => {
   diagnostics.error("full-lifecycle-failed", "\n❌ FULL LIFECYCLE FAILED");
-  diagnostics.error("progress-4", err);
+  diagnostics.error("progress-4", normalizeError(err));
   process.exit(1);
 });

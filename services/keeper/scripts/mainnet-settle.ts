@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.scripts.mainnet-settle");
 // Mainnet settlement — keepRound (wait R → open → reveal) + closeRound (clear → settle).
@@ -154,6 +155,6 @@ async function main() {
 
 main().catch((err) => {
   diagnostics.error("mainnet-settlement-failed", "\n❌ MAINNET SETTLEMENT FAILED");
-  diagnostics.error("progress-2", err);
+  diagnostics.error("progress-2", normalizeError(err));
   process.exit(1);
 });

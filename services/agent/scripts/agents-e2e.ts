@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.agent.scripts.agents-e2e");
 // Live canonical jury demo on testnet:
@@ -477,6 +478,6 @@ async function main() {
 
 main().catch((err) => {
   diagnostics.error("canonical-agents-e2e-failed", "\n❌ CANONICAL AGENTS E2E FAILED");
-  diagnostics.error("progress-5", err);
+  diagnostics.error("progress-5", normalizeError(err));
   process.exit(1);
 });

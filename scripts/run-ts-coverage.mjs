@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { normalizeError, redactValue } from "../packages/logging/src/errors.cjs";
 import { createLogger } from '../packages/logging/src/index.cjs';
 const diagnostics = createLogger("scripts.run-ts-coverage");
 /**
@@ -238,7 +239,8 @@ function runWorkspaceCoverage(relPath, root = ROOT) {
       });
     } catch (error) {
       const err = /** @type {any} */ (error);
-      const output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+      diagnostics.error("workspace-tests-failed", normalizeError(error));
+      const output = JSON.stringify(redactValue({ stdout: err.stdout?.toString(), stderr: err.stderr?.toString() }));
       if (output) process.stderr.write(`${output}\n`);
       throw new Error(`Tests failed in ${relPath} (exit ${err.status ?? 1})`);
     }

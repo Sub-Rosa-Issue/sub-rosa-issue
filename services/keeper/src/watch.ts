@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.src.watch");
@@ -78,6 +79,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  diagnostics.error("watch-keeper-failed", "watch keeper failed:", { "err_0": err });
+  diagnostics.error("watch-keeper-failed", "watch keeper failed:", { "err_0": normalizeError(err) });
   process.exit(1);
 });

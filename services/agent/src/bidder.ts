@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 // Autonomous bidder agent — appraisal (x402) → seal → commit.
 //
@@ -142,7 +143,7 @@ export async function runBidderAgent(config: BidderAgentConfig, dependencies: Bi
     body: JSON.stringify(req),
   });
   if (paid.status !== 200 || !paid.body.appraisal) {
-    throw new Error(`appraisal failed: ${JSON.stringify(paid.body)}`);
+    throw new Error("appraisal failed", { cause: normalizeError(paid.body, { status: paid.status }) });
   }
   const appraisal = paid.body.appraisal;
   if (appraisal.itemRef !== config.mandate.itemRef) {

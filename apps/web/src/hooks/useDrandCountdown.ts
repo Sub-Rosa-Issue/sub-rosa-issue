@@ -1,3 +1,4 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
 import { quicknet } from "@sub-rosa/tlock";
@@ -47,7 +48,7 @@ export function useDrandCountdown(targetRound: number, pollMs = 1000): DrandCoun
           setState({
             ...fallback,
             loading: false,
-            error: e instanceof Error ? e.message : String(e),
+            error: publicErrorMessage(e),
           });
         }
       }

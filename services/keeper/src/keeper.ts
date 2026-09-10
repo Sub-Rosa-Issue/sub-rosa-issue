@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 // Permissionless reveal keeper.
 //
@@ -59,22 +60,12 @@ const IDEMPOTENT_OPEN = ["RevealAlreadyOpen", "WrongStatus", "AlreadyCleared"];
 const IDEMPOTENT_REVEAL = ["AlreadyRevealed"];
 
 export function errorName(e: unknown): string {
-  if (e instanceof Error && e.message) return e.message;
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return String(e);
-  }
+  return normalizeError(e).message;
 }
 
 export function errorMatches(e: unknown, names: string[]): boolean {
-  let blob = errorName(e);
-  try {
-    blob += " " + JSON.stringify(e);
-  } catch {
-    /* ignore */
-  }
-  return names.some((n) => blob.includes(n));
+  const diagnostic = JSON.stringify(normalizeError(e));
+  return names.some((name) => diagnostic.includes(name));
 }
 
 function keeperTime(deps: KeeperDeps): TimeContext {

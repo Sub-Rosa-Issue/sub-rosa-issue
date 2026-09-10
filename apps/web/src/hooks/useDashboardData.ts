@@ -1,3 +1,4 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "../dashboard/types";
@@ -84,7 +85,7 @@ export function useDashboardData(): UseDashboardDataResult {
         stale: isStale(json.meta.fetchedAt, clock.nowMs()),
       }));
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = publicErrorMessage(e);
       setState((s) => ({
         ...s,
         loading: false,

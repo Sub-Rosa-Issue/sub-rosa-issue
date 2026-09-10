@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.appraisal-api.scripts.usdc-setup");
 // USDC asset provisioning for the x402 e2e (classic ops via Horizon).
@@ -56,6 +57,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": err?.response?.data ?? err });
+  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": normalizeError(err) });
   process.exit(1);
 });

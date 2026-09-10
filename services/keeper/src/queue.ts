@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.src.queue");
@@ -66,6 +67,6 @@ function main() {
 try {
   main();
 } catch (error) {
-  diagnostics.error("error", `Error: ${error instanceof Error ? error.message : String(error)}`);
+  diagnostics.error("error", `Error: ${normalizeError(error).message}`);
   process.exit(1);
 }

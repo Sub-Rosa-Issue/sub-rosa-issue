@@ -1,3 +1,4 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
 // SPDX-License-Identifier: MIT
 import {
   Account,
@@ -356,7 +357,7 @@ export async function runMainnetReadiness(
         "rpc-reachable",
         "RPC reachable",
         "block",
-        err instanceof Error ? err.message : String(err),
+        normalizeError(err).message,
       ),
     );
   }
@@ -392,7 +393,7 @@ export async function runMainnetReadiness(
         "wasm-hash",
         "Artifact wasm hash",
         "block",
-        err instanceof Error ? err.message : String(err),
+        normalizeError(err).message,
       ),
     );
   }
@@ -427,7 +428,7 @@ export async function runMainnetReadiness(
           "settled-round",
           "Settled round proof",
           "block",
-          err instanceof Error ? err.message : String(err),
+          normalizeError(err).message,
         ),
       );
     }
@@ -474,7 +475,7 @@ export async function runMainnetReadiness(
           "contract-balance",
           "Contract escrow balance",
           "block",
-          err instanceof Error ? err.message : String(err),
+          normalizeError(err).message,
         ),
       );
     }
@@ -540,7 +541,7 @@ export async function runMainnetReadiness(
             id,
             label,
             "block",
-            err instanceof Error ? err.message : String(err),
+            normalizeError(err).message,
           ),
         );
       }

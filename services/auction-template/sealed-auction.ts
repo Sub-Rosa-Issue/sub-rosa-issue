@@ -1,4 +1,5 @@
 // Copyright (c) 2026 Sub Rosa contributors
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.auction-template.sealed-auction");
 import { createHash } from "node:crypto";
@@ -290,6 +291,6 @@ async function main() {
 
 main().catch((err) => {
   diagnostics.error("sealed-auction-template-failed", "\n❌ SEALED AUCTION TEMPLATE FAILED");
-  diagnostics.error("progress-7", err);
+  diagnostics.error("progress-7", normalizeError(err));
   process.exit(1);
 });

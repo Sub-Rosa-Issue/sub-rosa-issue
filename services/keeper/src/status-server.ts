@@ -1,3 +1,4 @@
+import { normalizeError, publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { createLogger, type Logger } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.keeper.src.status-server");
@@ -143,7 +144,7 @@ function healthzHandler(
         },
       };
     } catch (e) {
-      const detail = e instanceof Error ? e.message : String(e);
+      const detail = normalizeError(e).message;
       (src.logger ?? diagnostics).error("keeper-healthz-health-check-failed", "[keeper-healthz] health check failed:", { "detail_0": detail });
       return {
         status: 503,
@@ -201,10 +202,12 @@ export function createStatusServer(config: StatusServerConfig): http.Server {
         .then((body) => match.handler(url, body))
         .then((r) => send(res, r.status, r.body))
         .catch((e) => {
-          send(res, 500, { error: e instanceof Error ? e.message : String(e) });
+          (config.logger ?? diagnostics).error("request-failed", normalizeError(e));
+          send(res, 500, { error: publicErrorMessage(e) });
         });
     } catch (e) {
-      send(res, 500, { error: e instanceof Error ? e.message : String(e) });
+      (config.logger ?? diagnostics).error("request-failed", normalizeError(e));
+      send(res, 500, { error: publicErrorMessage(e) });
     }
   });
 
