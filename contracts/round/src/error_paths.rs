@@ -9,9 +9,8 @@ use crate::storage::{get_round, set_round};
 use crate::types::{ClearingRule, DataKey, Error, Status};
 
 use super::{
-    assert_try_create_round_err, assert_try_contract_err, b32, commit_bid, commitment,
-    drand_round, funded_bidder, open_round, real_sig, setup, setup_drand, Fixture, GENESIS,
-    PERIOD, VEC_ROUND,
+    assert_try_contract_err, assert_try_create_round_err, b32, commit_bid, commitment, drand_round,
+    funded_bidder, open_round, real_sig, setup, setup_drand, Fixture, GENESIS, PERIOD, VEC_ROUND,
 };
 
 const MAX_BIDDERS: u32 = 500;
@@ -19,12 +18,18 @@ const MAX_BIDDERS: u32 = 500;
 /// Every variant must appear here exactly once with the test that triggers it.
 const ERROR_PATH_REGISTRY: &[(Error, &'static str)] = &[
     (Error::NotInitialized, "error_path_not_initialized"),
-    (Error::AlreadyInitialized, "error_path_already_initialized_constructor_boundary"),
+    (
+        Error::AlreadyInitialized,
+        "error_path_already_initialized_constructor_boundary",
+    ),
     (Error::RoundNotFound, "error_path_round_not_found"),
     (Error::BidNotFound, "error_path_bid_not_found"),
     (Error::CommitClosed, "error_path_commit_closed"),
     (Error::CommitNotClosed, "error_path_commit_not_closed"),
-    (Error::CommitDeadlineAfterReveal, "error_path_commit_deadline_after_reveal"),
+    (
+        Error::CommitDeadlineAfterReveal,
+        "error_path_commit_deadline_after_reveal",
+    ),
     (Error::RevealNotOpen, "error_path_reveal_not_open"),
     (Error::RevealAlreadyOpen, "error_path_reveal_already_open"),
     (Error::RevealWindowClosed, "error_path_reveal_window_closed"),
@@ -35,7 +40,10 @@ const ERROR_PATH_REGISTRY: &[(Error, &'static str)] = &[
     (Error::RoundVoided, "error_path_round_voided"),
     (Error::NotVoidable, "error_path_not_voidable"),
     (Error::WrongStatus, "error_path_wrong_status"),
-    (Error::InvalidDrandSignature, "error_path_invalid_drand_signature"),
+    (
+        Error::InvalidDrandSignature,
+        "error_path_invalid_drand_signature",
+    ),
     (Error::HashMismatch, "error_path_hash_mismatch"),
     (Error::AlreadyRevealed, "error_path_already_revealed"),
     (Error::PayloadTooLarge, "error_path_payload_too_large"),
@@ -45,6 +53,7 @@ const ERROR_PATH_REGISTRY: &[(Error, &'static str)] = &[
     (Error::NoValidBids, "error_path_no_valid_bids"),
     (Error::RoundFull, "error_path_round_full"),
     (Error::InvalidLimit, "error_path_invalid_limit"),
+    (Error::InvalidCursor, "error_path_invalid_cursor"),
 ];
 
 fn oversized_bytes(env: &Env, len: u32) -> Bytes {
@@ -63,7 +72,12 @@ fn fill_bidder_cap(f: &Fixture, round_id: u64) {
     });
 }
 
-fn settle_happy_path(f: &Fixture, t_reveal: u64, commit_deadline: u64, reveal_deadline: u64) -> u64 {
+fn settle_happy_path(
+    f: &Fixture,
+    t_reveal: u64,
+    commit_deadline: u64,
+    reveal_deadline: u64,
+) -> u64 {
     let operator = Address::generate(&f.env);
     let id = drand_round(
         f,
@@ -77,7 +91,9 @@ fn settle_happy_path(f: &Fixture, t_reveal: u64, commit_deadline: u64, reveal_de
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
     id
@@ -87,7 +103,7 @@ fn settle_happy_path(f: &Fixture, t_reveal: u64, commit_deadline: u64, reveal_de
 fn error_paths_registry_covers_every_variant() {
     assert_eq!(
         ERROR_PATH_REGISTRY.len(),
-        27,
+        28,
         "update ERROR_PATH_REGISTRY when adding/removing Error variants"
     );
     for (variant, name) in ERROR_PATH_REGISTRY {
@@ -197,7 +213,13 @@ fn error_path_commit_closed() {
 fn error_path_commit_not_closed() {
     let (f, _t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     assert_try_contract_err(
         f.client.try_open_reveal(&id, &real_sig(&f.env)),
         Error::CommitNotClosed,
@@ -239,7 +261,13 @@ fn error_path_reveal_not_open() {
 fn error_path_reveal_already_open() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
@@ -255,12 +283,20 @@ fn error_path_reveal_already_open() {
 fn error_path_reveal_window_closed() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     assert_try_contract_err(
         f.client.try_reveal(&id, &alice, &500, &a_nonce),
         Error::RevealWindowClosed,
@@ -271,7 +307,13 @@ fn error_path_reveal_window_closed() {
 fn error_path_reveal_still_open() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
@@ -284,13 +326,21 @@ fn error_path_reveal_still_open() {
 fn error_path_not_cleared() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     assert_try_contract_err(f.client.try_settle(&id), Error::NotCleared);
 }
 
@@ -298,13 +348,21 @@ fn error_path_not_cleared() {
 fn error_path_already_cleared() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     assert_try_contract_err(f.client.try_clear(&id), Error::AlreadyCleared);
 }
@@ -341,7 +399,13 @@ fn error_path_not_voidable() {
 fn error_path_wrong_status() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
@@ -386,7 +450,13 @@ fn error_path_invalid_drand_signature() {
 fn error_path_hash_mismatch() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
@@ -401,7 +471,13 @@ fn error_path_hash_mismatch() {
 fn error_path_already_revealed() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
@@ -454,7 +530,13 @@ fn error_path_invalid_amount() {
 fn error_path_bid_exceeds_escrow() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     // Commit H for value=600 while locking only 500 escrow.
     let nonce = b32(&f.env, 0x01);
@@ -532,6 +614,40 @@ fn error_path_invalid_limit() {
     let f = setup();
     let operator = Address::generate(&f.env);
     let id = open_round(&f, &operator);
-    assert_try_contract_err(f.client.try_get_bidders_page(&id, &0, &0), Error::InvalidLimit);
-    assert_try_contract_err(f.client.try_get_bidders_page(&id, &0, &101), Error::InvalidLimit);
+    assert_try_contract_err(
+        f.client.try_get_bidders_page(&id, &0, &0),
+        Error::InvalidLimit,
+    );
+    assert_try_contract_err(
+        f.client.try_get_bidders_page(&id, &0, &101),
+        Error::InvalidLimit,
+    );
+}
+
+#[test]
+fn error_path_invalid_cursor() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+    let alice = funded_bidder(&f, 1_000);
+    let a_nonce = commit_bid(&f, id, &alice, 700, 700, 0x11);
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &700, &a_nonce);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+
+    // Cursor beyond total bidders (total = 1)
+    assert_try_contract_err(
+        f.client.try_settle_batch(&id, &5, &10),
+        Error::InvalidCursor,
+    );
 }

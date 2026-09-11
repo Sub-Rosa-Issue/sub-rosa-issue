@@ -1,14 +1,18 @@
 #![cfg(test)]
 
+extern crate std;
+
+use soroban_sdk::testutils::storage::Temporary as TemporaryStorageTest;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
     token, Address, Bytes, BytesN, ConversionError, Env, InvokeError, Vec,
 };
-use soroban_sdk::testutils::storage::Temporary as TemporaryStorageTest;
 
 use crate::drand;
-use crate::storage::{seal_ttl_for_reveal_deadline, TEMP_THRESHOLD};
-use crate::types::{ClearingRule, DataKey, Error, GlobalConfig, Status};
+use crate::storage::{
+    get_round, seal_ttl_for_reveal_deadline, set_round, set_round_escrow, set_state, TEMP_THRESHOLD,
+};
+use crate::types::{BidState, ClearingRule, DataKey, Error, GlobalConfig, Status};
 use crate::{SubRosaRound, SubRosaRoundClient};
 
 // ── Dummy fixture (no BLS) — only for tests that never call open_reveal ──────
@@ -37,7 +41,14 @@ fn setup() -> Fixture {
 
     let contract_id = env.register(
         SubRosaRound,
-        (drand_pubkey, g2_neg_generator, dst, GENESIS, PERIOD, usdc.clone()),
+        (
+            drand_pubkey,
+            g2_neg_generator,
+            dst,
+            GENESIS,
+            PERIOD,
+            usdc.clone(),
+        ),
     );
     let client = SubRosaRoundClient::new(&env, &contract_id);
 
@@ -96,7 +107,13 @@ fn config_with(env: &Env, pubkey: &str, neg_gen: &str) -> GlobalConfig {
 /// reveal_deadline  = time(VEC_ROUND) + 200
 /// Ledger starts at time(VEC_ROUND) - 200 (commit window open).
 fn setup_drand() -> (Fixture, u64, u64, u64) {
-    let env = Env::default();
+    setup_drand_with_config(soroban_sdk::testutils::EnvTestConfig::default())
+}
+
+fn setup_drand_with_config(
+    config: soroban_sdk::testutils::EnvTestConfig,
+) -> (Fixture, u64, u64, u64) {
+    let env = Env::new_with_config(config);
     env.mock_all_auths();
 
     let issuer = Address::generate(&env);
@@ -131,7 +148,13 @@ fn setup_drand() -> (Fixture, u64, u64, u64) {
 }
 
 /// Open a round using the real drand fixture timing.
-fn drand_round(f: &Fixture, operator: &Address, commit_deadline: u64, reveal_deadline: u64, rule: ClearingRule) -> u64 {
+fn drand_round(
+    f: &Fixture,
+    operator: &Address,
+    commit_deadline: u64,
+    reveal_deadline: u64,
+    rule: ClearingRule,
+) -> u64 {
     f.client.create_round(
         operator,
         &b32(&f.env, 0xAB),
@@ -178,7 +201,14 @@ fn commitment(env: &Env, value: i128, nonce: &BytesN<32>) -> BytesN<32> {
     env.crypto().sha256(&pre).to_bytes()
 }
 
-fn commit_bid(f: &Fixture, round_id: u64, bidder: &Address, value: i128, escrow: i128, nonce_byte: u8) -> BytesN<32> {
+fn commit_bid(
+    f: &Fixture,
+    round_id: u64,
+    bidder: &Address,
+    value: i128,
+    escrow: i128,
+    nonce_byte: u8,
+) -> BytesN<32> {
     let nonce = b32(&f.env, nonce_byte);
     let h = commitment(&f.env, value, &nonce);
     f.client.commit(
@@ -199,7 +229,8 @@ fn assert_try_contract_err<T>(
     match result {
         Err(Ok(got)) => {
             assert_eq!(
-                got, expected,
+                got,
+                expected,
                 "expected {} ({})",
                 variant_name(expected),
                 expected as u32,
@@ -230,16 +261,14 @@ fn assert_try_contract_err<T>(
 }
 
 fn assert_try_create_round_err(
-    result: Result<
-        Result<u64, soroban_sdk::Error>,
-        Result<Error, InvokeError>,
-    >,
+    result: Result<Result<u64, soroban_sdk::Error>, Result<Error, InvokeError>>,
     expected: Error,
 ) {
     match result {
         Err(Ok(got)) => {
             assert_eq!(
-                got, expected,
+                got,
+                expected,
                 "expected {} ({})",
                 variant_name(expected),
                 expected as u32,
@@ -293,8 +322,13 @@ fn create_round_rejects_commit_after_reveal() {
     let f = setup();
     let operator = Address::generate(&f.env);
     let res = f.client.try_create_round(
-        &operator, &b32(&f.env, 1), &2_000, &ClearingRule::HighestBid,
-        &2_000, &2_500, &Bytes::from_array(&f.env, b"a"),
+        &operator,
+        &b32(&f.env, 1),
+        &2_000,
+        &ClearingRule::HighestBid,
+        &2_000,
+        &2_500,
+        &Bytes::from_array(&f.env, b"a"),
     );
     assert!(res.is_err());
 }
@@ -304,8 +338,13 @@ fn create_round_rejects_deadline_in_past() {
     let f = setup();
     let operator = Address::generate(&f.env);
     let res = f.client.try_create_round(
-        &operator, &b32(&f.env, 1), &2_000, &ClearingRule::HighestBid,
-        &500, &2_500, &Bytes::from_array(&f.env, b"a"),
+        &operator,
+        &b32(&f.env, 1),
+        &2_000,
+        &ClearingRule::HighestBid,
+        &500,
+        &2_500,
+        &Bytes::from_array(&f.env, b"a"),
     );
     assert!(res.is_err());
 }
@@ -316,7 +355,14 @@ fn commit_locks_escrow() {
     let operator = Address::generate(&f.env);
     let id = open_round(&f, &operator);
     let bidder = funded_bidder(&f, 1_000);
-    f.client.commit(&id, &bidder, &b32(&f.env, 7), &Bytes::from_array(&f.env, b"ciphertext"), &600, &Bytes::from_array(&f.env, b"id-blob"));
+    f.client.commit(
+        &id,
+        &bidder,
+        &b32(&f.env, 7),
+        &Bytes::from_array(&f.env, b"ciphertext"),
+        &600,
+        &Bytes::from_array(&f.env, b"id-blob"),
+    );
     assert_eq!(f.usdc_token.balance(&bidder), 400);
     assert_eq!(f.usdc_token.balance(&f.client.address), 600);
     let round = f.client.get_round(&id);
@@ -333,9 +379,30 @@ fn get_bidders_returns_ordered_index() {
     let id = open_round(&f, &operator);
     let a = funded_bidder(&f, 1_000);
     let b = funded_bidder(&f, 1_000);
-    f.client.commit(&id, &a, &b32(&f.env, 1), &Bytes::from_array(&f.env, b"c"), &100, &Bytes::from_array(&f.env, b"id"));
-    f.client.commit(&id, &b, &b32(&f.env, 2), &Bytes::from_array(&f.env, b"c"), &200, &Bytes::from_array(&f.env, b"id"));
-    f.client.commit(&id, &a, &b32(&f.env, 3), &Bytes::from_array(&f.env, b"c"), &150, &Bytes::from_array(&f.env, b"id"));
+    f.client.commit(
+        &id,
+        &a,
+        &b32(&f.env, 1),
+        &Bytes::from_array(&f.env, b"c"),
+        &100,
+        &Bytes::from_array(&f.env, b"id"),
+    );
+    f.client.commit(
+        &id,
+        &b,
+        &b32(&f.env, 2),
+        &Bytes::from_array(&f.env, b"c"),
+        &200,
+        &Bytes::from_array(&f.env, b"id"),
+    );
+    f.client.commit(
+        &id,
+        &a,
+        &b32(&f.env, 3),
+        &Bytes::from_array(&f.env, b"c"),
+        &150,
+        &Bytes::from_array(&f.env, b"id"),
+    );
     let bidders = f.client.get_bidders(&id);
     assert_eq!(bidders.len(), 2);
     assert_eq!(bidders.get(0).unwrap(), a);
@@ -348,8 +415,22 @@ fn commit_overwrite_before_close_refunds_prior_escrow() {
     let operator = Address::generate(&f.env);
     let id = open_round(&f, &operator);
     let bidder = funded_bidder(&f, 1_000);
-    f.client.commit(&id, &bidder, &b32(&f.env, 7), &Bytes::from_array(&f.env, b"c1"), &600, &Bytes::from_array(&f.env, b"id"));
-    f.client.commit(&id, &bidder, &b32(&f.env, 9), &Bytes::from_array(&f.env, b"c2"), &200, &Bytes::from_array(&f.env, b"id"));
+    f.client.commit(
+        &id,
+        &bidder,
+        &b32(&f.env, 7),
+        &Bytes::from_array(&f.env, b"c1"),
+        &600,
+        &Bytes::from_array(&f.env, b"id"),
+    );
+    f.client.commit(
+        &id,
+        &bidder,
+        &b32(&f.env, 9),
+        &Bytes::from_array(&f.env, b"c2"),
+        &200,
+        &Bytes::from_array(&f.env, b"id"),
+    );
     assert_eq!(f.usdc_token.balance(&bidder), 800);
     assert_eq!(f.usdc_token.balance(&f.client.address), 200);
     assert_eq!(f.client.get_round(&id).bidders.len(), 1);
@@ -362,7 +443,14 @@ fn commit_after_deadline_rejected() {
     let id = open_round(&f, &operator);
     let bidder = funded_bidder(&f, 1_000);
     f.env.ledger().with_mut(|l| l.timestamp = 1_600);
-    let res = f.client.try_commit(&id, &bidder, &b32(&f.env, 7), &Bytes::from_array(&f.env, b"c"), &600, &Bytes::from_array(&f.env, b"id"));
+    let res = f.client.try_commit(
+        &id,
+        &bidder,
+        &b32(&f.env, 7),
+        &Bytes::from_array(&f.env, b"c"),
+        &600,
+        &Bytes::from_array(&f.env, b"id"),
+    );
     assert!(res.is_err());
 }
 
@@ -372,7 +460,14 @@ fn commit_zero_escrow_rejected() {
     let operator = Address::generate(&f.env);
     let id = open_round(&f, &operator);
     let bidder = funded_bidder(&f, 1_000);
-    let res = f.client.try_commit(&id, &bidder, &b32(&f.env, 7), &Bytes::from_array(&f.env, b"c"), &0, &Bytes::from_array(&f.env, b"id"));
+    let res = f.client.try_commit(
+        &id,
+        &bidder,
+        &b32(&f.env, 7),
+        &Bytes::from_array(&f.env, b"c"),
+        &0,
+        &Bytes::from_array(&f.env, b"id"),
+    );
     assert!(res.is_err());
 }
 
@@ -383,8 +478,22 @@ fn void_after_grace_refunds_all() {
     let id = open_round(&f, &operator);
     let a = funded_bidder(&f, 1_000);
     let bbidder = funded_bidder(&f, 1_000);
-    f.client.commit(&id, &a, &b32(&f.env, 1), &Bytes::from_array(&f.env, b"c"), &300, &Bytes::from_array(&f.env, b"id"));
-    f.client.commit(&id, &bbidder, &b32(&f.env, 2), &Bytes::from_array(&f.env, b"c"), &500, &Bytes::from_array(&f.env, b"id"));
+    f.client.commit(
+        &id,
+        &a,
+        &b32(&f.env, 1),
+        &Bytes::from_array(&f.env, b"c"),
+        &300,
+        &Bytes::from_array(&f.env, b"id"),
+    );
+    f.client.commit(
+        &id,
+        &bbidder,
+        &b32(&f.env, 2),
+        &Bytes::from_array(&f.env, b"c"),
+        &500,
+        &Bytes::from_array(&f.env, b"id"),
+    );
     f.env.ledger().with_mut(|l| l.timestamp = 2_500 + 3_600 + 1);
     f.client.void(&id);
     assert_eq!(f.usdc_token.balance(&a), 1_000);
@@ -400,18 +509,39 @@ fn void_after_grace_refunds_all() {
 
 #[test]
 fn highest_bid_table_driven() {
-    struct Case { bids: &'static [i128], expected_winner_idx: usize }
+    struct Case {
+        bids: &'static [i128],
+        expected_winner_idx: usize,
+    }
     let cases = [
-        Case { bids: &[100, 200, 300], expected_winner_idx: 2 },
-        Case { bids: &[999, 1, 500],   expected_winner_idx: 0 },
-        Case { bids: &[50, 50, 51],    expected_winner_idx: 2 },
-        Case { bids: &[1],             expected_winner_idx: 0 },
+        Case {
+            bids: &[100, 200, 300],
+            expected_winner_idx: 2,
+        },
+        Case {
+            bids: &[999, 1, 500],
+            expected_winner_idx: 0,
+        },
+        Case {
+            bids: &[50, 50, 51],
+            expected_winner_idx: 2,
+        },
+        Case {
+            bids: &[1],
+            expected_winner_idx: 0,
+        },
     ];
 
     for case in &cases {
         let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
         let operator = Address::generate(&f.env);
-        let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+        let id = drand_round(
+            &f,
+            &operator,
+            commit_deadline,
+            reveal_deadline,
+            ClearingRule::HighestBid,
+        );
 
         let mut bidders = Vec::new(&f.env);
         let mut nonces: Vec<BytesN<32>> = Vec::new(&f.env);
@@ -426,29 +556,59 @@ fn highest_bid_table_driven() {
         f.client.open_reveal(&id, &real_sig(&f.env));
 
         for i in 0..case.bids.len() {
-            f.client.reveal(&id, &bidders.get(i as u32).unwrap(), &case.bids[i], &nonces.get(i as u32).unwrap());
+            f.client.reveal(
+                &id,
+                &bidders.get(i as u32).unwrap(),
+                &case.bids[i],
+                &nonces.get(i as u32).unwrap(),
+            );
         }
 
-        f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+        f.env
+            .ledger()
+            .with_mut(|l| l.timestamp = reveal_deadline + 1);
         let winner = f.client.clear(&id);
-        assert_eq!(winner, Some(bidders.get(case.expected_winner_idx as u32).unwrap()),
-            "HighestBid {:?}: expected winner index {}", case.bids, case.expected_winner_idx);
+        assert_eq!(
+            winner,
+            Some(bidders.get(case.expected_winner_idx as u32).unwrap()),
+            "HighestBid {:?}: expected winner index {}",
+            case.bids,
+            case.expected_winner_idx
+        );
     }
 }
 
 #[test]
 fn lowest_bid_table_driven() {
-    struct Case { bids: &'static [i128], expected_winner_idx: usize }
+    struct Case {
+        bids: &'static [i128],
+        expected_winner_idx: usize,
+    }
     let cases = [
-        Case { bids: &[300, 200, 100], expected_winner_idx: 2 },
-        Case { bids: &[1, 999, 500],   expected_winner_idx: 0 },
-        Case { bids: &[51, 50, 50],    expected_winner_idx: 1 },
+        Case {
+            bids: &[300, 200, 100],
+            expected_winner_idx: 2,
+        },
+        Case {
+            bids: &[1, 999, 500],
+            expected_winner_idx: 0,
+        },
+        Case {
+            bids: &[51, 50, 50],
+            expected_winner_idx: 1,
+        },
     ];
 
     for case in &cases {
         let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
         let operator = Address::generate(&f.env);
-        let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::LowestBid);
+        let id = drand_round(
+            &f,
+            &operator,
+            commit_deadline,
+            reveal_deadline,
+            ClearingRule::LowestBid,
+        );
 
         let mut bidders = Vec::new(&f.env);
         let mut nonces: Vec<BytesN<32>> = Vec::new(&f.env);
@@ -463,13 +623,25 @@ fn lowest_bid_table_driven() {
         f.client.open_reveal(&id, &real_sig(&f.env));
 
         for i in 0..case.bids.len() {
-            f.client.reveal(&id, &bidders.get(i as u32).unwrap(), &case.bids[i], &nonces.get(i as u32).unwrap());
+            f.client.reveal(
+                &id,
+                &bidders.get(i as u32).unwrap(),
+                &case.bids[i],
+                &nonces.get(i as u32).unwrap(),
+            );
         }
 
-        f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+        f.env
+            .ledger()
+            .with_mut(|l| l.timestamp = reveal_deadline + 1);
         let winner = f.client.clear(&id);
-        assert_eq!(winner, Some(bidders.get(case.expected_winner_idx as u32).unwrap()),
-            "LowestBid {:?}: expected winner index {}", case.bids, case.expected_winner_idx);
+        assert_eq!(
+            winner,
+            Some(bidders.get(case.expected_winner_idx as u32).unwrap()),
+            "LowestBid {:?}: expected winner index {}",
+            case.bids,
+            case.expected_winner_idx
+        );
     }
 }
 
@@ -480,32 +652,48 @@ fn highest_bid_tie_is_deterministic_first_inserter_wins() {
     // Alice commits first -> should win the tie
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
-    let bob   = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, tied_value, 500, 0xAA);
-    let b_nonce = commit_bid(&f, id, &bob,   tied_value, 500, 0xBB);
+    let b_nonce = commit_bid(&f, id, &bob, tied_value, 500, 0xBB);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &tied_value, &a_nonce);
-    f.client.reveal(&id, &bob,   &tied_value, &b_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
-    assert_eq!(f.client.clear(&id), Some(alice.clone()), "tie: first inserter (alice) must win");
+    f.client.reveal(&id, &bob, &tied_value, &b_nonce);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    assert_eq!(
+        f.client.clear(&id),
+        Some(alice.clone()),
+        "tie: first inserter (alice) must win"
+    );
 
     // Reversed insertion order: bob commits first -> bob should win
     let (f2, t2, cd2, rd2) = setup_drand();
-    let op2   = Address::generate(&f2.env);
-    let id2   = drand_round(&f2, &op2, cd2, rd2, ClearingRule::HighestBid);
-    let bob2   = funded_bidder(&f2, 1_000);
+    let op2 = Address::generate(&f2.env);
+    let id2 = drand_round(&f2, &op2, cd2, rd2, ClearingRule::HighestBid);
+    let bob2 = funded_bidder(&f2, 1_000);
     let alice2 = funded_bidder(&f2, 1_000);
-    let b2_nonce = commit_bid(&f2, id2, &bob2,   tied_value, 500, 0xBB);
+    let b2_nonce = commit_bid(&f2, id2, &bob2, tied_value, 500, 0xBB);
     let a2_nonce = commit_bid(&f2, id2, &alice2, tied_value, 500, 0xAA);
     f2.env.ledger().with_mut(|l| l.timestamp = t2 + 1);
     f2.client.open_reveal(&id2, &real_sig(&f2.env));
-    f2.client.reveal(&id2, &bob2,   &tied_value, &b2_nonce);
+    f2.client.reveal(&id2, &bob2, &tied_value, &b2_nonce);
     f2.client.reveal(&id2, &alice2, &tied_value, &a2_nonce);
     f2.env.ledger().with_mut(|l| l.timestamp = rd2 + 1);
-    assert_eq!(f2.client.clear(&id2), Some(bob2.clone()), "tie reversed: bob must win");
+    assert_eq!(
+        f2.client.clear(&id2),
+        Some(bob2.clone()),
+        "tie reversed: bob must win"
+    );
 }
 
 #[test]
@@ -513,17 +701,29 @@ fn lowest_bid_tie_is_deterministic_first_inserter_wins() {
     let tied_value: i128 = 200;
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::LowestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::LowestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
-    let bob   = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, tied_value, 1_000, 0xCC);
-    let b_nonce = commit_bid(&f, id, &bob,   tied_value, 1_000, 0xDD);
+    let b_nonce = commit_bid(&f, id, &bob, tied_value, 1_000, 0xDD);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &tied_value, &a_nonce);
-    f.client.reveal(&id, &bob,   &tied_value, &b_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
-    assert_eq!(f.client.clear(&id), Some(alice.clone()), "LowestBid tie: first inserter wins");
+    f.client.reveal(&id, &bob, &tied_value, &b_nonce);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    assert_eq!(
+        f.client.clear(&id),
+        Some(alice.clone()),
+        "LowestBid tie: first inserter wins"
+    );
 }
 
 // ── 2. Mixed reveals: valid, invalid, missing, duplicate ─────────────────────
@@ -532,77 +732,130 @@ fn lowest_bid_tie_is_deterministic_first_inserter_wins() {
 fn reveal_hash_mismatch_invalidates_bid() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let good = funded_bidder(&f, 1_000);
-    let bad  = funded_bidder(&f, 1_000);
+    let bad = funded_bidder(&f, 1_000);
     let good_nonce = commit_bid(&f, id, &good, 300, 300, 0x01);
-    let bad_nonce  = commit_bid(&f, id, &bad,  500, 500, 0x02);
+    let bad_nonce = commit_bid(&f, id, &bad, 500, 500, 0x02);
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &good, &300, &good_nonce);
     // Wrong value -> hash mismatch -> rejected
-    assert!(f.client.try_reveal(&id, &bad, &999, &bad_nonce).is_err(), "hash mismatch must be rejected");
+    assert!(
+        f.client.try_reveal(&id, &bad, &999, &bad_nonce).is_err(),
+        "hash mismatch must be rejected"
+    );
 
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
-    assert_eq!(f.client.clear(&id), Some(good.clone()), "only valid revealer must win");
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    assert_eq!(
+        f.client.clear(&id),
+        Some(good.clone()),
+        "only valid revealer must win"
+    );
 }
 
 #[test]
 fn missing_reveal_bid_is_skipped_during_clear() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let revealer = funded_bidder(&f, 1_000);
-    let ghoster  = funded_bidder(&f, 1_000);
-    let r_nonce  = commit_bid(&f, id, &revealer, 100, 100, 0x01);
-    let _        = commit_bid(&f, id, &ghoster,  999, 999, 0x02); // never reveals
+    let ghoster = funded_bidder(&f, 1_000);
+    let r_nonce = commit_bid(&f, id, &revealer, 100, 100, 0x01);
+    let _ = commit_bid(&f, id, &ghoster, 999, 999, 0x02); // never reveals
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &revealer, &100, &r_nonce);
 
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
-    assert_eq!(f.client.clear(&id), Some(revealer.clone()), "unrevealed high bid must be skipped");
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    assert_eq!(
+        f.client.clear(&id),
+        Some(revealer.clone()),
+        "unrevealed high bid must be skipped"
+    );
 }
 
 #[test]
 fn duplicate_reveal_rejected() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let bidder = funded_bidder(&f, 1_000);
-    let nonce  = commit_bid(&f, id, &bidder, 400, 400, 0x05);
+    let nonce = commit_bid(&f, id, &bidder, 400, 400, 0x05);
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &bidder, &400, &nonce);
-    assert!(f.client.try_reveal(&id, &bidder, &400, &nonce).is_err(), "duplicate reveal must be rejected");
+    assert!(
+        f.client.try_reveal(&id, &bidder, &400, &nonce).is_err(),
+        "duplicate reveal must be rejected"
+    );
 }
 
 #[test]
 fn reveal_wrong_nonce_rejected() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let bidder = funded_bidder(&f, 1_000);
     let _correct_nonce = commit_bid(&f, id, &bidder, 400, 400, 0x07);
-    let wrong_nonce    = b32(&f.env, 0x99);
+    let wrong_nonce = b32(&f.env, 0x99);
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
-    assert!(f.client.try_reveal(&id, &bidder, &400, &wrong_nonce).is_err(), "wrong nonce must be rejected");
+    assert!(
+        f.client
+            .try_reveal(&id, &bidder, &400, &wrong_nonce)
+            .is_err(),
+        "wrong nonce must be rejected"
+    );
 }
 
 #[test]
 fn no_valid_bids_after_reveal_window() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let bidder = funded_bidder(&f, 1_000);
     let _ = commit_bid(&f, id, &bidder, 500, 500, 0x01); // never reveals
@@ -610,8 +863,14 @@ fn no_valid_bids_after_reveal_window() {
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
 
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
-    assert_eq!(f.client.clear(&id), None, "no valid bids -> winner must be None");
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    assert_eq!(
+        f.client.clear(&id),
+        None,
+        "no valid bids -> winner must be None"
+    );
 }
 
 // ── 3. Repeated pre-deadline overwrites with changing escrow ──────────────────
@@ -625,10 +884,27 @@ fn repeated_overwrites_escrow_conservation() {
     let initial: i128 = 2_000;
     let escrows: &[i128] = &[500, 300, 800, 100];
     for (i, &escrow) in escrows.iter().enumerate() {
-        f.client.commit(&id, &bidder, &b32(&f.env, (i + 1) as u8), &Bytes::from_array(&f.env, b"c"), &escrow, &Bytes::from_array(&f.env, b"id"));
+        f.client.commit(
+            &id,
+            &bidder,
+            &b32(&f.env, (i + 1) as u8),
+            &Bytes::from_array(&f.env, b"c"),
+            &escrow,
+            &Bytes::from_array(&f.env, b"id"),
+        );
         let sum = f.usdc_token.balance(&bidder) + f.usdc_token.balance(&f.client.address);
-        assert_eq!(sum, initial, "conservation violated after overwrite #{}", i + 1);
-        assert_eq!(f.usdc_token.balance(&f.client.address), escrow, "contract must hold latest escrow after #{}", i + 1);
+        assert_eq!(
+            sum,
+            initial,
+            "conservation violated after overwrite #{}",
+            i + 1
+        );
+        assert_eq!(
+            f.usdc_token.balance(&f.client.address),
+            escrow,
+            "contract must hold latest escrow after #{}",
+            i + 1
+        );
     }
     assert_eq!(f.client.get_round(&id).bidders.len(), 1);
 }
@@ -639,11 +915,28 @@ fn overwrite_to_larger_escrow_conserves_tokens() {
     let operator = Address::generate(&f.env);
     let id = open_round(&f, &operator);
     let bidder = funded_bidder(&f, 1_000);
-    f.client.commit(&id, &bidder, &b32(&f.env, 1), &Bytes::from_array(&f.env, b"c"), &200, &Bytes::from_array(&f.env, b"id"));
-    f.client.commit(&id, &bidder, &b32(&f.env, 2), &Bytes::from_array(&f.env, b"c"), &700, &Bytes::from_array(&f.env, b"id"));
+    f.client.commit(
+        &id,
+        &bidder,
+        &b32(&f.env, 1),
+        &Bytes::from_array(&f.env, b"c"),
+        &200,
+        &Bytes::from_array(&f.env, b"id"),
+    );
+    f.client.commit(
+        &id,
+        &bidder,
+        &b32(&f.env, 2),
+        &Bytes::from_array(&f.env, b"c"),
+        &700,
+        &Bytes::from_array(&f.env, b"id"),
+    );
     assert_eq!(f.usdc_token.balance(&bidder), 300);
     assert_eq!(f.usdc_token.balance(&f.client.address), 700);
-    assert_eq!(f.usdc_token.balance(&bidder) + f.usdc_token.balance(&f.client.address), 1_000);
+    assert_eq!(
+        f.usdc_token.balance(&bidder) + f.usdc_token.balance(&f.client.address),
+        1_000
+    );
 }
 
 // ── 4. Token conservation after every escrow-changing action ─────────────────
@@ -652,10 +945,16 @@ fn overwrite_to_larger_escrow_conserves_tokens() {
 fn token_conservation_full_lifecycle() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let alice = funded_bidder(&f, 1_000);
-    let bob   = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
     let total: i128 = 2_000;
 
     let check = |label: &str| {
@@ -680,7 +979,9 @@ fn token_conservation_full_lifecycle() {
     f.client.reveal(&id, &bob, &500, &b_nonce);
     check("after bob reveal");
 
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     check("after clear");
 
@@ -694,22 +995,34 @@ fn token_conservation_full_lifecycle() {
 fn contract_balance_zero_after_settle() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let alice = funded_bidder(&f, 1_000);
-    let bob   = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 700, 700, 0x11);
-    let b_nonce = commit_bid(&f, id, &bob,   500, 500, 0x22);
+    let b_nonce = commit_bid(&f, id, &bob, 500, 500, 0x22);
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &700, &a_nonce);
-    f.client.reveal(&id, &bob,   &500, &b_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.reveal(&id, &bob, &500, &b_nonce);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
 
-    assert_eq!(f.usdc_token.balance(&f.client.address), 0, "contract must hold zero after settle");
+    assert_eq!(
+        f.usdc_token.balance(&f.client.address),
+        0,
+        "contract must hold zero after settle"
+    );
 }
 
 #[test]
@@ -718,12 +1031,16 @@ fn contract_balance_zero_after_void() {
     let operator = Address::generate(&f.env);
     let id = open_round(&f, &operator);
     let alice = funded_bidder(&f, 1_000);
-    let bob   = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
     commit_bid(&f, id, &alice, 700, 700, 0x11);
-    commit_bid(&f, id, &bob,   500, 500, 0x22);
+    commit_bid(&f, id, &bob, 500, 500, 0x22);
     f.env.ledger().with_mut(|l| l.timestamp = 2_500 + 3_600 + 1);
     f.client.void(&id);
-    assert_eq!(f.usdc_token.balance(&f.client.address), 0, "contract must hold zero after void");
+    assert_eq!(
+        f.usdc_token.balance(&f.client.address),
+        0,
+        "contract must hold zero after void"
+    );
 }
 
 // ── 6. Operator/winner/refund amounts are exact and paid once ─────────────────
@@ -731,23 +1048,50 @@ fn contract_balance_zero_after_void() {
 #[test]
 fn settle_exact_payouts_table() {
     struct Case {
-        bids:        &'static [i128],
-        escrows:     &'static [i128],
+        bids: &'static [i128],
+        escrows: &'static [i128],
         winning_idx: usize,
-        op_gets:     i128,
+        op_gets: i128,
         winner_surplus: i128,
         loser_refunds: &'static [i128],
     }
     let cases = [
-        Case { bids: &[700, 500], escrows: &[700, 500], winning_idx: 0, op_gets: 700, winner_surplus: 0,   loser_refunds: &[500] },
-        Case { bids: &[700, 500], escrows: &[1_000, 800], winning_idx: 0, op_gets: 700, winner_surplus: 300, loser_refunds: &[800] },
-        Case { bids: &[100, 200, 150], escrows: &[100, 200, 150], winning_idx: 1, op_gets: 200, winner_surplus: 0, loser_refunds: &[100, 150] },
+        Case {
+            bids: &[700, 500],
+            escrows: &[700, 500],
+            winning_idx: 0,
+            op_gets: 700,
+            winner_surplus: 0,
+            loser_refunds: &[500],
+        },
+        Case {
+            bids: &[700, 500],
+            escrows: &[1_000, 800],
+            winning_idx: 0,
+            op_gets: 700,
+            winner_surplus: 300,
+            loser_refunds: &[800],
+        },
+        Case {
+            bids: &[100, 200, 150],
+            escrows: &[100, 200, 150],
+            winning_idx: 1,
+            op_gets: 200,
+            winner_surplus: 0,
+            loser_refunds: &[100, 150],
+        },
     ];
 
     for (ci, case) in cases.iter().enumerate() {
         let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
         let operator = Address::generate(&f.env);
-        let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+        let id = drand_round(
+            &f,
+            &operator,
+            commit_deadline,
+            reveal_deadline,
+            ClearingRule::HighestBid,
+        );
 
         let mut bidders = Vec::new(&f.env);
         let mut nonces: Vec<BytesN<32>> = Vec::new(&f.env);
@@ -761,21 +1105,49 @@ fn settle_exact_payouts_table() {
         f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
         f.client.open_reveal(&id, &real_sig(&f.env));
         for i in 0..case.bids.len() {
-            f.client.reveal(&id, &bidders.get(i as u32).unwrap(), &case.bids[i], &nonces.get(i as u32).unwrap());
+            f.client.reveal(
+                &id,
+                &bidders.get(i as u32).unwrap(),
+                &case.bids[i],
+                &nonces.get(i as u32).unwrap(),
+            );
         }
-        f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+        f.env
+            .ledger()
+            .with_mut(|l| l.timestamp = reveal_deadline + 1);
         f.client.clear(&id);
         f.client.settle(&id);
 
         let winner = bidders.get(case.winning_idx as u32).unwrap();
-        assert_eq!(f.usdc_token.balance(&operator), case.op_gets, "case {}: operator payout", ci);
-        assert_eq!(f.usdc_token.balance(&winner), case.winner_surplus, "case {}: winner surplus", ci);
+        assert_eq!(
+            f.usdc_token.balance(&operator),
+            case.op_gets,
+            "case {}: operator payout",
+            ci
+        );
+        assert_eq!(
+            f.usdc_token.balance(&winner),
+            case.winner_surplus,
+            "case {}: winner surplus",
+            ci
+        );
         for (li, &expected) in case.loser_refunds.iter().enumerate() {
             let idx = if li < case.winning_idx { li } else { li + 1 };
             let loser = bidders.get(idx as u32).unwrap();
-            assert_eq!(f.usdc_token.balance(&loser), expected, "case {}: loser {} refund", ci, li);
+            assert_eq!(
+                f.usdc_token.balance(&loser),
+                expected,
+                "case {}: loser {} refund",
+                ci,
+                li
+            );
         }
-        assert_eq!(f.usdc_token.balance(&f.client.address), 0, "case {}: contract not drained", ci);
+        assert_eq!(
+            f.usdc_token.balance(&f.client.address),
+            0,
+            "case {}: contract not drained",
+            ci
+        );
     }
 }
 
@@ -785,19 +1157,34 @@ fn settle_exact_payouts_table() {
 fn double_settle_rejected() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let alice = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
 
-    assert!(f.client.try_settle(&id).is_err(), "double settle must be rejected");
-    assert_eq!(f.usdc_token.balance(&operator), 500, "operator must not receive funds twice");
+    assert!(
+        f.client.try_settle(&id).is_err(),
+        "double settle must be rejected"
+    );
+    assert_eq!(
+        f.usdc_token.balance(&operator),
+        500,
+        "operator must not receive funds twice"
+    );
 }
 
 #[test]
@@ -809,69 +1196,115 @@ fn double_void_rejected() {
     commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = 2_500 + 3_600 + 1);
     f.client.void(&id);
-    assert!(f.client.try_void(&id).is_err(), "double void must be rejected");
-    assert_eq!(f.usdc_token.balance(&alice), 500, "alice must not be refunded twice");
+    assert!(
+        f.client.try_void(&id).is_err(),
+        "double void must be rejected"
+    );
+    assert_eq!(
+        f.usdc_token.balance(&alice),
+        500,
+        "alice must not be refunded twice"
+    );
 }
 
 #[test]
 fn commit_on_settled_round_rejected() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let alice = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
 
     let late = funded_bidder(&f, 1_000);
-    assert!(f.client.try_commit(&id, &late, &b32(&f.env, 0x77), &Bytes::from_array(&f.env, b"c"), &100, &Bytes::from_array(&f.env, b"id")).is_err(),
-        "commit on settled round must be rejected");
+    assert!(
+        f.client
+            .try_commit(
+                &id,
+                &late,
+                &b32(&f.env, 0x77),
+                &Bytes::from_array(&f.env, b"c"),
+                &100,
+                &Bytes::from_array(&f.env, b"id")
+            )
+            .is_err(),
+        "commit on settled round must be rejected"
+    );
 }
 
 #[test]
 fn open_reveal_on_settled_round_rejected() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let alice = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
 
-    assert!(f.client.try_open_reveal(&id, &real_sig(&f.env)).is_err(),
-        "open_reveal on settled round must be rejected");
+    assert!(
+        f.client.try_open_reveal(&id, &real_sig(&f.env)).is_err(),
+        "open_reveal on settled round must be rejected"
+    );
 }
 
 #[test]
 fn reveal_on_settled_round_rejected() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let alice = funded_bidder(&f, 1_000);
-    let bob   = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 700, 700, 0x01);
-    let b_nonce = commit_bid(&f, id, &bob,   300, 300, 0x02);
+    let b_nonce = commit_bid(&f, id, &bob, 300, 300, 0x02);
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &700, &a_nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
 
-    assert!(f.client.try_reveal(&id, &bob, &300, &b_nonce).is_err(),
-        "reveal on settled round must be rejected");
+    assert!(
+        f.client.try_reveal(&id, &bob, &300, &b_nonce).is_err(),
+        "reveal on settled round must be rejected"
+    );
 }
 
 // ── 8. Generated cases reproducible from a printed seed ──────────────────────
@@ -879,12 +1312,18 @@ fn reveal_on_settled_round_rejected() {
 #[test]
 fn seeded_case_42_highest_bid_reproducible() {
     // Seed 42 -> bids [142, 242, 92], escrows [200, 300, 150]; winner index 1 (bid 242)
-    let bids:    &[i128] = &[142, 242, 92];
+    let bids: &[i128] = &[142, 242, 92];
     let escrows: &[i128] = &[200, 300, 150];
 
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
 
     let mut bidders = Vec::new(&f.env);
     let mut nonces: Vec<BytesN<32>> = Vec::new(&f.env);
@@ -898,23 +1337,40 @@ fn seeded_case_42_highest_bid_reproducible() {
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     for i in 0..bids.len() {
-        f.client.reveal(&id, &bidders.get(i as u32).unwrap(), &bids[i], &nonces.get(i as u32).unwrap());
+        f.client.reveal(
+            &id,
+            &bidders.get(i as u32).unwrap(),
+            &bids[i],
+            &nonces.get(i as u32).unwrap(),
+        );
     }
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     let winner = f.client.clear(&id);
-    assert_eq!(winner, Some(bidders.get(1).unwrap()), "seed-42: winner must be index 1 (bid=242)");
+    assert_eq!(
+        winner,
+        Some(bidders.get(1).unwrap()),
+        "seed-42: winner must be index 1 (bid=242)"
+    );
     assert_eq!(f.client.get_round(&id).winning_bid, 242);
 }
 
 #[test]
 fn seeded_case_7_lowest_bid_reproducible() {
     // Seed 7 -> bids [107, 207, 57], escrows [500, 500, 500]; winner index 2 (bid 57)
-    let bids:    &[i128] = &[107, 207, 57];
+    let bids: &[i128] = &[107, 207, 57];
     let escrows: &[i128] = &[500, 500, 500];
 
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::LowestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::LowestBid,
+    );
 
     let mut bidders = Vec::new(&f.env);
     let mut nonces: Vec<BytesN<32>> = Vec::new(&f.env);
@@ -928,11 +1384,22 @@ fn seeded_case_7_lowest_bid_reproducible() {
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     for i in 0..bids.len() {
-        f.client.reveal(&id, &bidders.get(i as u32).unwrap(), &bids[i], &nonces.get(i as u32).unwrap());
+        f.client.reveal(
+            &id,
+            &bidders.get(i as u32).unwrap(),
+            &bids[i],
+            &nonces.get(i as u32).unwrap(),
+        );
     }
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     let winner = f.client.clear(&id);
-    assert_eq!(winner, Some(bidders.get(2).unwrap()), "seed-7: winner must be index 2 (bid=57)");
+    assert_eq!(
+        winner,
+        Some(bidders.get(2).unwrap()),
+        "seed-7: winner must be index 2 (bid=57)"
+    );
     assert_eq!(f.client.get_round(&id).winning_bid, 57);
 }
 
@@ -945,8 +1412,10 @@ fn drand_bls_verify_real_vector() {
     let env = Env::default();
     let sig = hexn::<96>(&env, VEC_SIG_G1);
     let cfg = config_with(&env, VEC_PUBKEY_C1C0, VEC_NEGGEN_C1C0);
-    assert!(drand::verify_round(&env, &cfg, VEC_ROUND, &sig),
-        "c1c0-ordered constants must verify the live quicknet signature on-chain");
+    assert!(
+        drand::verify_round(&env, &cfg, VEC_ROUND, &sig),
+        "c1c0-ordered constants must verify the live quicknet signature on-chain"
+    );
 }
 
 #[test]
@@ -993,30 +1462,54 @@ fn full_lifecycle_real_drand_signature() {
 
     let operator = Address::generate(&f.env);
     let id = f.client.create_round(
-        &operator, &b32(&f.env, 0xAB), &VEC_ROUND, &ClearingRule::HighestBid,
-        &commit_deadline, &reveal_deadline, &Bytes::from_array(&f.env, b"auditor"),
+        &operator,
+        &b32(&f.env, 0xAB),
+        &VEC_ROUND,
+        &ClearingRule::HighestBid,
+        &commit_deadline,
+        &reveal_deadline,
+        &Bytes::from_array(&f.env, b"auditor"),
     );
 
     let alice = funded_bidder(&f, 1_000);
-    let bob   = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
     let a_nonce = b32(&f.env, 0x11);
     let b_nonce = b32(&f.env, 0x22);
     let a_value: i128 = 700;
     let b_value: i128 = 500;
 
-    f.client.commit(&id, &alice, &commitment(&f.env, a_value, &a_nonce), &Bytes::from_array(&f.env, b"sealedA"), &1_000, &Bytes::from_array(&f.env, b"idA"));
-    f.client.commit(&id, &bob,   &commitment(&f.env, b_value, &b_nonce), &Bytes::from_array(&f.env, b"sealedB"), &1_000, &Bytes::from_array(&f.env, b"idB"));
+    f.client.commit(
+        &id,
+        &alice,
+        &commitment(&f.env, a_value, &a_nonce),
+        &Bytes::from_array(&f.env, b"sealedA"),
+        &1_000,
+        &Bytes::from_array(&f.env, b"idA"),
+    );
+    f.client.commit(
+        &id,
+        &bob,
+        &commitment(&f.env, b_value, &b_nonce),
+        &Bytes::from_array(&f.env, b"sealedB"),
+        &1_000,
+        &Bytes::from_array(&f.env, b"idB"),
+    );
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     let sig = hexn::<96>(&f.env, VEC_SIG_G1);
     f.client.open_reveal(&id, &sig);
     assert_eq!(f.client.get_round(&id).status, Status::Revealing);
 
-    assert!(f.client.try_reveal(&id, &alice, &a_value, &b32(&f.env, 0x99)).is_err());
+    assert!(f
+        .client
+        .try_reveal(&id, &alice, &a_value, &b32(&f.env, 0x99))
+        .is_err());
     f.client.reveal(&id, &alice, &a_value, &a_nonce);
-    f.client.reveal(&id, &bob,   &b_value, &b_nonce);
+    f.client.reveal(&id, &bob, &b_value, &b_nonce);
 
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     assert_eq!(f.client.clear(&id), Some(alice.clone()));
     assert_eq!(f.client.get_round(&id).winning_bid, 700);
 
@@ -1032,7 +1525,10 @@ fn full_lifecycle_real_drand_signature() {
 fn commitment_matches_offchain_vector() {
     let env = Env::default();
     let h = commitment(&env, 700, &b32(&env, 0x11));
-    let expected = hexn::<32>(&env, "3d4c2d3604b23250687f0344a9474e3c748742a4fba4616d308d529121a8dec4");
+    let expected = hexn::<32>(
+        &env,
+        "3d4c2d3604b23250687f0344a9474e3c748742a4fba4616d308d529121a8dec4",
+    );
     assert_eq!(h, expected);
 }
 
@@ -1045,7 +1541,14 @@ fn round_with_n_bidders(n: u32) -> (Fixture, u64, Vec<Address>) {
     let mut all = Vec::new(&f.env);
     for i in 0..n {
         let bidder = funded_bidder(&f, 1_000 + i as i128);
-        f.client.commit(&id, &bidder, &b32(&f.env, (i + 1) as u8), &Bytes::from_array(&f.env, b"c"), &100, &Bytes::from_array(&f.env, b"id"));
+        f.client.commit(
+            &id,
+            &bidder,
+            &b32(&f.env, (i + 1) as u8),
+            &Bytes::from_array(&f.env, b"c"),
+            &100,
+            &Bytes::from_array(&f.env, b"id"),
+        );
         all.push_back(bidder);
     }
     (f, id, all)
@@ -1093,15 +1596,19 @@ fn get_bidders_page_final() {
 fn get_bidders_page_multi() {
     let (f, id, all) = round_with_n_bidders(10);
     let p1 = f.client.get_bidders_page(&id, &0, &4);
-    assert_eq!(p1.data.len(), 4); assert_eq!(p1.next_cursor, 4); assert_eq!(p1.total, 10);
+    assert_eq!(p1.data.len(), 4);
+    assert_eq!(p1.next_cursor, 4);
+    assert_eq!(p1.total, 10);
     assert_eq!(p1.data.get(0).unwrap(), all.get(0).unwrap());
     assert_eq!(p1.data.get(3).unwrap(), all.get(3).unwrap());
     let p2 = f.client.get_bidders_page(&id, &p1.next_cursor, &4);
-    assert_eq!(p2.data.len(), 4); assert_eq!(p2.next_cursor, 8);
+    assert_eq!(p2.data.len(), 4);
+    assert_eq!(p2.next_cursor, 8);
     assert_eq!(p2.data.get(0).unwrap(), all.get(4).unwrap());
     assert_eq!(p2.data.get(3).unwrap(), all.get(7).unwrap());
     let p3 = f.client.get_bidders_page(&id, &p2.next_cursor, &4);
-    assert_eq!(p3.data.len(), 2); assert_eq!(p3.next_cursor, 0);
+    assert_eq!(p3.data.len(), 2);
+    assert_eq!(p3.next_cursor, 0);
     assert_eq!(p3.data.get(0).unwrap(), all.get(8).unwrap());
     assert_eq!(p3.data.get(1).unwrap(), all.get(9).unwrap());
 }
@@ -1126,14 +1633,18 @@ fn get_bidders_page_rejects_limit_over_max() {
 fn get_bidders_page_cursor_at_total() {
     let (f, id, _) = round_with_n_bidders(3);
     let page = f.client.get_bidders_page(&id, &3, &5);
-    assert_eq!(page.data.len(), 0); assert_eq!(page.next_cursor, 0); assert_eq!(page.total, 3);
+    assert_eq!(page.data.len(), 0);
+    assert_eq!(page.next_cursor, 0);
+    assert_eq!(page.total, 3);
 }
 
 #[test]
 fn get_bidders_page_cursor_beyond_total() {
     let (f, id, _) = round_with_n_bidders(3);
     let page = f.client.get_bidders_page(&id, &10, &5);
-    assert_eq!(page.data.len(), 0); assert_eq!(page.next_cursor, 0); assert_eq!(page.total, 3);
+    assert_eq!(page.data.len(), 0);
+    assert_eq!(page.next_cursor, 0);
+    assert_eq!(page.total, 3);
 }
 
 #[test]
@@ -1143,12 +1654,18 @@ fn get_bidders_page_preserves_order() {
     let mut cursor: u32 = 0;
     loop {
         let page = f.client.get_bidders_page(&id, &cursor, &2);
-        for i in 0..page.data.len() { collected.push_back(page.data.get(i).unwrap()); }
-        if page.next_cursor == 0 { break; }
+        for i in 0..page.data.len() {
+            collected.push_back(page.data.get(i).unwrap());
+        }
+        if page.next_cursor == 0 {
+            break;
+        }
         cursor = page.next_cursor;
     }
     assert_eq!(collected.len(), 5);
-    for i in 0..5 { assert_eq!(collected.get(i).unwrap(), all.get(i).unwrap()); }
+    for i in 0..5 {
+        assert_eq!(collected.get(i).unwrap(), all.get(i).unwrap());
+    }
 }
 
 #[test]
@@ -1156,7 +1673,9 @@ fn get_bidders_still_returns_full_list() {
     let (f, id, all) = round_with_n_bidders(5);
     let full = f.client.get_bidders(&id);
     assert_eq!(full.len(), 5);
-    for i in 0..5 { assert_eq!(full.get(i).unwrap(), all.get(i).unwrap()); }
+    for i in 0..5 {
+        assert_eq!(full.get(i).unwrap(), all.get(i).unwrap());
+    }
 }
 
 #[test]
@@ -1213,7 +1732,13 @@ fn active_round_seal_ttl_covers_reveal_window() {
 fn open_reveal_extends_seal_through_reveal_window() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let bidder = funded_bidder(&f, 1_000);
     commit_bid(&f, id, &bidder, 500, 1_000, 0x01);
 
@@ -1237,22 +1762,36 @@ fn open_reveal_extends_seal_through_reveal_window() {
 fn settled_round_persistent_state_survives_seal_expiry() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &700, &nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
 
     let ttl = temporary_seal_ttl(&f, &seal_key(id, &alice));
     advance_ledgers(&f, ttl + 1);
-    assert!(f.client.get_seal(&id, &alice).is_none(), "seal should expire after TTL");
+    assert!(
+        f.client.get_seal(&id, &alice).is_none(),
+        "seal should expire after TTL"
+    );
     assert_eq!(f.client.get_round(&id).status, Status::Settled);
-    assert_eq!(f.client.get_bid_state(&id, &alice).revealed_value, Some(700));
+    assert_eq!(
+        f.client.get_bid_state(&id, &alice).revealed_value,
+        Some(700)
+    );
     assert_eq!(f.usdc_token.balance(&f.client.address), 0);
 }
 
@@ -1279,7 +1818,13 @@ fn voided_round_refunds_survive_seal_expiry() {
 fn late_reveal_rejected_after_window_even_with_seal_present() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
 
@@ -1287,7 +1832,9 @@ fn late_reveal_rejected_after_window_even_with_seal_present() {
     f.client.open_reveal(&id, &real_sig(&f.env));
     assert!(f.client.get_seal(&id, &alice).is_some());
 
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     assert!(
         f.client.try_reveal(&id, &alice, &700, &nonce).is_err(),
         "late reveal must be rejected after reveal_deadline"
@@ -1299,7 +1846,13 @@ fn late_reveal_rejected_after_window_even_with_seal_present() {
 fn clear_and_settle_work_after_seal_expiry() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let bob = funded_bidder(&f, 1_000);
     let a_nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
@@ -1315,7 +1868,9 @@ fn clear_and_settle_work_after_seal_expiry() {
     assert!(f.client.get_seal(&id, &alice).is_none());
     assert!(f.client.get_seal(&id, &bob).is_none());
 
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     assert_eq!(f.client.clear(&id), Some(alice.clone()));
     f.client.settle(&id);
     assert_eq!(f.client.get_round(&id).status, Status::Settled);
@@ -1326,14 +1881,22 @@ fn clear_and_settle_work_after_seal_expiry() {
 fn observer_reads_round_and_bid_state_after_lifecycle_completion() {
     let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(&f, &operator, commit_deadline, reveal_deadline, ClearingRule::HighestBid);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
     let alice = funded_bidder(&f, 1_000);
     let nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
 
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
     f.client.reveal(&id, &alice, &700, &nonce);
-    f.env.ledger().with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
     f.client.clear(&id);
     f.client.settle(&id);
 
@@ -1345,7 +1908,8 @@ fn observer_reads_round_and_bid_state_after_lifecycle_completion() {
     assert_eq!(round.status, Status::Settled);
     assert_eq!(round.winner, Some(alice.clone()));
     assert_eq!(round.winning_bid, 700);
-    let state = f.client.get_bid_state(&id, &alice);    assert_eq!(state.revealed_value, Some(700));
+    let state = f.client.get_bid_state(&id, &alice);
+    assert_eq!(state.revealed_value, Some(700));
     assert!(state.valid);
     assert!(state.settled);
 }
@@ -1401,6 +1965,7 @@ pub(super) const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
     (Error::NoValidBids, 37),
     (Error::RoundFull, 38),
     (Error::InvalidLimit, 39),
+    (Error::InvalidCursor, 40),
 ];
 
 /// Convert an `Error` to its on-chain discriminant using the [`repr(u32)`]
@@ -1439,6 +2004,7 @@ pub(super) fn variant_name(e: Error) -> &'static str {
         Error::NoValidBids => "NoValidBids",
         Error::RoundFull => "RoundFull",
         Error::InvalidLimit => "InvalidLimit",
+        Error::InvalidCursor => "InvalidCursor",
     }
 }
 
@@ -1447,7 +2013,8 @@ fn error_discriminants_match_document() {
     for (variant, expected_code) in DOCUMENTED_ERROR_CODES {
         let actual = discriminant(*variant);
         assert_eq!(
-            actual, *expected_code,
+            actual,
+            *expected_code,
             "{} discriminant drifted (got {}, expected {}) — update \
              contracts/round/ERRORS.md and DOCUMENTED_ERROR_CODES together",
             variant_name(*variant),
@@ -1486,7 +2053,7 @@ fn error_table_enumerates_every_variant() {
     // DOCUMENTED_ERROR_CODES.
     assert_eq!(
         DOCUMENTED_ERROR_CODES.len(),
-        27,
+        28,
         "DOCUMENTED_ERROR_CODES appears missing entries. The exhaustive \
          `variant_name` match already enforces parity at compile time — \
          update it together with this list and contracts/round/ERRORS.md."
@@ -1498,16 +2065,446 @@ fn error_codes_use_reserved_ranges() {
     // Range policy enforced by the documentation:
     //   1–4     → initialization/lookup
     //   10–22   → lifecycle/timing
-    //   30–39   → crypto/validation
+    //   30–40   → crypto/validation
     // New categories should pick a fresh, contiguous range — not collide with
     // logging conventions — and update ERRORS.md at the same time.
     for (variant, code) in DOCUMENTED_ERROR_CODES {
         let name = variant_name(*variant);
-        let in_range = matches!(*code, 1..=4 | 10..=22 | 30..=39);
+        let in_range = matches!(*code, 1..=4 | 10..=22 | 30..=40);
         assert!(
             in_range,
             "{name} = {code} falls outside the documented code ranges; \
              update contracts/round/ERRORS.md if you intentionally added a new category"
         );
     }
+}
+
+// ── 15. Bounded Resumable Settlement & Void Refunds (#359) ───────────────────
+
+#[test]
+fn bounded_settlement_multi_batch_conservation_and_short_batch() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+
+    // 10 bidders with different escrows
+    let mut bidders = std::vec::Vec::new();
+    let mut total_escrow: i128 = 0;
+    for i in 0..10 {
+        let bidder = funded_bidder(&f, 1_000);
+        let escrow = 500 + (i as i128) * 50;
+        total_escrow += escrow;
+        let bid = 200 + (i as i128) * 30; // Bidder 9 has highest bid: 200 + 270 = 470
+        let nonce = commit_bid(&f, id, &bidder, bid, escrow, i as u8);
+        bidders.push((bidder, bid, escrow, nonce));
+    }
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    for (bidder, bid, _, nonce) in &bidders {
+        f.client.reveal(&id, bidder, bid, nonce);
+    }
+
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    let winner = f.client.clear(&id);
+    assert_eq!(winner, Some(bidders[9].0.clone()));
+
+    // Round is Cleared, but NOT settled yet
+    let round_before = f.client.get_round(&id);
+    assert_eq!(round_before.status, Status::Cleared);
+
+    // Initial progress before any batch
+    let p0 = f.client.get_payout_progress(&id);
+    assert_eq!(p0.cursor, 0);
+    assert_eq!(p0.total_bidders, 10);
+    assert_eq!(p0.completed, false);
+    assert_eq!(p0.paid_amount, 0);
+    assert_eq!(p0.remaining_obligations, total_escrow);
+    assert_eq!(total_escrow, p0.paid_amount + p0.remaining_obligations);
+
+    // Batch 1: 0..4 (limit = 4)
+    let p1 = f.client.settle_batch(&id, &0, &4);
+    assert_eq!(p1.cursor, 4);
+    assert_eq!(p1.completed, false);
+    assert_eq!(total_escrow, p1.paid_amount + p1.remaining_obligations);
+    assert_eq!(f.client.get_round(&id).status, Status::Cleared);
+
+    // Batch 2: 4..8 (limit = 4)
+    let p2 = f.client.settle_batch(&id, &4, &4);
+    assert_eq!(p2.cursor, 8);
+    assert_eq!(p2.completed, false);
+    assert_eq!(total_escrow, p2.paid_amount + p2.remaining_obligations);
+    assert_eq!(f.client.get_round(&id).status, Status::Cleared);
+
+    // Batch 3: 8..10 (final short batch: limit = 4, remaining = 2)
+    let p3 = f.client.settle_batch(&id, &8, &4);
+    assert_eq!(p3.cursor, 10);
+    assert_eq!(p3.completed, true);
+    assert_eq!(p3.remaining_obligations, 0);
+    assert_eq!(p3.paid_amount, total_escrow);
+    assert_eq!(total_escrow, p3.paid_amount + p3.remaining_obligations);
+
+    // Only after final batch: status is Settled
+    let round_after = f.client.get_round(&id);
+    assert_eq!(round_after.status, Status::Settled);
+
+    // Operator received winning bid
+    assert_eq!(f.usdc_token.balance(&operator), bidders[9].1);
+    // Contract USDC balance is now 0
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
+}
+
+#[test]
+fn bounded_settlement_repeated_and_overlapping_batches() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+
+    let alice = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
+    let charlie = funded_bidder(&f, 1_000);
+    let a_nonce = commit_bid(&f, id, &alice, 700, 1_000, 0x11);
+    let b_nonce = commit_bid(&f, id, &bob, 500, 800, 0x22);
+    let c_nonce = commit_bid(&f, id, &charlie, 400, 600, 0x33);
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &700, &a_nonce);
+    f.client.reveal(&id, &bob, &500, &b_nonce);
+    f.client.reveal(&id, &charlie, &400, &c_nonce);
+
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+
+    // Batch 1: 0..1 (processes alice - winner)
+    let p1 = f.client.settle_batch(&id, &0, &1);
+    assert_eq!(p1.cursor, 1);
+    assert_eq!(f.usdc_token.balance(&operator), 700);
+    assert_eq!(f.usdc_token.balance(&alice), 300); // 1000 initial - 1000 escrow + 300 surplus
+
+    // Repeated call with cursor = 0: must NOT duplicate operator payout or winner surplus
+    let p1_repeat = f.client.settle_batch(&id, &0, &1);
+    assert_eq!(p1_repeat.cursor, 1);
+    assert_eq!(
+        f.usdc_token.balance(&operator),
+        700,
+        "operator cannot be paid twice"
+    );
+    assert_eq!(
+        f.usdc_token.balance(&alice),
+        300,
+        "winner surplus cannot be paid twice"
+    );
+
+    // Overlapping call with cursor = 0, limit = 2 (targets 0..2)
+    let p_overlap = f.client.settle_batch(&id, &0, &2);
+    assert_eq!(p_overlap.cursor, 2);
+    assert_eq!(f.usdc_token.balance(&operator), 700);
+    assert_eq!(f.usdc_token.balance(&alice), 300);
+    assert_eq!(f.usdc_token.balance(&bob), 1_000); // bob refunded 800
+
+    // Finish last batch
+    let p_final = f.client.settle_batch(&id, &2, &1);
+    assert_eq!(p_final.cursor, 3);
+    assert_eq!(p_final.completed, true);
+    assert_eq!(f.usdc_token.balance(&charlie), 1_000); // charlie refunded 600
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
+}
+
+#[test]
+fn bounded_settlement_invalid_cursors_and_limits() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+    let alice = funded_bidder(&f, 1_000);
+    let a_nonce = commit_bid(&f, id, &alice, 700, 700, 0x11);
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &700, &a_nonce);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+
+    // Limit = 0
+    assert_try_contract_err(f.client.try_settle_batch(&id, &0, &0), Error::InvalidLimit);
+    // Limit > 100
+    assert_try_contract_err(
+        f.client.try_settle_batch(&id, &0, &101),
+        Error::InvalidLimit,
+    );
+    // Cursor > total bidders (total = 1)
+    assert_try_contract_err(f.client.try_settle_batch(&id, &2, &1), Error::InvalidCursor);
+    // Cursor skipping obligations
+    assert_try_contract_err(f.client.try_settle_batch(&id, &1, &1), Error::InvalidCursor);
+}
+
+#[test]
+fn bounded_settlement_zero_surplus() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+
+    let alice = funded_bidder(&f, 1_000);
+    let bob = funded_bidder(&f, 1_000);
+    // Winner bid 700, escrow 700 -> exactly 0 surplus
+    let a_nonce = commit_bid(&f, id, &alice, 700, 700, 0x11);
+    let b_nonce = commit_bid(&f, id, &bob, 500, 500, 0x22);
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &alice, &700, &a_nonce);
+    f.client.reveal(&id, &bob, &500, &b_nonce);
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+
+    let p1 = f.client.settle_batch(&id, &0, &1);
+    assert_eq!(p1.cursor, 1);
+    assert_eq!(p1.paid_amount, 700); // Only operator received 700, alice surplus = 0
+    assert_eq!(p1.remaining_obligations, 500);
+    assert_eq!(700 + 500, p1.paid_amount + p1.remaining_obligations);
+
+    let p2 = f.client.settle_batch(&id, &1, &1);
+    assert_eq!(p2.cursor, 2);
+    assert_eq!(p2.completed, true);
+    assert_eq!(p2.paid_amount, 1_200);
+    assert_eq!(p2.remaining_obligations, 0);
+
+    assert_eq!(f.usdc_token.balance(&operator), 700);
+    assert_eq!(f.usdc_token.balance(&alice), 300); // 1000 - 700 = 300
+    assert_eq!(f.usdc_token.balance(&bob), 1_000);
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
+}
+
+#[test]
+fn bounded_void_multi_batch_and_conservation() {
+    let f = setup();
+    let operator = Address::generate(&f.env);
+    let id = open_round(&f, &operator);
+
+    let mut bidders = std::vec::Vec::new();
+    let mut total_escrow: i128 = 0;
+    for i in 0..6 {
+        let bidder = funded_bidder(&f, 1_000);
+        let escrow = 200 + (i as i128) * 100;
+        total_escrow += escrow;
+        commit_bid(&f, id, &bidder, 100, escrow, i as u8);
+        bidders.push((bidder, escrow));
+    }
+
+    // Past grace window
+    f.env.ledger().with_mut(|l| l.timestamp = 2_500 + 3_600 + 1);
+
+    // Initial progress
+    let p0 = f.client.get_payout_progress(&id);
+    assert_eq!(p0.cursor, 0);
+    assert_eq!(p0.completed, false);
+    assert_eq!(p0.remaining_obligations, total_escrow);
+
+    // Batch 1: 0..3
+    let p1 = f.client.void_batch(&id, &0, &3);
+    assert_eq!(p1.cursor, 3);
+    assert_eq!(p1.completed, false);
+    assert_eq!(total_escrow, p1.paid_amount + p1.remaining_obligations);
+    assert_eq!(f.client.get_round(&id).status, Status::Open); // Still open during refunds
+
+    // Batch 2: 3..6 (final batch)
+    let p2 = f.client.void_batch(&id, &3, &3);
+    assert_eq!(p2.cursor, 6);
+    assert_eq!(p2.completed, true);
+    assert_eq!(p2.remaining_obligations, 0);
+    assert_eq!(p2.paid_amount, total_escrow);
+
+    // Only after all obligations refunded: status is Voided
+    assert_eq!(f.client.get_round(&id).status, Status::Voided);
+
+    // All bidders fully refunded
+    for (bidder, _) in &bidders {
+        assert_eq!(f.usdc_token.balance(bidder), 1_000);
+    }
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
+}
+
+#[test]
+fn resumable_settlement_interrupted_keeper_simulation() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+
+    let mut bidders = std::vec::Vec::new();
+    for i in 0..8 {
+        let bidder = funded_bidder(&f, 1_000);
+        let escrow = 500;
+        let bid = 100 + (i as i128) * 50;
+        let nonce = commit_bid(&f, id, &bidder, bid, escrow, i as u8);
+        bidders.push((bidder, bid, escrow, nonce));
+    }
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    for (bidder, bid, _, nonce) in &bidders {
+        f.client.reveal(&id, bidder, bid, nonce);
+    }
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    f.client.clear(&id);
+
+    // Keeper 1 runs batch 1: cursor 0, limit 3
+    let p1 = f.client.settle_batch(&id, &0, &3);
+    assert_eq!(p1.cursor, 3);
+    assert_eq!(p1.completed, false);
+
+    // Keeper 1 "crashes" here!
+    // Keeper 2 wakes up, inspects confirmed on-chain state:
+    let confirmed_p = f.client.get_payout_progress(&id);
+    assert_eq!(confirmed_p.cursor, 3);
+
+    // Keeper 2 resumes from confirmed cursor 3, limit 3 (processes 3..6)
+    let p2 = f.client.settle_batch(&id, &confirmed_p.cursor, &3);
+    assert_eq!(p2.cursor, 6);
+
+    // Keeper 2 finishes remaining (6..8)
+    let p3 = f.client.settle_batch(&id, &p2.cursor, &3);
+    assert_eq!(p3.cursor, 8);
+    assert_eq!(p3.completed, true);
+    assert_eq!(f.client.get_round(&id).status, Status::Settled);
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
+}
+
+#[test]
+fn max_500_bidder_bounded_settlement_resource_regression() {
+    let (f, t_reveal, commit_deadline, reveal_deadline) =
+        setup_drand_with_config(soroban_sdk::testutils::EnvTestConfig {
+            capture_snapshot_at_drop: false,
+        });
+    let operator = Address::generate(&f.env);
+    let id = drand_round(
+        &f,
+        &operator,
+        commit_deadline,
+        reveal_deadline,
+        ClearingRule::HighestBid,
+    );
+
+    // Seed 500 bidders
+    let winner = funded_bidder(&f, 2_000);
+    let w_nonce = commit_bid(&f, id, &winner, 800, 1_000, 0xFF);
+
+    f.env.as_contract(&f.client.address, || {
+        f.env.cost_estimate().budget().reset_unlimited();
+        let mut round = get_round(&f.env, id).unwrap();
+        // winner is index 0; add 499 more bidders
+        for i in 1..500 {
+            let loser = Address::generate(&f.env);
+            round.bidders.push_back(loser.clone());
+            let state = BidState {
+                commitment: b32(&f.env, i as u8),
+                escrow: 100,
+                revealed_value: None,
+                revealed_nonce: None,
+                valid: false,
+                settled: false,
+            };
+            set_state(&f.env, id, &loser, &state);
+        }
+        set_round(&f.env, id, &round);
+        set_round_escrow(&f.env, id, 50_900);
+    });
+
+    // Mint tokens to contract to cover the 499 dummy bidders' escrow (49,900)
+    f.usdc_admin.mint(&f.client.address, &(499 * 100));
+
+    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
+    f.client.open_reveal(&id, &real_sig(&f.env));
+    f.client.reveal(&id, &winner, &800, &w_nonce);
+
+    f.env
+        .ledger()
+        .with_mut(|l| l.timestamp = reveal_deadline + 1);
+    let cleared_winner = f.client.clear(&id);
+    assert_eq!(cleared_winner, Some(winner.clone()));
+
+    // Total escrow = 1,000 (winner) + 49,900 (499 losers * 100) = 50,900
+    let total_escrow: i128 = 50_900;
+    let initial_p = f.client.get_payout_progress(&id);
+    assert_eq!(initial_p.total_bidders, 500);
+    assert_eq!(initial_p.remaining_obligations, total_escrow);
+
+    // Settle 500 bidders in 10 bounded batches of 50
+    let mut cursor = 0;
+    let batch_size = 50;
+    for batch_num in 1..=10 {
+        f.env.cost_estimate().budget().reset_unlimited();
+        let progress = f.client.settle_batch(&id, &cursor, &batch_size);
+        let cpu = f.env.cost_estimate().budget().cpu_instruction_cost();
+        let mem = f.env.cost_estimate().budget().memory_bytes_cost();
+
+        // Verify budget consumption is well within single-tx limits (100M CPU, 40MB memory)
+        assert!(
+            cpu < 100_000_000,
+            "batch {batch_num} CPU budget exceeded: {cpu}"
+        );
+        assert!(
+            mem < 40_000_000,
+            "batch {batch_num} memory budget exceeded: {mem}"
+        );
+
+        assert_eq!(progress.cursor, cursor + batch_size);
+        assert_eq!(
+            total_escrow,
+            progress.paid_amount + progress.remaining_obligations
+        );
+        cursor = progress.cursor;
+    }
+
+    let final_p = f.client.get_payout_progress(&id);
+    assert_eq!(final_p.completed, true);
+    assert_eq!(final_p.cursor, 500);
+    assert_eq!(final_p.remaining_obligations, 0);
+    assert_eq!(final_p.paid_amount, total_escrow);
+    assert_eq!(f.client.get_round(&id).status, Status::Settled);
+
+    // Operator received 800 winning bid
+    assert_eq!(f.usdc_token.balance(&operator), 800);
+    // Winner received surplus 200 (initial 2000 - 1000 escrow + 200 surplus = 1200)
+    assert_eq!(f.usdc_token.balance(&winner), 1_200);
+    // Contract balance fully drained to 0
+    assert_eq!(f.usdc_token.balance(&f.client.address), 0);
 }

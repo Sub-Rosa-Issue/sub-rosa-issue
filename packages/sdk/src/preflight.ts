@@ -15,7 +15,9 @@ export type PreflightOperation =
   | "reveal"
   | "clear"
   | "settle"
-  | "void";
+  | "void"
+  | "settle_batch"
+  | "void_batch";
 
 export interface PreflightFeeEstimate {
   /** Base transaction fee in stroops from the assembled transaction. */

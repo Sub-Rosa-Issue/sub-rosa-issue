@@ -336,6 +336,90 @@ describe("SubRosaClient preflight helpers", () => {
 
     await assert.doesNotReject(client.settle(1));
   });
+
+  it("settleBatch and voidBatch submit methods execute and parse PayoutProgress", async () => {
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      publicKey: PUBLIC_KEY,
+    });
+
+    const mockProgress = {
+      completed: true,
+      cursor: 50,
+      paid_amount: 5000n,
+      remaining_obligations: 0n,
+      total_bidders: 50,
+    };
+
+    Object.defineProperty(client.contract, "settle_batch", {
+      configurable: true,
+      value: async () => ({
+        async signAndSend() {
+          return { result: new Ok(mockProgress) };
+        },
+      }),
+    });
+
+    Object.defineProperty(client.contract, "void_batch", {
+      configurable: true,
+      value: async () => ({
+        async signAndSend() {
+          return { result: new Ok(mockProgress) };
+        },
+      }),
+    });
+
+    const settleRes = await client.settleBatch(1, 0, 50);
+    assert.deepEqual(settleRes, mockProgress);
+
+    const voidRes = await client.voidBatch(1, 0, 50);
+    assert.deepEqual(voidRes, mockProgress);
+  });
+
+  it("settleAll and voidAll iterate until completed", async () => {
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      publicKey: PUBLIC_KEY,
+    });
+
+    let calls = 0;
+    Object.defineProperty(client.contract, "get_payout_progress", {
+      configurable: true,
+      value: async () => ({
+        result: new Ok({
+          completed: false,
+          cursor: 0,
+          paid_amount: 0n,
+          remaining_obligations: 100n,
+          total_bidders: 2,
+        }),
+      }),
+    });
+
+    Object.defineProperty(client.contract, "settle_batch", {
+      configurable: true,
+      value: async () => {
+        calls++;
+        return {
+          async signAndSend() {
+            return {
+              result: new Ok({
+                completed: calls >= 2,
+                cursor: calls,
+                paid_amount: BigInt(calls * 50),
+                remaining_obligations: BigInt(100 - calls * 50),
+                total_bidders: 2,
+              }),
+            };
+          },
+        };
+      },
+    });
+
+    const res = await client.settleAll(1, 1);
+    assert.equal(res.completed, true);
+    assert.equal(calls, 2);
+  });
 });
 
 describe("SubRosaPreflightError", () => {

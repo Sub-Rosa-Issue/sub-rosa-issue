@@ -14,9 +14,7 @@ mod drand;
 mod storage;
 mod types;
 
-use soroban_sdk::{
-    contract, contractimpl, symbol_short, token, Address, Bytes, BytesN, Env, Vec,
-};
+use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Bytes, BytesN, Env, Vec};
 
 use storage::*;
 use types::*;
@@ -37,6 +35,7 @@ const MAX_PAGE_SIZE: u32 = 100;
 pub struct SubRosaRound;
 
 #[contractimpl]
+#[allow(clippy::too_many_arguments)]
 impl SubRosaRound {
     /// One-time deploy configuration. All Drand parameters are supplied by the
     /// deployer from values validated against a live quicknet round.
@@ -66,6 +65,7 @@ impl SubRosaRound {
 
     /// Open a new sealed round. Permissionless: anyone can be an operator, and
     /// the operator gets no special read power — that is the point.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_round(
         env: Env,
         operator: Address,
@@ -174,12 +174,16 @@ impl SubRosaRound {
                 if prev.escrow > 0 {
                     usdc.transfer(&contract, &bidder, &prev.escrow);
                 }
+                let current_total = get_round_escrow(&env, round_id).unwrap_or(0);
+                set_round_escrow(&env, round_id, current_total - prev.escrow + escrow);
             }
             None => {
                 if round.bidders.len() >= MAX_BIDDERS {
                     return Err(Error::RoundFull);
                 }
                 round.bidders.push_back(bidder.clone());
+                let current_total = get_round_escrow(&env, round_id).unwrap_or(0);
+                set_round_escrow(&env, round_id, current_total + escrow);
             }
         }
 
@@ -215,11 +219,7 @@ impl SubRosaRound {
     ///
     /// The supplied signature is verified on-chain via BLS12-381. This is the
     /// only way to move a round into `Revealing`; there is no operator override.
-    pub fn open_reveal(
-        env: Env,
-        round_id: u64,
-        drand_signature: BytesN<96>,
-    ) -> Result<(), Error> {
+    pub fn open_reveal(env: Env, round_id: u64, drand_signature: BytesN<96>) -> Result<(), Error> {
         let config = get_config(&env)?;
         let mut round = get_round(&env, round_id)?;
 
@@ -369,7 +369,8 @@ impl SubRosaRound {
             round.status = Status::Voided;
             set_round(&env, round_id, &round);
             refund_all(&env, &round, round_id);
-            env.events().publish((symbol_short!("voided"), round_id), 0u32);
+            env.events()
+                .publish((symbol_short!("voided"), round_id), 0u32);
             return Ok(None);
         }
 
@@ -383,10 +384,21 @@ impl SubRosaRound {
         Ok(winner)
     }
 
-    /// Settle a cleared round. The winner pays their bid from escrow to the
-    /// operator; the winner's surplus and every loser's escrow are refunded.
-    /// Cannot fail for lack of funds — everything was escrowed at commit.
-    pub fn settle(env: Env, round_id: u64) -> Result<(), Error> {
+    /// Bounded batch settlement for a cleared round.
+    ///
+    /// Settles up to `limit` bidders starting at `cursor` (0-indexed).
+    /// Prevents repeated payouts, supports resumable execution across separate
+    /// transactions, and only marks the round `Settled` once all obligations
+    /// are completed.
+    pub fn settle_batch(
+        env: Env,
+        round_id: u64,
+        cursor: u32,
+        limit: u32,
+    ) -> Result<PayoutProgress, Error> {
+        if limit == 0 || limit > MAX_PAGE_SIZE {
+            return Err(Error::InvalidLimit);
+        }
         let config = get_config(&env)?;
         let mut round = get_round(&env, round_id)?;
         if round.status == Status::Settled {
@@ -399,11 +411,50 @@ impl SubRosaRound {
             return Err(Error::NotCleared);
         }
         let winner = round.winner.clone().ok_or(Error::NoValidBids)?;
+        let total_bidders = round.bidders.len();
+
+        if cursor > total_bidders {
+            return Err(Error::InvalidCursor);
+        }
+
+        let mut progress = match try_get_payout_progress(&env, round_id) {
+            Some(p) => {
+                if p.is_void {
+                    return Err(Error::RoundVoided);
+                }
+                p
+            }
+            None => {
+                let total_escrow = get_or_compute_round_escrow(&env, round_id, &round);
+                PayoutProgress {
+                    round_id,
+                    cursor: 0,
+                    total_bidders,
+                    completed: false,
+                    paid_amount: 0,
+                    remaining_obligations: total_escrow,
+                    operator_paid: false,
+                    is_void: false,
+                }
+            }
+        };
+
+        if cursor > progress.cursor {
+            return Err(Error::InvalidCursor);
+        }
+
+        if progress.completed {
+            return Err(Error::AlreadySettled);
+        }
+
+        let start = cursor;
+        let end = (start + limit).min(total_bidders);
 
         let usdc = token::Client::new(&env, &config.usdc);
         let contract = env.current_contract_address();
 
-        for bidder in round.bidders.iter() {
+        for i in start..end {
+            let bidder = round.bidders.get(i).unwrap();
             let mut state = match try_get_state(&env, round_id, &bidder) {
                 Some(s) => s,
                 None => continue,
@@ -411,52 +462,231 @@ impl SubRosaRound {
             if state.settled {
                 continue;
             }
+
             if bidder == winner {
-                usdc.transfer(&contract, &round.operator, &round.winning_bid);
+                if !progress.operator_paid {
+                    usdc.transfer(&contract, &round.operator, &round.winning_bid);
+                    progress.operator_paid = true;
+                    progress.paid_amount += round.winning_bid;
+                    progress.remaining_obligations -= round.winning_bid;
+                }
                 let surplus = state.escrow - round.winning_bid;
                 if surplus > 0 {
                     usdc.transfer(&contract, &bidder, &surplus);
+                    progress.paid_amount += surplus;
+                    progress.remaining_obligations -= surplus;
                 }
             } else if state.escrow > 0 {
                 usdc.transfer(&contract, &bidder, &state.escrow);
+                progress.paid_amount += state.escrow;
+                progress.remaining_obligations -= state.escrow;
             }
+
             state.settled = true;
             set_state(&env, round_id, &bidder, &state);
         }
 
-        round.status = Status::Settled;
-        set_round(&env, round_id, &round);
+        progress.cursor = progress.cursor.max(end);
+        if progress.cursor >= total_bidders {
+            if !progress.operator_paid && round.winning_bid > 0 {
+                usdc.transfer(&contract, &round.operator, &round.winning_bid);
+                progress.operator_paid = true;
+                progress.paid_amount += round.winning_bid;
+                progress.remaining_obligations -= round.winning_bid;
+            }
+            progress.completed = true;
+            round.status = Status::Settled;
+            set_round(&env, round_id, &round);
+            env.events().publish(
+                (symbol_short!("settled"), round_id),
+                (winner, round.winning_bid),
+            );
+        }
 
-        env.events().publish(
-            (symbol_short!("settled"), round_id),
-            (winner, round.winning_bid),
-        );
+        set_payout_progress(&env, round_id, &progress);
+        Ok(progress)
+    }
+
+    /// Bounded batch void refund for an open or stalled round.
+    ///
+    /// Refunds up to `limit` bidders starting at `cursor` (0-indexed).
+    /// Prevents repeated refunds, supports resumable execution across separate
+    /// transactions, and only marks the round `Voided` once all refunds are complete.
+    pub fn void_batch(
+        env: Env,
+        round_id: u64,
+        cursor: u32,
+        limit: u32,
+    ) -> Result<PayoutProgress, Error> {
+        if limit == 0 || limit > MAX_PAGE_SIZE {
+            return Err(Error::InvalidLimit);
+        }
+        let config = get_config(&env)?;
+        let mut round = get_round(&env, round_id)?;
+        if round.status == Status::Settled {
+            return Err(Error::AlreadySettled);
+        }
+        if round.status == Status::Voided {
+            return Err(Error::RoundVoided);
+        }
+
+        let total_bidders = round.bidders.len();
+        if cursor > total_bidders {
+            return Err(Error::InvalidCursor);
+        }
+
+        let mut progress = match try_get_payout_progress(&env, round_id) {
+            Some(p) => {
+                if !p.is_void {
+                    return Err(Error::WrongStatus);
+                }
+                p
+            }
+            None => {
+                if round.status != Status::Open {
+                    return Err(Error::NotVoidable);
+                }
+                if env.ledger().timestamp() <= round.reveal_deadline + VOID_GRACE {
+                    return Err(Error::NotVoidable);
+                }
+                let total_escrow = get_or_compute_round_escrow(&env, round_id, &round);
+                PayoutProgress {
+                    round_id,
+                    cursor: 0,
+                    total_bidders,
+                    completed: false,
+                    paid_amount: 0,
+                    remaining_obligations: total_escrow,
+                    operator_paid: false,
+                    is_void: true,
+                }
+            }
+        };
+
+        if cursor > progress.cursor {
+            return Err(Error::InvalidCursor);
+        }
+
+        if progress.completed {
+            return Err(Error::RoundVoided);
+        }
+
+        let start = cursor;
+        let end = (start + limit).min(total_bidders);
+
+        let usdc = token::Client::new(&env, &config.usdc);
+        let contract = env.current_contract_address();
+
+        for i in start..end {
+            let bidder = round.bidders.get(i).unwrap();
+            let mut state = match try_get_state(&env, round_id, &bidder) {
+                Some(s) => s,
+                None => continue,
+            };
+            if state.settled {
+                continue;
+            }
+
+            if state.escrow > 0 {
+                usdc.transfer(&contract, &bidder, &state.escrow);
+                progress.paid_amount += state.escrow;
+                progress.remaining_obligations -= state.escrow;
+            }
+
+            state.settled = true;
+            set_state(&env, round_id, &bidder, &state);
+        }
+
+        progress.cursor = progress.cursor.max(end);
+        if progress.cursor >= total_bidders {
+            progress.completed = true;
+            round.status = Status::Voided;
+            set_round(&env, round_id, &round);
+            env.events()
+                .publish((symbol_short!("voided"), round_id), 1u32);
+        }
+
+        set_payout_progress(&env, round_id, &progress);
+        Ok(progress)
+    }
+
+    /// Read the payout progress for a round.
+    pub fn get_payout_progress(env: Env, round_id: u64) -> Result<PayoutProgress, Error> {
+        if let Some(p) = try_get_payout_progress(&env, round_id) {
+            return Ok(p);
+        }
+        let round = get_round(&env, round_id)?;
+        let total = round.bidders.len();
+        let total_escrow = get_or_compute_round_escrow(&env, round_id, &round);
+        Ok(PayoutProgress {
+            round_id,
+            cursor: 0,
+            total_bidders: total,
+            completed: round.status == Status::Settled || round.status == Status::Voided,
+            paid_amount: if round.status == Status::Settled || round.status == Status::Voided {
+                total_escrow
+            } else {
+                0
+            },
+            remaining_obligations: if round.status == Status::Settled
+                || round.status == Status::Voided
+            {
+                0
+            } else {
+                total_escrow
+            },
+            operator_paid: round.status == Status::Settled,
+            is_void: round.status == Status::Voided,
+        })
+    }
+
+    /// Settle a cleared round. Advances settlement through batches until complete.
+    pub fn settle(env: Env, round_id: u64) -> Result<(), Error> {
+        let progress = Self::get_payout_progress(env.clone(), round_id)?;
+        if progress.completed {
+            return Err(Error::AlreadySettled);
+        }
+        Self::settle_batch(env, round_id, progress.cursor, MAX_PAGE_SIZE)?;
         Ok(())
     }
 
-    /// Liveness safety valve: if Drand round R is never produced (network stall)
-    /// and the grace window after the reveal deadline has passed without the
-    /// round opening, anyone can void it and all escrow is refunded.
+    /// Liveness safety valve: void an open round past grace window.
     pub fn void(env: Env, round_id: u64) -> Result<(), Error> {
-        let mut round = get_round(&env, round_id)?;
+        let round = get_round(&env, round_id)?;
         if round.status == Status::Voided {
             return Err(Error::RoundVoided);
         }
         if round.status == Status::Settled {
             return Err(Error::AlreadySettled);
         }
-        if round.status != Status::Open {
-            return Err(Error::NotVoidable);
+        let progress = match try_get_payout_progress(&env, round_id) {
+            Some(p) => p,
+            None => {
+                if round.status != Status::Open {
+                    return Err(Error::NotVoidable);
+                }
+                if env.ledger().timestamp() <= round.reveal_deadline + VOID_GRACE {
+                    return Err(Error::NotVoidable);
+                }
+                let total_escrow = get_or_compute_round_escrow(&env, round_id, &round);
+                let p = PayoutProgress {
+                    round_id,
+                    cursor: 0,
+                    total_bidders: round.bidders.len(),
+                    completed: false,
+                    paid_amount: 0,
+                    remaining_obligations: total_escrow,
+                    operator_paid: false,
+                    is_void: true,
+                };
+                set_payout_progress(&env, round_id, &p);
+                p
+            }
+        };
+        if progress.completed {
+            return Err(Error::RoundVoided);
         }
-        if env.ledger().timestamp() <= round.reveal_deadline + VOID_GRACE {
-            return Err(Error::NotVoidable);
-        }
-
-        round.status = Status::Voided;
-        set_round(&env, round_id, &round);
-        refund_all(&env, &round, round_id);
-
-        env.events().publish((symbol_short!("voided"), round_id), 1u32);
+        Self::void_batch(env, round_id, progress.cursor, MAX_PAGE_SIZE)?;
         Ok(())
     }
 
