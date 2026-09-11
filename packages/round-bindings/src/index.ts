@@ -80,7 +80,8 @@ export const Errors = {
   36: {message:"DeadlineInPast"},
   37: {message:"NoValidBids"},
   38: {message:"RoundFull"},
-  39: {message:"InvalidLimit"}
+  39: {message:"InvalidLimit"},
+  40: {message:"InvalidCursor"}
 }
 
 
@@ -122,7 +123,18 @@ reveal_round: u64;
  */
 export type Status = {tag: "Open", values: void} | {tag: "Revealing", values: void} | {tag: "Cleared", values: void} | {tag: "Settled", values: void} | {tag: "Voided", values: void};
 
-export type DataKey = {tag: "Config", values: void} | {tag: "RoundCounter", values: void} | {tag: "Round", values: readonly [u64]} | {tag: "State", values: readonly [u64, string]} | {tag: "Seal", values: readonly [u64, string]};
+export type DataKey = {tag: "Config", values: void} | {tag: "RoundCounter", values: void} | {tag: "Round", values: readonly [u64]} | {tag: "State", values: readonly [u64, string]} | {tag: "Seal", values: readonly [u64, string]} | {tag: "PayoutProgress", values: readonly [u64]} | {tag: "RoundEscrow", values: readonly [u64]};
+
+/**
+ * Payout progress for bounded settlement and void refunds.
+ */
+export interface PayoutProgress {
+  completed: boolean;
+  cursor: u32;
+  paid_amount: i128;
+  remaining_obligations: i128;
+  total_bidders: u32;
+}
 
 
 /**
@@ -296,6 +308,21 @@ export interface Client {
    */
   get_bidders_page: ({round_id, cursor, limit}: {round_id: u64, cursor: u32, limit: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<BiddersPage>>>
 
+  /**
+   * Construct and simulate a settle_batch transaction.
+   */
+  settle_batch: ({round_id, cursor, limit}: {round_id: u64, cursor: u32, limit: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<PayoutProgress>>>
+
+  /**
+   * Construct and simulate a void_batch transaction.
+   */
+  void_batch: ({round_id, cursor, limit}: {round_id: u64, cursor: u32, limit: u32}, options?: MethodOptions) => Promise<AssembledTransaction<Result<PayoutProgress>>>
+
+  /**
+   * Construct and simulate a get_payout_progress transaction.
+   */
+  get_payout_progress: ({round_id}: {round_id: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Result<PayoutProgress>>>
+
 }
 export class Client extends ContractClient {
   static async deploy<T = Client>(
@@ -355,6 +382,9 @@ export class Client extends ContractClient {
         open_reveal: this.txFromJSON<Result<void>>,
         create_round: this.txFromJSON<Result<u64>>,
         get_bid_state: this.txFromJSON<Result<BidState>>,
-        get_bidders_page: this.txFromJSON<Result<BiddersPage>>
+        get_bidders_page: this.txFromJSON<Result<BiddersPage>>,
+        settle_batch: this.txFromJSON<Result<PayoutProgress>>,
+        void_batch: this.txFromJSON<Result<PayoutProgress>>,
+        get_payout_progress: this.txFromJSON<Result<PayoutProgress>>
   }
 }

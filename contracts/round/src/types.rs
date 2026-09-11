@@ -35,6 +35,7 @@ pub enum Error {
     NoValidBids = 37,
     RoundFull = 38,
     InvalidLimit = 39,
+    InvalidCursor = 40,
 }
 
 /// Round lifecycle. Mirrors the state machine in PRD §6.
@@ -139,6 +140,20 @@ pub struct BiddersPage {
     pub total: u32,
 }
 
+/// Payout progress for bounded settlement and void refunds.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayoutProgress {
+    pub round_id: u64,
+    pub cursor: u32,
+    pub total_bidders: u32,
+    pub completed: bool,
+    pub paid_amount: i128,
+    pub remaining_obligations: i128,
+    pub operator_paid: bool,
+    pub is_void: bool,
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -147,4 +162,6 @@ pub enum DataKey {
     Round(u64),
     State(u64, Address),
     Seal(u64, Address),
+    PayoutProgress(u64),
+    RoundEscrow(u64),
 }

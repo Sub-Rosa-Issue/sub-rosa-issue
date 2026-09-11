@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Env, Vec};
 
-use crate::types::{BidState, DataKey, Error, GlobalConfig, Round, Seal};
+use crate::types::{BidState, DataKey, Error, GlobalConfig, PayoutProgress, Round, Seal};
 
 // TTL policy. Ledger close time on Stellar is ~5s, so these are generous for a
 // hackathon-scale round while keeping ephemeral seal data short-lived.
@@ -24,9 +24,7 @@ pub fn seal_ttl_for_reveal_deadline(reveal_deadline: u64, now: u64) -> u32 {
 fn extend_seal_ttl(env: &Env, key: &DataKey, reveal_deadline: u64) {
     let bump = seal_ttl_for_reveal_deadline(reveal_deadline, env.ledger().timestamp());
     let threshold = bump.saturating_sub(LEDGERS_PER_DAY);
-    env.storage()
-        .temporary()
-        .extend_ttl(key, threshold, bump);
+    env.storage().temporary().extend_ttl(key, threshold, bump);
 }
 
 pub fn get_config(env: &Env) -> Result<GlobalConfig, Error> {
@@ -130,4 +128,66 @@ pub fn extend_round_seals(env: &Env, round_id: u64, bidders: &Vec<Address>, reve
             extend_seal_ttl(env, &key, reveal_deadline);
         }
     }
+}
+
+#[allow(dead_code)]
+pub fn get_payout_progress(env: &Env, round_id: u64) -> Result<PayoutProgress, Error> {
+    let key = DataKey::PayoutProgress(round_id);
+    let progress: PayoutProgress = env
+        .storage()
+        .persistent()
+        .get(&key)
+        .ok_or(Error::RoundNotFound)?;
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+    Ok(progress)
+}
+
+pub fn try_get_payout_progress(env: &Env, round_id: u64) -> Option<PayoutProgress> {
+    let key = DataKey::PayoutProgress(round_id);
+    let progress: PayoutProgress = env.storage().persistent().get(&key)?;
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+    Some(progress)
+}
+
+pub fn set_payout_progress(env: &Env, round_id: u64, progress: &PayoutProgress) {
+    let key = DataKey::PayoutProgress(round_id);
+    env.storage().persistent().set(&key, progress);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+}
+
+pub fn get_round_escrow(env: &Env, round_id: u64) -> Option<i128> {
+    let key = DataKey::RoundEscrow(round_id);
+    let escrow = env.storage().persistent().get(&key)?;
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+    Some(escrow)
+}
+
+pub fn set_round_escrow(env: &Env, round_id: u64, total: i128) {
+    let key = DataKey::RoundEscrow(round_id);
+    env.storage().persistent().set(&key, &total);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+}
+
+pub fn get_or_compute_round_escrow(env: &Env, round_id: u64, round: &Round) -> i128 {
+    if let Some(total) = get_round_escrow(env, round_id) {
+        return total;
+    }
+    let mut total: i128 = 0;
+    for bidder in round.bidders.iter() {
+        if let Some(state) = try_get_state(env, round_id, &bidder) {
+            total += state.escrow;
+        }
+    }
+    set_round_escrow(env, round_id, total);
+    total
 }

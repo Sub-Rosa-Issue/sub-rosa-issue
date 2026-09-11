@@ -27,7 +27,7 @@ stay in sync with `contracts/round/src/types.rs`.
 | --- | --- |
 | 1–4     | Initialization & state lookup |
 | 10–22   | Lifecycle & timing |
-| 30–39   | Cryptography & validation |
+| 30–40   | Cryptography & validation |
 
 ## Initialization & state lookup (1–4)
 
@@ -56,7 +56,7 @@ stay in sync with `contracts/round/src/types.rs`.
 | 21 | `NotVoidable` | `void` | Round is past the `Open` status, or `now <= reveal_deadline + VOID_GRACE` (3600 s). | The round cannot be voided from its current state, or the grace window has not elapsed yet. | Either complete the normal lifecycle, or wait until `reveal_deadline + 1 hour` and try `void` again. |
 | 22 | `WrongStatus` | `commit` | `round.status != Status::Open`. | A bid can only be submitted to a round in the Open status. | Start a new round; a Revealing/Cleared/Settled/Voided round no longer accepts commits. |
 
-## Cryptography & validation (30–39)
+## Cryptography & validation (30–40)
 
 | Code | Variant | Raised by | Trigger | User-facing message | Suggested next action |
 | ---: | --- | --- | --- | --- | --- |
@@ -70,6 +70,7 @@ stay in sync with `contracts/round/src/types.rs`.
 | 37 | `NoValidBids` | `settle` | `round.winner` is `None` on a round whose status is `Cleared`. | Round has no winner to settle against. | Investigate: under current behavior the contract transitions to `Voided` (with all escrow refunded) when no valid bid is revealed, so this code should not appear in normal flow. If it does, the round is in an inconsistent state and warrants a manual review. |
 | 38 | `RoundFull` | `commit` | `round.bidders.len() >= MAX_BIDDERS` (500). | The round has reached its bidder cap. | Start a new round to accept further bidders. |
 | 39 | `InvalidLimit` | `get_bidders_page` | `limit == 0` or `limit > 100`. | Page size must be between 1 and 100 (inclusive). | Pass a `limit` in `[1, 100]`; use `next_cursor` from the previous page to walk larger rounds. |
+| 40 | `InvalidCursor` | `settle_batch`, `void_batch` | `cursor > total_bidders` or `cursor > progress.cursor`. | The pagination cursor is out of bounds or skips unconfirmed obligations. | Pass a cursor matching the current confirmed progress (read via `get_payout_progress`). |
 
 ## How to use this table
 

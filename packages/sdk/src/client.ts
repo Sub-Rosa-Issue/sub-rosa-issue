@@ -18,6 +18,7 @@ import {
   type BiddersPage,
   type ClearingRule,
   type GlobalConfig,
+  type PayoutProgress,
   type Round,
   type Seal,
 } from "@sub-rosa/round-bindings";
@@ -409,6 +410,62 @@ export class SubRosaClient {
     await this.#sendUnwrap(tx);
   }
 
+  /** Settle a bounded batch of bidders for a cleared round. */
+  async settleBatch(
+    roundId: number | bigint,
+    cursor: number,
+    limit: number,
+  ): Promise<PayoutProgress> {
+    const tx = await this.#validatedContractCall(() =>
+      this.contract.settle_batch({
+        round_id: normalizeRoundId(roundId),
+        cursor,
+        limit,
+      }),
+    );
+    return this.#sendUnwrap(tx);
+  }
+
+  /** Void a bounded batch of bidders for a round past grace period. */
+  async voidBatch(
+    roundId: number | bigint,
+    cursor: number,
+    limit: number,
+  ): Promise<PayoutProgress> {
+    const tx = await this.#validatedContractCall(() =>
+      this.contract.void_batch({
+        round_id: normalizeRoundId(roundId),
+        cursor,
+        limit,
+      }),
+    );
+    return this.#sendUnwrap(tx);
+  }
+
+  /** Resumable keeper settlement: iterate batches until all obligations are paid. */
+  async settleAll(
+    roundId: number | bigint,
+    batchSize: number = 50,
+  ): Promise<PayoutProgress> {
+    let progress = await this.getPayoutProgress(roundId);
+    while (!progress.completed) {
+      progress = await this.settleBatch(roundId, progress.cursor, batchSize);
+    }
+    return progress;
+  }
+
+  /** Resumable keeper void: iterate batches until all obligations are refunded. */
+  async voidAll(
+    roundId: number | bigint,
+    batchSize: number = 50,
+  ): Promise<PayoutProgress> {
+    let progress = await this.getPayoutProgress(roundId);
+    while (!progress.completed) {
+      progress = await this.voidBatch(roundId, progress.cursor, batchSize);
+    }
+    return progress;
+  }
+
   // ── Preflight simulation (no signing/submission) ─────────────────────
 
   async #preflight<T>(
@@ -537,7 +594,48 @@ export class SubRosaClient {
     );
   }
 
+  /** Simulate `settleBatch` without signing or submitting. */
+  preflightSettleBatch(
+    roundId: number | bigint,
+    cursor: number,
+    limit: number,
+  ): Promise<PreflightResult<PayoutProgress>> {
+    return this.#preflight("settle_batch", () =>
+      this.#validatedContractCall(() =>
+        this.contract.settle_batch({
+          round_id: toBigInt(roundId),
+          cursor,
+          limit,
+        }),
+      ),
+    );
+  }
+
+  /** Simulate `voidBatch` without signing or submitting. */
+  preflightVoidBatch(
+    roundId: number | bigint,
+    cursor: number,
+    limit: number,
+  ): Promise<PreflightResult<PayoutProgress>> {
+    return this.#preflight("void_batch", () =>
+      this.#validatedContractCall(() =>
+        this.contract.void_batch({
+          round_id: toBigInt(roundId),
+          cursor,
+          limit,
+        }),
+      ),
+    );
+  }
+
   // ── Read-only views (simulation only; no signing/submission) ───────────
+
+  async getPayoutProgress(roundId: number | bigint): Promise<PayoutProgress> {
+    const tx = await this.#validatedContractCall(() =>
+      this.contract.get_payout_progress({ round_id: normalizeRoundId(roundId) }),
+    );
+    return tx.result.unwrap();
+  }
 
   async getRound(roundId: number | bigint): Promise<Round> {
     const tx = await this.#validatedContractCall(() =>

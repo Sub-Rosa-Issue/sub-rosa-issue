@@ -25,12 +25,7 @@ use crate::types::GlobalConfig;
 /// `signature` is the uncompressed G1 point (96 bytes) for round R. The negated
 /// G2 generator and the network public key / DST come from `GlobalConfig`, set
 /// at deploy from values validated against a live quicknet round.
-pub fn verify_round(
-    env: &Env,
-    config: &GlobalConfig,
-    round: u64,
-    signature: &BytesN<96>,
-) -> bool {
+pub fn verify_round(env: &Env, config: &GlobalConfig, round: u64, signature: &BytesN<96>) -> bool {
     let bls = env.crypto().bls12_381();
 
     // message = sha256(be8(round))

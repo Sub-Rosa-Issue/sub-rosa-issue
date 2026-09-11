@@ -37,10 +37,10 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                 },
                 {
-                  "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                  "bytes": "abababababababababababababababababababababababababababababababab"
                 },
                 {
-                  "u64": 2000
+                  "u64": 29155653
                 },
                 {
                   "vec": [
@@ -50,13 +50,13 @@
                   ]
                 },
                 {
-                  "u64": 1500
+                  "u64": 1780270226
                 },
                 {
-                  "u64": 2500
+                  "u64": 1780270526
                 },
                 {
-                  "bytes": "61756469746f722d7075626b6579"
+                  "bytes": "61756469746f72"
                 }
               ]
             }
@@ -106,19 +106,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                 },
                 {
-                  "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                  "bytes": "045553050d8e63324f41be318e672ae828c727b4bc81c705c9a876e402816392"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 500
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -139,7 +139,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 500
                       }
                     }
                   ]
@@ -166,7 +166,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1001
+                    "lo": 1000
                   }
                 }
               ]
@@ -192,19 +192,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                 },
                 {
-                  "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                  "bytes": "0e5245a467b05997dcb0828277aa1cc5355234f88efd6cee18d038136e2cea01"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 550
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -225,7 +225,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 550
                       }
                     }
                   ]
@@ -252,7 +252,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1002
+                    "lo": 1000
                   }
                 }
               ]
@@ -278,19 +278,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM"
                 },
                 {
-                  "bytes": "0303030303030303030303030303030303030303030303030303030303030303"
+                  "bytes": "427f32b2125c3b49e498e6f71c0f79d69b07b6f34285fdcb80885d2505df1903"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 600
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -311,7 +311,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 600
                       }
                     }
                   ]
@@ -338,7 +338,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1003
+                    "lo": 1000
                   }
                 }
               ]
@@ -364,19 +364,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
                 },
                 {
-                  "bytes": "0404040404040404040404040404040404040404040404040404040404040404"
+                  "bytes": "881053866d45e88e5c18912555dc1fa0cce4001cf04b2311b651dd6a426d3352"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 650
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -397,7 +397,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 650
                       }
                     }
                   ]
@@ -424,7 +424,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1004
+                    "lo": 1000
                   }
                 }
               ]
@@ -450,19 +450,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAATYON"
                 },
                 {
-                  "bytes": "0505050505050505050505050505050505050505050505050505050505050505"
+                  "bytes": "84574e4ad325e51c80001f9331b025dad0b4d0be0e5c8a4917cb38128a20525d"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 700
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -483,7 +483,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 700
                       }
                     }
                   ]
@@ -510,7 +510,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1005
+                    "lo": 1000
                   }
                 }
               ]
@@ -536,19 +536,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVAX5"
                 },
                 {
-                  "bytes": "0606060606060606060606060606060606060606060606060606060606060606"
+                  "bytes": "0c4feaa4414facdd7073cef656a9df7c20125d19cffb7734a9ce3e81ca55cad9"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 750
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -569,7 +569,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 750
                       }
                     }
                   ]
@@ -596,7 +596,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1006
+                    "lo": 1000
                   }
                 }
               ]
@@ -622,19 +622,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXI7N"
                 },
                 {
-                  "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                  "bytes": "437f5fbe002fd34026994793b1ed1f77540d197ceebf801a64db60063cc94342"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 800
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -655,7 +655,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 800
                       }
                     }
                   ]
@@ -682,7 +682,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1007
+                    "lo": 1000
                   }
                 }
               ]
@@ -708,19 +708,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYRE5"
                 },
                 {
-                  "bytes": "0808080808080808080808080808080808080808080808080808080808080808"
+                  "bytes": "58479f9910238debbbba719be4083a595390599ae21f98302c93ac36dfbee10b"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 850
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -741,7 +741,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 850
                       }
                     }
                   ]
@@ -768,7 +768,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1008
+                    "lo": 1000
                   }
                 }
               ]
@@ -794,19 +794,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2ZMN"
                 },
                 {
-                  "bytes": "0909090909090909090909090909090909090909090909090909090909090909"
+                  "bytes": "3eb5a84f03a2710d5a6d729c8e06c5cdf2023b28110cff414f0a51f58466a927"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 900
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -827,7 +827,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 900
                       }
                     }
                   ]
@@ -854,7 +854,7 @@
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 1009
+                    "lo": 1000
                   }
                 }
               ]
@@ -880,19 +880,19 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
                 },
                 {
-                  "bytes": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+                  "bytes": "34ceaf6d0e05316d5ec003fcde07e12f48fb5f4bbf1b9d1846b23929d792bd12"
                 },
                 {
-                  "bytes": "63"
+                  "bytes": "7365616c6564"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 100
+                    "lo": 950
                   }
                 },
                 {
-                  "bytes": "6964"
+                  "bytes": "69642d626c6f62"
                 }
               ]
             }
@@ -913,7 +913,7 @@
                     {
                       "i128": {
                         "hi": 0,
-                        "lo": 100
+                        "lo": 950
                       }
                     }
                   ]
@@ -927,12 +927,31 @@
     ],
     [],
     [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
     []
   ],
   "ledger": {
     "protocol_version": 22,
     "sequence_number": 0,
-    "timestamp": 1000,
+    "timestamp": 1780270527,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
     "min_persistent_entry_ttl": 4096,
@@ -1337,6 +1356,122 @@
             "key": {
               "vec": [
                 {
+                  "symbol": "PayoutProgress"
+                },
+                {
+                  "u64": 1
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "PayoutProgress"
+                    },
+                    {
+                      "u64": 1
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "completed"
+                      },
+                      "val": {
+                        "bool": true
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "cursor"
+                      },
+                      "val": {
+                        "u32": 10
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "is_void"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "operator_paid"
+                      },
+                      "val": {
+                        "bool": true
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "paid_amount"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 7250
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "remaining_obligations"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 0
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "round_id"
+                      },
+                      "val": {
+                        "u64": 1
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "total_bidders"
+                      },
+                      "val": {
+                        "u32": 10
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          1036800
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+            "key": {
+              "vec": [
+                {
                   "symbol": "Round"
                 },
                 {
@@ -1372,7 +1507,7 @@
                         "symbol": "auditor_pubkey"
                       },
                       "val": {
-                        "bytes": "61756469746f722d7075626b6579"
+                        "bytes": "61756469746f72"
                       }
                     },
                     {
@@ -1431,7 +1566,7 @@
                         "symbol": "commit_deadline"
                       },
                       "val": {
-                        "u64": 1500
+                        "u64": 1780270226
                       }
                     },
                     {
@@ -1439,7 +1574,7 @@
                         "symbol": "item_ref"
                       },
                       "val": {
-                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                        "bytes": "abababababababababababababababababababababababababababababababab"
                       }
                     },
                     {
@@ -1455,7 +1590,7 @@
                         "symbol": "reveal_deadline"
                       },
                       "val": {
-                        "u64": 2500
+                        "u64": 1780270526
                       }
                     },
                     {
@@ -1463,7 +1598,7 @@
                         "symbol": "reveal_round"
                       },
                       "val": {
-                        "u64": 2000
+                        "u64": 29155653
                       }
                     },
                     {
@@ -1473,7 +1608,7 @@
                       "val": {
                         "vec": [
                           {
-                            "symbol": "Open"
+                            "symbol": "Settled"
                           }
                         ]
                       }
@@ -1482,7 +1617,9 @@
                       "key": {
                         "symbol": "winner"
                       },
-                      "val": "void"
+                      "val": {
+                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
+                      }
                     },
                     {
                       "key": {
@@ -1491,7 +1628,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 0
+                          "lo": 470
                         }
                       }
                     }
@@ -1542,7 +1679,7 @@
                 "val": {
                   "i128": {
                     "hi": 0,
-                    "lo": 1000
+                    "lo": 7250
                   }
                 }
               }
@@ -1600,7 +1737,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -1608,7 +1745,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -1668,7 +1805,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -1676,7 +1813,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -1736,7 +1873,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -1744,7 +1881,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -1804,7 +1941,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -1812,7 +1949,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -1872,7 +2009,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -1880,7 +2017,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -1940,7 +2077,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -1948,7 +2085,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -2008,7 +2145,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -2016,7 +2153,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -2076,7 +2213,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -2084,7 +2221,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -2144,7 +2281,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -2152,7 +2289,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -2212,7 +2349,7 @@
                         "symbol": "auditor_blob"
                       },
                       "val": {
-                        "bytes": "6964"
+                        "bytes": "69642d626c6f62"
                       }
                     },
                     {
@@ -2220,7 +2357,7 @@
                         "symbol": "ciphertext"
                       },
                       "val": {
-                        "bytes": "63"
+                        "bytes": "7365616c6564"
                       }
                     }
                   ]
@@ -2280,7 +2417,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                        "bytes": "045553050d8e63324f41be318e672ae828c727b4bc81c705c9a876e402816392"
                       }
                     },
                     {
@@ -2290,7 +2427,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 500
                         }
                       }
                     },
@@ -2298,20 +2435,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0000000000000000000000000000000000000000000000000000000000000000"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 200
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -2319,7 +2463,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -2379,7 +2523,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                        "bytes": "0e5245a467b05997dcb0828277aa1cc5355234f88efd6cee18d038136e2cea01"
                       }
                     },
                     {
@@ -2389,7 +2533,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 550
                         }
                       }
                     },
@@ -2397,20 +2541,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 230
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -2418,7 +2569,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -2478,7 +2629,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0303030303030303030303030303030303030303030303030303030303030303"
+                        "bytes": "427f32b2125c3b49e498e6f71c0f79d69b07b6f34285fdcb80885d2505df1903"
                       }
                     },
                     {
@@ -2488,7 +2639,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 600
                         }
                       }
                     },
@@ -2496,20 +2647,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0202020202020202020202020202020202020202020202020202020202020202"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 260
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -2517,7 +2675,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -2577,7 +2735,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0404040404040404040404040404040404040404040404040404040404040404"
+                        "bytes": "881053866d45e88e5c18912555dc1fa0cce4001cf04b2311b651dd6a426d3352"
                       }
                     },
                     {
@@ -2587,7 +2745,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 650
                         }
                       }
                     },
@@ -2595,20 +2753,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0303030303030303030303030303030303030303030303030303030303030303"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 290
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -2616,7 +2781,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -2676,7 +2841,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0505050505050505050505050505050505050505050505050505050505050505"
+                        "bytes": "84574e4ad325e51c80001f9331b025dad0b4d0be0e5c8a4917cb38128a20525d"
                       }
                     },
                     {
@@ -2686,7 +2851,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 700
                         }
                       }
                     },
@@ -2694,20 +2859,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0404040404040404040404040404040404040404040404040404040404040404"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 320
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -2715,7 +2887,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -2775,7 +2947,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0606060606060606060606060606060606060606060606060606060606060606"
+                        "bytes": "0c4feaa4414facdd7073cef656a9df7c20125d19cffb7734a9ce3e81ca55cad9"
                       }
                     },
                     {
@@ -2785,7 +2957,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 750
                         }
                       }
                     },
@@ -2793,20 +2965,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0505050505050505050505050505050505050505050505050505050505050505"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 350
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -2814,7 +2993,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -2874,7 +3053,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "437f5fbe002fd34026994793b1ed1f77540d197ceebf801a64db60063cc94342"
                       }
                     },
                     {
@@ -2884,7 +3063,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 800
                         }
                       }
                     },
@@ -2892,20 +3071,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0606060606060606060606060606060606060606060606060606060606060606"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 380
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -2913,7 +3099,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -2973,7 +3159,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0808080808080808080808080808080808080808080808080808080808080808"
+                        "bytes": "58479f9910238debbbba719be4083a595390599ae21f98302c93ac36dfbee10b"
                       }
                     },
                     {
@@ -2983,7 +3169,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 850
                         }
                       }
                     },
@@ -2991,20 +3177,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 410
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -3012,7 +3205,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -3072,7 +3265,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0909090909090909090909090909090909090909090909090909090909090909"
+                        "bytes": "3eb5a84f03a2710d5a6d729c8e06c5cdf2023b28110cff414f0a51f58466a927"
                       }
                     },
                     {
@@ -3082,7 +3275,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 900
                         }
                       }
                     },
@@ -3090,20 +3283,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0808080808080808080808080808080808080808080808080808080808080808"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 440
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -3111,7 +3311,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -3171,7 +3371,7 @@
                         "symbol": "commitment"
                       },
                       "val": {
-                        "bytes": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a"
+                        "bytes": "34ceaf6d0e05316d5ec003fcde07e12f48fb5f4bbf1b9d1846b23929d792bd12"
                       }
                     },
                     {
@@ -3181,7 +3381,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 100
+                          "lo": 950
                         }
                       }
                     },
@@ -3189,20 +3389,27 @@
                       "key": {
                         "symbol": "revealed_nonce"
                       },
-                      "val": "void"
+                      "val": {
+                        "bytes": "0909090909090909090909090909090909090909090909090909090909090909"
+                      }
                     },
                     {
                       "key": {
                         "symbol": "revealed_value"
                       },
-                      "val": "void"
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 470
+                        }
+                      }
                     },
                     {
                       "key": {
                         "symbol": "settled"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     },
                     {
@@ -3210,7 +3417,7 @@
                         "symbol": "valid"
                       },
                       "val": {
-                        "bool": false
+                        "bool": true
                       }
                     }
                   ]
@@ -3260,7 +3467,7 @@
                                 "symbol": "drand_genesis"
                               },
                               "val": {
-                                "u64": 0
+                                "u64": 1692803367
                               }
                             },
                             {
@@ -3268,7 +3475,7 @@
                                 "symbol": "drand_period"
                               },
                               "val": {
-                                "u64": 1
+                                "u64": 3
                               }
                             },
                             {
@@ -3276,7 +3483,7 @@
                                 "symbol": "drand_pubkey"
                               },
                               "val": {
-                                "bytes": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+                                "bytes": "03cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a01a714f2edb74119a2f2b0d5a7c75ba902d163700a61bc224ededd8e63aef7be1aaf8e93d7a9718b047ccddb3eb5d68b0e5db2b6bfbb01c867749cadffca88b36c24f3012ba09fc4d3022c5c37dce0f977d3adb5d183c7477c442b1f04515273"
                               }
                             },
                             {
@@ -3292,7 +3499,7 @@
                                 "symbol": "g2_neg_generator"
                               },
                               "val": {
-                                "bytes": "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+                                "bytes": "13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb813fa4d4a0ad8b1ce186ed5061789213d993923066dddaf1040bc3ff59f825c78df74f2d75467e25e0f55f8a00fa030ed0d1b3cc2c7027888be51d9ef691d77bcb679afda66c73f17f9ee3837a55024f78c71363275a75d75d86bab79f74782aa"
                               }
                             },
                             {
@@ -3735,7 +3942,80 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 1000
+                          "lo": 0
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "authorized"
+                      },
+                      "val": {
+                        "bool": true
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "clawback"
+                      },
+                      "val": {
+                        "bool": false
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          518400
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL",
+            "key": {
+              "vec": [
+                {
+                  "symbol": "Balance"
+                },
+                {
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "Balance"
+                    },
+                    {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "amount"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 470
                         }
                       }
                     },
@@ -3808,7 +4088,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 900
+                          "lo": 1000
                         }
                       }
                     },
@@ -3881,7 +4161,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 901
+                          "lo": 1000
                         }
                       }
                     },
@@ -3954,7 +4234,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 902
+                          "lo": 1000
                         }
                       }
                     },
@@ -4027,7 +4307,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 903
+                          "lo": 1000
                         }
                       }
                     },
@@ -4100,7 +4380,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 904
+                          "lo": 1000
                         }
                       }
                     },
@@ -4173,7 +4453,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 905
+                          "lo": 1000
                         }
                       }
                     },
@@ -4246,7 +4526,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 906
+                          "lo": 1000
                         }
                       }
                     },
@@ -4319,7 +4599,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 907
+                          "lo": 1000
                         }
                       }
                     },
@@ -4392,7 +4672,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 908
+                          "lo": 1000
                         }
                       }
                     },
@@ -4465,7 +4745,7 @@
                       "val": {
                         "i128": {
                           "hi": 0,
-                          "lo": 909
+                          "lo": 530
                         }
                       }
                     },
