@@ -28,6 +28,7 @@ import {
   parseKeeperRunConfig,
 } from "./dry-run.js";
 import { keepRound } from "./keeper.js";
+import { FileSubmissionJournal } from "./submission-journal.js";
 
 async function main() {
   const config = parseKeeperRunConfig();
@@ -64,18 +65,22 @@ async function main() {
     return;
   }
 
-  const sdk = new SubRosaClient({
-    rpcUrl: config.rpcUrl,
-    networkPassphrase: config.networkPassphrase,
-    contractId: config.contractId,
-    secretKey: config.keeperSecret!,
-  });
-
   // Throws KeeperCheckpointMismatchError when the on-disk cursor was recorded
   // for another network or contract — better to stop than to replay it.
   const checkpoint = new KeeperCheckpointStore({
     network: config.networkPassphrase,
     contractId: config.contractId,
+  });
+  const submissionJournal = new FileSubmissionJournal({
+    network: config.networkPassphrase,
+    contractId: config.contractId,
+  });
+  const sdk = new SubRosaClient({
+    rpcUrl: config.rpcUrl,
+    networkPassphrase: config.networkPassphrase,
+    contractId: config.contractId,
+    secretKey: config.keeperSecret!,
+    submissionJournal,
   });
 
   const result = await keepRound(

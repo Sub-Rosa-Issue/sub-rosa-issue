@@ -36,6 +36,7 @@ import { closeRound, keepRound, voidIfStale, watchRound } from "./keeper.js";
 import { createSettlementGuard } from "./settlement-guard.js";
 import { KeeperStore } from "./store.js";
 import { resumeCheckpoint, runWatchLoop } from "./watch-loop.js";
+import { FileSubmissionJournal } from "./submission-journal.js";
 
 const NETWORK = "Test SDF Network ; September 2015";
 const CONTRACT = "CTESTCONTRACT";
@@ -64,6 +65,35 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+describe("durable submission journal", () => {
+  test("persists operation metadata and pending hashes across store instances", async () => {
+    const journalPath = path.join(dir, "submissions.json");
+    const journal = new FileSubmissionJournal({ network: NETWORK, contractId: CONTRACT, path: journalPath });
+    const identity = { operation: "settle", roundId: "1", network: NETWORK, contractId: CONTRACT };
+    const record = {
+      ...identity,
+      hash: "0xpendinghash",
+      state: "pending" as const,
+      submittedAtMs: NOW_MS,
+      expiresAtMs: NOW_MS + 60_000,
+    };
+    await journal.put(record);
+
+    const restarted = new FileSubmissionJournal({ network: NETWORK, contractId: CONTRACT, path: journalPath });
+    assert.deepEqual(await restarted.get(identity), record);
+    assert.doesNotMatch(fs.readFileSync(journalPath, "utf8"), /signed-xdr|SECRET/);
+  });
+
+  test("refuses to resume a journal bound to another network", () => {
+    const journalPath = path.join(dir, "wrong-network.json");
+    new FileSubmissionJournal({ network: NETWORK, contractId: CONTRACT, path: journalPath });
+    assert.throws(
+      () => new FileSubmissionJournal({ network: "Public Network", contractId: CONTRACT, path: journalPath }),
+      /does not match configured/,
+    );
+  });
 });
 
 // ── In-memory chain ────────────────────────────────────────────────────────
@@ -212,6 +242,57 @@ const confirmAll = async (): Promise<TransactionHashStatus> => "confirmed";
 // ── Crash AFTER the checkpoint write ───────────────────────────────────────
 
 describe("restart after the checkpoint was written", () => {
+  test("recovers a confirmed settle hash written before a crash, without rebroadcasting", async () => {
+    const chain = new FakeChain({ status: "Cleared" });
+    const sdk = asSdk(chain);
+    Object.defineProperty(sdk, "reconcileSubmission", {
+      value: async () => ({ hash: "0xaccepted-settle", state: "confirmed" }),
+    });
+    const checkpoint = newStore();
+
+    const result = await closeRound(
+      { sdk, drand: {} as never, log: () => {}, time: { clock, scheduler }, checkpoint },
+      ROUND_ID,
+    );
+
+    assert.equal(result.settled, true);
+    assert.equal(chain.count("settle"), 0);
+    assert.equal(checkpoint.isComplete(ROUND_ID, "settle"), true);
+    assert.equal(checkpoint.read(ROUND_ID)?.stepHashes.settle, "0xaccepted-settle");
+  });
+
+  test("keeps an unresolved settle pending instead of creating another transaction", async () => {
+    const chain = new FakeChain({ status: "Cleared" });
+    const sdk = asSdk(chain);
+    Object.defineProperty(sdk, "reconcileSubmission", {
+      value: async () => ({ hash: "0xstill-pending", state: "pending" }),
+    });
+
+    await assert.rejects(
+      closeRound(
+        { sdk, drand: {} as never, log: () => {}, time: { clock, scheduler }, checkpoint: newStore() },
+        ROUND_ID,
+      ),
+      /still pending/,
+    );
+    assert.equal(chain.count("settle"), 0);
+  });
+
+  test("replaces an expired settle hash with exactly one new submission", async () => {
+    const chain = new FakeChain({ status: "Cleared" });
+    const sdk = asSdk(chain);
+    Object.defineProperty(sdk, "reconcileSubmission", {
+      value: async () => ({ hash: "0xexpired-settle", state: "expired" }),
+    });
+
+    const result = await closeRound(
+      { sdk, drand: {} as never, log: () => {}, time: { clock, scheduler }, checkpoint: newStore() },
+      ROUND_ID,
+    );
+    assert.equal(result.settled, true);
+    assert.equal(chain.count("settle"), 1);
+  });
+
   test("a confirmed settle is not submitted again by a lagging replica", async () => {
     // The round reads "Cleared" because our RPC replica is behind — the settle
     // transaction is already on the network, and the cursor proves it.

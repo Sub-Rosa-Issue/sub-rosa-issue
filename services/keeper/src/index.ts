@@ -108,3 +108,9 @@ export {
   type ResumeCheckpointParams,
   type RunWatchLoopParams,
 } from "./watch-loop.js";
+export {
+  DEFAULT_SUBMISSION_JOURNAL_PATH,
+  FileSubmissionJournal,
+  SubmissionJournalBindingError,
+  type FileSubmissionJournalOptions,
+} from "./submission-journal.js";

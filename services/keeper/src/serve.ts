@@ -30,6 +30,7 @@ import { SubRosaClient } from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
 
 import { KeeperCheckpointStore } from "./checkpoint.js";
+import { FileSubmissionJournal } from "./submission-journal.js";
 import { createSettlementGuard } from "./settlement-guard.js";
 import { createStatusServer, withGracefulShutdown } from "./status-server.js";
 import { KeeperStore } from "./store.js";
@@ -50,11 +51,14 @@ async function main() {
     process.env.NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015";
   const keeperSecret = reqEnv("KEEPER_SECRET");
 
+  const checkpoint = new KeeperCheckpointStore({ network: networkPassphrase, contractId });
+  const submissionJournal = new FileSubmissionJournal({ network: networkPassphrase, contractId });
   const sdk = new SubRosaClient({
     rpcUrl,
     networkPassphrase,
     contractId,
     secretKey: keeperSecret,
+    submissionJournal,
   });
   const reader = new SubRosaClient({
     rpcUrl,
@@ -68,7 +72,6 @@ async function main() {
   const store = new KeeperStore();
   // Durable watch cursor. Refuses to start when the file on disk was recorded
   // for another network or contract id.
-  const checkpoint = new KeeperCheckpointStore({ network: networkPassphrase, contractId });
   const settlementGuard = createSettlementGuard();
   const queue = new KeeperQueue(store, { contractId, network: networkPassphrase });
 

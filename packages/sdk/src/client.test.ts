@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { Keypair, rpc, StrKey } from "@stellar/stellar-sdk";
+import { Keypair, rpc, StrKey, xdr } from "@stellar/stellar-sdk";
+import { createFakeTime } from "@sub-rosa/time";
 
 import { SubRosaClient } from "./client.js";
 import {
@@ -14,6 +15,7 @@ import type {
   SubmitSignedTransactionParams,
   TransactionSubmitter,
 } from "./submitter.js";
+import { submissionKey, type SubmissionIdentity, type SubmissionJournal, type SubmissionRecord } from "./submission.js";
 import { sealFixture, fixtureBinding } from "./testing/seal-fixture.js";
 
 const BASE_CONFIG = {
@@ -312,6 +314,183 @@ describe("SubRosaClient external submitter failures", () => {
   });
 });
 
+describe("durable in-flight submission recovery", () => {
+  const identity: SubmissionIdentity = {
+    operation: "settle",
+    roundId: "9",
+    network: BASE_CONFIG.networkPassphrase,
+    contractId: BASE_CONFIG.contractId,
+  };
+
+  class MemoryJournal implements SubmissionJournal {
+    readonly records = new Map<string, SubmissionRecord>();
+    async get(key: SubmissionIdentity) {
+      const value = this.records.get(submissionKey(key));
+      return value ? { ...value } : undefined;
+    }
+    async put(record: SubmissionRecord) {
+      this.records.set(submissionKey(record), { ...record });
+    }
+  }
+
+  function makeClient(options: {
+    journal: MemoryJournal;
+    nowMs: number;
+    send: () => Promise<unknown>;
+    lookup: () => Promise<unknown>;
+  }) {
+    let builds = 0;
+    const fakeTime = createFakeTime(options.nowMs);
+    const server = {
+      getNetwork: async () => ({ passphrase: BASE_CONFIG.networkPassphrase, protocolVersion: "23" }),
+      getLedgerEntries: async () => ({ entries: [{}], latestLedger: 123 }),
+      sendTransaction: options.send,
+      getTransaction: options.lookup,
+    } as unknown as rpc.Server;
+    const client = new SubRosaClient({
+      ...BASE_CONFIG,
+      secretKey: Keypair.random().secret(),
+      _server: server,
+      submissionJournal: options.journal,
+      confirmTimeout: 1_000,
+      pollInterval: 100,
+      time: { clock: fakeTime.clock, scheduler: fakeTime.scheduler },
+    });
+    const signed = {
+      hash: () => Buffer.alloc(32, 7),
+      toXDR: () => "signed-xdr",
+      timeBounds: { minTime: "0", maxTime: String(Math.floor(options.nowMs / 1000) + 5) },
+    };
+    const assembled = {
+      signed,
+      async sign() {},
+      options: { parseResultXdr: () => ({ unwrap: () => undefined }) },
+    };
+    Object.defineProperty(client.contract, "settle", {
+      configurable: true,
+      value: async () => {
+        builds += 1;
+        return assembled;
+      },
+    });
+    return { client, fakeTime, server, buildCount: () => builds };
+  }
+
+  it("reconciles a confirmed hash before asking the contract client to build a retry", async () => {
+    const nowMs = 4_000_000;
+    const journal = new MemoryJournal();
+    await journal.put({
+      ...identity,
+      hash: "0xconfirmed-before-build",
+      state: "pending",
+      submittedAtMs: nowMs - 1_000,
+      expiresAtMs: nowMs + 60_000,
+    });
+    let sends = 0;
+    const { client, buildCount } = makeClient({
+      journal,
+      nowMs,
+      send: async () => {
+        sends += 1;
+        return { status: "PENDING" };
+      },
+      lookup: async () => ({
+        status: rpc.Api.GetTransactionStatus.SUCCESS,
+        returnValue: xdr.ScVal.scvVoid(),
+      }),
+    });
+
+    await client.settle(9);
+    assert.equal(buildCount(), 0);
+    assert.equal(sends, 0);
+    assert.equal((await journal.get(identity))?.state, "confirmed");
+  });
+
+  it("journals before an ambiguous send, then reuses the same hash when it confirms", async () => {
+    const nowMs = 1_000_000;
+    const journal = new MemoryJournal();
+    let sends = 0;
+    let found = false;
+    const { client } = makeClient({
+      journal,
+      nowMs,
+      send: async () => {
+        sends += 1;
+        assert.equal((await journal.get(identity))?.state, "pending");
+        throw new Error("response lost after RPC accepted transaction");
+      },
+      lookup: async () => ({
+        status: found ? rpc.Api.GetTransactionStatus.SUCCESS : rpc.Api.GetTransactionStatus.NOT_FOUND,
+        ...(found ? { returnValue: xdr.ScVal.scvVoid() } : {}),
+      }),
+    });
+
+    await assert.rejects(client.settle(9), /did not finalize it in time/);
+    const pending = await journal.get(identity);
+    assert.equal(pending?.state, "pending");
+    assert.equal(pending?.operation, "settle");
+    assert.equal(pending?.roundId, "9");
+    assert.equal(pending?.network, BASE_CONFIG.networkPassphrase);
+    assert.equal(sends, 1);
+
+    found = true;
+    const recovered = await client.reconcileSubmission({ operation: "settle", roundId: "9" });
+    assert.deepEqual(recovered, { hash: pending?.hash, state: "confirmed" });
+    assert.equal(sends, 1, "reconciliation polls the old hash and never resubmits it");
+  });
+
+  it("replaces an expired hash with one submission, not a retry burst", async () => {
+    const nowMs = 2_000_000;
+    const journal = new MemoryJournal();
+    await journal.put({
+      ...identity,
+      hash: "expired-hash",
+      state: "pending",
+      submittedAtMs: nowMs - 10_000,
+      expiresAtMs: nowMs - 1,
+    });
+    let sends = 0;
+    let wasSubmitted = false;
+    const { client } = makeClient({
+      journal,
+      nowMs,
+      send: async () => {
+        sends += 1;
+        wasSubmitted = true;
+        return { status: "PENDING" };
+      },
+      lookup: async () => wasSubmitted
+        ? { status: rpc.Api.GetTransactionStatus.SUCCESS, returnValue: xdr.ScVal.scvVoid() }
+        : { status: rpc.Api.GetTransactionStatus.NOT_FOUND },
+    });
+
+    await client.settle(9);
+    assert.equal(sends, 1);
+    assert.notEqual((await journal.get(identity))?.hash, "expired-hash");
+    assert.equal((await journal.get(identity))?.state, "confirmed");
+  });
+
+  it("records a definitive network failure and does not treat it as an expiry", async () => {
+    const journal = new MemoryJournal();
+    let sends = 0;
+    const { client } = makeClient({
+      journal,
+      nowMs: 3_000_000,
+      send: async () => {
+        sends += 1;
+        return { status: "PENDING" };
+      },
+      lookup: async () => ({ status: rpc.Api.GetTransactionStatus.FAILED }),
+    });
+
+    await assert.rejects(client.settle(9), /ended with status FAILED/);
+    assert.equal((await journal.get(identity))?.state, "failed");
+    const recovered = await client.reconcileSubmission({ operation: "settle", roundId: "9" });
+    assert.equal(recovered?.state, "failed");
+    assert.equal(sends, 1, "a definitive contract failure is not replaced as if it expired");
+  });
+});
+
 describe("SubRosaClient passkey session binding", () => {
   const SWAPPED_CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32, 2));
   const PUBLIC_PASSPHRASE = "Public Global Stellar Network ; September 2015";
@@ -430,4 +609,3 @@ describe("SubRosaClient passkey session binding", () => {
     }
   });
 });
-

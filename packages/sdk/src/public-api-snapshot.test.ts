@@ -95,6 +95,7 @@ const EXPECTED_EXPORTS = [
   "runMainnetReadiness",
   "summarizeDeploymentValue",
   "serializeReceipt",
+  "submissionKey",
   "tryDecodeBase64",
   "tryDecodeHex",
   "validateAssetConfig",

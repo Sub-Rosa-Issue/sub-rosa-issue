@@ -9,6 +9,13 @@ export {
 } from "./client.js";
 export { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 export {
+  submissionKey,
+  type SubmissionIdentity,
+  type SubmissionJournal,
+  type SubmissionRecord,
+  type SubmissionState,
+} from "./submission.js";
+export {
   type PreflightOperation,
   type PreflightResult,
   type PreflightSuccess,

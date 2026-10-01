@@ -6,7 +6,7 @@
 // contract Spec embedded in the generated bindings, so the bytes on the wire are
 // exactly what the contract expects.
 
-import { Keypair, rpc } from "@stellar/stellar-sdk";
+import { Keypair, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { normalizeError } from "@sub-rosa/logging/errors";
 import type {
   AssembledTransaction,
@@ -34,6 +34,11 @@ import { assertSealedBid } from "./encrypted-blob.js";
 import type { SealedBidBinding } from "./encrypted-blob.js";
 import { networkFingerprint } from "./receipt.js";
 import type { TransactionSubmitter } from "./submitter.js";
+import {
+  type SubmissionIdentity,
+  type SubmissionJournal,
+  type SubmissionRecord,
+} from "./submission.js";
 import {
   evaluatePreflight,
   classifyPreflightBuildError,
@@ -95,14 +100,16 @@ export interface SubRosaClientConfig {
   allowHttp?: boolean;
   /** Optional external submitter. Direct Soroban RPC remains the default. */
   submitter?: TransactionSubmitter;
+  /** Durable transaction journal used to reconcile submissions across retries/restarts. */
+  submissionJournal?: SubmissionJournal;
   /**
-   * How long (ms) to poll RPC for transaction finality when using an external
-   * submitter. Must be at least 1_000. Default: 60_000.
+   * How long (ms) to poll RPC for transaction finality when a durable journal
+   * is enabled or an external submitter is used. Must be at least 1_000. Default: 60_000.
    */
   confirmTimeout?: number;
   /**
-   * How long (ms) to wait between polling RPC for transaction status when
-   * using an external submitter. Must be at least 100. Default: 1_500.
+   * How long (ms) to wait between polling RPC for transaction status. Must be
+   * at least 100. Default: 1_500.
    */
   pollInterval?: number;
   /** Injectable wall clock and scheduler. Default: systemTime. */
@@ -201,6 +208,7 @@ export class SubRosaClient {
   readonly #rpcUrl: string;
   readonly #allowHttp: boolean;
   readonly #submitter?: TransactionSubmitter;
+  readonly #submissionJournal?: SubmissionJournal;
   readonly #confirmTimeout: number;
   readonly #pollInterval: number;
   readonly #assetConfig?: import("./asset-config.js").AssetConfig;
@@ -247,6 +255,7 @@ export class SubRosaClient {
     this.#rpcUrl = config.rpcUrl;
     this.#allowHttp = allowHttp;
     this.#submitter = config.submitter;
+    this.#submissionJournal = config.submissionJournal;
     this.#confirmTimeout = confirmTimeout;
     this.#pollInterval = pollInterval;
     this.#assetConfig = config.assetConfig;
@@ -365,7 +374,11 @@ export class SubRosaClient {
 
   }
 
-  async #sendUnwrap<T>(tx: AssembledTransaction<Result<T>>): Promise<T> {
+  async #sendUnwrap<T>(
+    tx: AssembledTransaction<Result<T>>,
+    identity: SubmissionIdentity,
+  ): Promise<T> {
+    if (this.#submissionJournal) return this.#sendTracked(tx, identity);
     if (!this.#submitter) {
       try {
         const sent = await tx.signAndSend();
@@ -425,7 +438,210 @@ export class SubRosaClient {
     });
   }
 
+  /** Poll a previously journaled transaction before the keeper builds a retry. */
+  async reconcileSubmission(
+    identity: Omit<SubmissionIdentity, "network" | "contractId">,
+  ): Promise<Pick<SubmissionRecord, "hash" | "state"> | undefined> {
+    if (!this.#submissionJournal) return undefined;
+    const fullIdentity: SubmissionIdentity = {
+      ...identity,
+      network: this.networkPassphrase,
+      contractId: this.contractId,
+    };
+    const record = await this.#submissionJournal.get(fullIdentity);
+    if (!record || record.state !== "pending") {
+      return record ? { hash: record.hash, state: record.state } : undefined;
+    }
+    const status = await this.#pollTracked(record);
+    return { hash: record.hash, state: status.state };
+  }
+
+  async #sendTracked<T>(
+    tx: AssembledTransaction<Result<T>>,
+    identity: SubmissionIdentity,
+  ): Promise<T> {
+    await tx.sign();
+    if (!tx.signed) throw new SubRosaSubmitError("transaction was not signed");
+
+    const signed = tx.signed;
+    const existing = await this.#submissionJournal!.get(identity);
+    if (existing?.state === "pending") {
+      const recovered = await this.#pollTracked(existing, tx);
+      if (recovered.state === "confirmed") {
+        if (!recovered.hasResult) throw new SubRosaMissingReturnValueError(existing.hash);
+        return recovered.value as T;
+      }
+      if (recovered.state === "failed") {
+        throw new SubRosaTransactionError(existing.hash, "FAILED");
+      }
+      if (recovered.state === "pending") {
+        throw new SubRosaTimeoutError({
+          hash: existing.hash,
+          submitter: this.#submitter?.name ?? "Soroban RPC",
+          lastStatus: "NOT_FOUND",
+          timeoutMs: this.#confirmTimeout,
+          pollIntervalMs: this.#pollInterval,
+        });
+      }
+    } else if (existing?.state === "confirmed" && existing.resultXdr) {
+      return tx.options.parseResultXdr(xdr.ScVal.fromXDR(existing.resultXdr, "base64")).unwrap();
+    } else if (existing?.state === "confirmed") {
+      throw new SubRosaMissingReturnValueError(existing.hash);
+    } else if (existing?.state === "failed") {
+      throw new SubRosaTransactionError(existing.hash, "FAILED");
+    }
+
+    const now = this.#clock.nowMs();
+    const hash = Buffer.from(signed.hash()).toString("hex");
+    const timeBounds = signed.timeBounds;
+    const expiresAtMs = timeBounds?.maxTime
+      ? Number(timeBounds.maxTime) * 1000
+      : now + Math.max(300_000, this.#confirmTimeout);
+    let record: SubmissionRecord = {
+      ...identity,
+      hash,
+      state: "pending",
+      submittedAtMs: now,
+      expiresAtMs,
+    };
+    // Persist the deterministic hash before any network submission call. If the
+    // RPC accepts the transaction but drops its response, the next run can poll
+    // this same hash instead of constructing a second transaction.
+    await this.#submissionJournal!.put(record);
+
+    if (this.#submitter) {
+      try {
+        const accepted = await this.#submitter.submitSignedTransaction({
+          signedTransactionXdr: signed.toXDR(),
+          contractId: this.contractId,
+          networkPassphrase: this.networkPassphrase,
+          rpcUrl: this.#rpcUrl,
+        });
+        if (accepted.hash && accepted.hash !== record.hash) {
+          record = { ...record, hash: accepted.hash };
+          await this.#submissionJournal!.put(record);
+        }
+        if (accepted.relayerTransactionId) {
+          record = { ...record, relayerTransactionId: accepted.relayerTransactionId };
+          await this.#submissionJournal!.put(record);
+        }
+      } catch {
+        // A submitter timeout is ambiguous: still reconcile the signed tx hash.
+      }
+    } else {
+      try {
+        const sent = await this.#server.sendTransaction(signed);
+        if (sent.status === "ERROR") {
+          const failed = { ...record, state: "failed" as const, failure: "RPC rejected submission" };
+          await this.#submissionJournal!.put(failed);
+          throw new SubRosaTransactionError(record.hash, "FAILED");
+        }
+      } catch (error) {
+        if (error instanceof SubRosaTransactionError) throw error;
+        // The send response may have been lost after acceptance; poll the hash.
+      }
+    }
+
+    const terminal = await this.#pollTracked(record, tx);
+    if (terminal.state === "confirmed") {
+      if (!terminal.hasResult) throw new SubRosaMissingReturnValueError(record.hash);
+      return terminal.value as T;
+    }
+    if (terminal.state === "failed") throw new SubRosaTransactionError(record.hash, "FAILED");
+    throw new SubRosaTimeoutError({
+      hash: record.hash,
+      submitter: this.#submitter?.name ?? "Soroban RPC",
+      lastStatus: terminal.state === "expired" ? "EXPIRED" : "NOT_FOUND",
+      timeoutMs: this.#confirmTimeout,
+      pollIntervalMs: this.#pollInterval,
+    });
+  }
+
+  async #pollTracked<T>(
+    record: SubmissionRecord,
+    tx?: AssembledTransaction<Result<T>>,
+  ): Promise<{ state: SubmissionRecord["state"]; value?: T; hasResult?: boolean }> {
+    const deadline = this.#clock.nowMs() + this.#confirmTimeout;
+    let lastStatus = "NOT_FOUND";
+    while (true) {
+      try {
+        const response = await this.#server.getTransaction(record.hash);
+        lastStatus = response.status;
+        if (response.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+          const resultXdr = response.returnValue?.toXDR("base64");
+          const confirmed: SubmissionRecord = {
+            ...record,
+            state: "confirmed",
+            ...(resultXdr ? { resultXdr } : {}),
+          };
+          await this.#submissionJournal!.put(confirmed);
+          return {
+            state: "confirmed",
+            hasResult: Boolean(resultXdr),
+            ...(tx && resultXdr
+              ? { value: tx.options.parseResultXdr(xdr.ScVal.fromXDR(resultXdr, "base64")).unwrap() as T }
+              : {}),
+          };
+        }
+        if (response.status === rpc.Api.GetTransactionStatus.FAILED) {
+          await this.#submissionJournal!.put({
+            ...record,
+            state: "failed",
+            failure: "Soroban transaction failed",
+          });
+          return { state: "failed" };
+        }
+      } catch (error) {
+        if (error instanceof SubRosaTransactionError) throw error;
+        // RPC lookup failures do not clear the durable pending record.
+      }
+      if (lastStatus === rpc.Api.GetTransactionStatus.NOT_FOUND && this.#clock.nowMs() >= record.expiresAtMs) {
+        await this.#submissionJournal!.put({ ...record, state: "expired" });
+        return { state: "expired" };
+      }
+      if (this.#clock.nowMs() >= deadline) return { state: "pending" };
+      await this.#sleep(this.#pollInterval);
+    }
+  }
+
   #sleep: (ms: number) => Promise<void> = (ms) => this.#scheduler.sleep(ms);
+
+  #submissionIdentity(
+    operation: string,
+    roundId: number | bigint | null,
+    discriminator?: string,
+  ): SubmissionIdentity {
+    return {
+      operation,
+      roundId: roundId === null ? null : normalizeRoundId(roundId),
+      ...(discriminator ? { discriminator } : {}),
+      network: this.networkPassphrase,
+      contractId: this.contractId,
+    };
+  }
+
+  async #recoverBeforeBuild(identity: SubmissionIdentity): Promise<SubmissionRecord | undefined> {
+    if (!this.#submissionJournal) return undefined;
+    const record = await this.#submissionJournal.get(identity);
+    if (!record) return undefined;
+    if (record.state === "confirmed") return record;
+    if (record.state === "failed") throw new SubRosaTransactionError(record.hash, "FAILED");
+    if (record.state === "expired") return undefined;
+
+    const status = await this.#pollTracked(record);
+    if (status.state === "confirmed") {
+      return (await this.#submissionJournal.get(identity)) ?? { ...record, state: "confirmed" };
+    }
+    if (status.state === "failed") throw new SubRosaTransactionError(record.hash, "FAILED");
+    if (status.state === "expired") return undefined;
+    throw new SubRosaTimeoutError({
+      hash: record.hash,
+      submitter: this.#submitter?.name ?? "Soroban RPC",
+      lastStatus: "NOT_FOUND",
+      timeoutMs: this.#confirmTimeout,
+      pollIntervalMs: this.#pollInterval,
+    });
+  }
 
   // ── State-changing calls (sign + submit over RPC) ──────────────────────  /** Build the on-chain asset_config argument from SDK params. */
   #buildAssetConfig(params: CreateRoundParams): RoundAssetConfig {
@@ -450,6 +666,25 @@ export class SubRosaClient {
 
   async createRound(params: CreateRoundParams): Promise<bigint> {
     const operator = params.operator ?? this.#requireSource("operator");
+    const submissionIdentity = this.#submissionIdentity(
+      "create_round",
+      null,
+      JSON.stringify({
+        operator,
+        itemRef: toHex(params.itemRef),
+        revealRound: String(params.revealRound),
+        commitDeadline: String(params.commitDeadline),
+        revealDeadline: String(params.revealDeadline),
+        auditorPubkey: toHex(params.auditorPubkey),
+        clearingRule: params.clearingRule ?? "HighestBid",
+        assetConfig: params.assetConfig ?? null,
+      }),
+    );
+    const recovered = await this.#recoverBeforeBuild(submissionIdentity);
+    if (recovered) {
+      if (!recovered.resultXdr) throw new SubRosaMissingReturnValueError(recovered.hash);
+      return BigInt(String(scValToNative(xdr.ScVal.fromXDR(recovered.resultXdr, "base64"))));
+    }
     const clearing_rule = {
       tag: params.clearingRule ?? "HighestBid",
       values: undefined,
@@ -486,7 +721,7 @@ export class SubRosaClient {
       } as Parameters<typeof this.contract.create_round>[0]),
     );
 
-    return this.#sendUnwrap(tx);
+    return this.#sendUnwrap(tx, submissionIdentity);
   }
 
   async commit(params: CommitParams): Promise<void> {
@@ -513,6 +748,8 @@ export class SubRosaClient {
       );
     }
     const seal_round = toBigInt(rawSealRound);
+    const submissionIdentity = this.#submissionIdentity("commit", params.roundId, bidder);
+    if (await this.#recoverBeforeBuild(submissionIdentity)) return;
     const tx = await this.#validatedContractCall(() =>
       this.contract.commit({
         round_id: normalizeRoundId(params.roundId),
@@ -524,23 +761,27 @@ export class SubRosaClient {
         seal_round,
       }),
     );
-    await this.#sendUnwrap(tx);
+    await this.#sendUnwrap(tx, submissionIdentity);
   }
 
   async openReveal(
     roundId: number | bigint,
     drandSignature: Uint8Array,
   ): Promise<void> {
+    const submissionIdentity = this.#submissionIdentity("open_reveal", roundId);
+    if (await this.#recoverBeforeBuild(submissionIdentity)) return;
     const tx = await this.#validatedContractCall(() =>
       this.contract.open_reveal({
         round_id: normalizeRoundId(roundId),
         drand_signature: toBuffer(drandSignature),
       }),
     );
-    await this.#sendUnwrap(tx);
+    await this.#sendUnwrap(tx, submissionIdentity);
   }
 
   async reveal(params: RevealParams): Promise<void> {
+    const submissionIdentity = this.#submissionIdentity("reveal", params.roundId, params.bidder);
+    if (await this.#recoverBeforeBuild(submissionIdentity)) return;
     const tx = await this.#validatedContractCall(() =>
       this.contract.reveal({
         round_id: normalizeRoundId(params.roundId),
@@ -549,31 +790,40 @@ export class SubRosaClient {
         nonce: toBuffer(params.nonce),
       }),
     );
-    await this.#sendUnwrap(tx);
+    await this.#sendUnwrap(tx, submissionIdentity);
   }
 
   /** Clear a round. Returns the winning address, or undefined if the round was
    *  voided for having no valid bids. */
   async clear(roundId: number | bigint): Promise<string | undefined> {
+    const submissionIdentity = this.#submissionIdentity("clear", roundId);
+    if (await this.#recoverBeforeBuild(submissionIdentity)) {
+      const round = await this.getRound(roundId);
+      return round.winner ?? undefined;
+    }
     const tx = await this.#validatedContractCall(() =>
       this.contract.clear({ round_id: normalizeRoundId(roundId) }),
     );
-    const winner = await this.#sendUnwrap(tx);
+    const winner = await this.#sendUnwrap(tx, submissionIdentity);
     return winner ?? undefined;
   }
 
   async settle(roundId: number | bigint): Promise<void> {
+    const submissionIdentity = this.#submissionIdentity("settle", roundId);
+    if (await this.#recoverBeforeBuild(submissionIdentity)) return;
     const tx = await this.#validatedContractCall(() =>
       this.contract.settle({ round_id: normalizeRoundId(roundId) }),
     );
-    await this.#sendUnwrap(tx);
+    await this.#sendUnwrap(tx, submissionIdentity);
   }
 
   async void(roundId: number | bigint): Promise<void> {
+    const submissionIdentity = this.#submissionIdentity("void", roundId);
+    if (await this.#recoverBeforeBuild(submissionIdentity)) return;
     const tx = await this.#validatedContractCall(() =>
       this.contract.void({ round_id: normalizeRoundId(roundId) }),
     );
-    await this.#sendUnwrap(tx);
+    await this.#sendUnwrap(tx, submissionIdentity);
   }
 
   // ── Preflight simulation (no signing/submission) ─────────────────────

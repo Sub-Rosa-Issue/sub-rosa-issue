@@ -36,8 +36,6 @@ import {
   type TimeContext,
 } from "@sub-rosa/time";
 
-import type { SettlementGuard } from "./settlement-guard.js";
-
 export type KeeperLogger = (msg: string) => void;
 
 export interface KeeperDeps {
@@ -127,6 +125,39 @@ function recordStep(
   deps.checkpoint?.markComplete(roundId, step, transactionHash);
 }
 
+/** Resolve a durable in-flight hash before the caller builds another tx. */
+async function recoverBeforeRetry(
+  deps: KeeperDeps,
+  roundId: bigint,
+  operation: string,
+  step: KeeperStep,
+  discriminator?: string,
+): Promise<boolean> {
+  if (typeof deps.sdk.reconcileSubmission !== "function") return false;
+  const recovered = await deps.sdk.reconcileSubmission({
+    operation,
+    roundId: roundId.toString(),
+    ...(discriminator ? { discriminator } : {}),
+  });
+  if (!recovered) return false;
+  if (recovered.state === "pending") {
+    throw new Error(`round ${roundId} ${operation} transaction ${recovered.hash} is still pending`);
+  }
+  if (recovered.state === "failed") {
+    throw new Error(`round ${roundId} ${operation} transaction ${recovered.hash} definitively failed`);
+  }
+  if (recovered.state === "confirmed") {
+    // Each reveal journal entry is per bidder; the aggregate cursor is only
+    // complete after every bidder has been checked in this pass.
+    if (step !== "reveal" || !discriminator) {
+      recordStep(deps, roundId, step, recovered.hash);
+    }
+    return true;
+  }
+  // An expired hash is terminal; exactly this pass may now build one replacement.
+  return false;
+}
+
 /** Wait until Drand round R should be published. Returns false if R is still in
  *  the future after `maxWaitSeconds`. */
 export async function waitForRound(
@@ -195,20 +226,25 @@ export async function keepRound(
       return result;
     }
 
-    try {
-      await sdk.openReveal(rid, signature);
-      result.openedReveal = true;
-      log(`open_reveal OK (round ${rid} via Drand R=${R})`);
-    } catch (e) {
-      if (errorMatches(e, IDEMPOTENT_OPEN)) {
-        log(`open_reveal already done (${errorName(e)}); continuing`);
-      } else {
-        throw e;
+    const recoveredOpen = await recoverBeforeRetry(deps, rid, "open_reveal", "open-reveal");
+    if (recoveredOpen) {
+      log(`open_reveal transaction recovered as confirmed for round ${rid}`);
+    } else {
+      try {
+        await sdk.openReveal(rid, signature);
+        result.openedReveal = true;
+        log(`open_reveal OK (round ${rid} via Drand R=${R})`);
+      } catch (e) {
+        if (errorMatches(e, IDEMPOTENT_OPEN)) {
+          log(`open_reveal already done (${errorName(e)}); continuing`);
+        } else {
+          throw e;
+        }
       }
     }
     // The reveal window is open from here on (we opened it, or the contract told
     // us it already was) — advance the cursor before revealing any bid.
-    recordStep(deps, rid, "open-reveal");
+    if (!recoveredOpen) recordStep(deps, rid, "open-reveal");
     round = await sdk.getRound(rid);
   }
 
@@ -225,6 +261,12 @@ export async function keepRound(
       log(`revealing ${bidders.length} bidder(s)`);
 
       for (const bidder of bidders) {
+        const recoveredReveal = await recoverBeforeRetry(deps, rid, "reveal", "reveal", bidder);
+        if (recoveredReveal) {
+          result.revealed.push(bidder);
+          log(`reveal transaction recovered as confirmed for ${bidder}`);
+          continue;
+        }
         let state;
         try {
           state = await sdk.getBidState(rid, bidder);
@@ -343,25 +385,31 @@ export async function closeRound(
         result.finalStatus = round.status.tag;
         return result;
       }
-      try {
-        const winner = await sdk.clear(rid);
+      const recoveredClear = await recoverBeforeRetry(deps, rid, "clear", "clear");
+      if (recoveredClear) {
         result.cleared = true;
-        result.winner = winner;
-        if (winner === undefined) {
-          result.voided = true;
-          log(`cleared → no valid bids; round voided + refunded`);
-        } else {
-          log(`cleared → winner ${winner}`);
-        }
-        recordStep(deps, rid, "clear");
-      } catch (e) {
-        if (errorMatches(e, ["AlreadyCleared", "RevealStillOpen", "WrongStatus", "RoundVoided"])) {
-          result.skipped.push(`clear skipped: ${errorName(e)}`);
-          if (errorMatches(e, ["AlreadyCleared"])) {
-            recordStep(deps, rid, "clear");
+        log(`clear transaction recovered as confirmed for round ${rid}`);
+      } else {
+        try {
+          const winner = await sdk.clear(rid);
+          result.cleared = true;
+          result.winner = winner;
+          if (winner === undefined) {
+            result.voided = true;
+            log(`cleared → no valid bids; round voided + refunded`);
+          } else {
+            log(`cleared → winner ${winner}`);
           }
-        } else {
-          throw e;
+          recordStep(deps, rid, "clear");
+        } catch (e) {
+          if (errorMatches(e, ["AlreadyCleared", "RevealStillOpen", "WrongStatus", "RoundVoided"])) {
+            result.skipped.push(`clear skipped: ${errorName(e)}`);
+            if (errorMatches(e, ["AlreadyCleared"])) {
+              recordStep(deps, rid, "clear");
+            }
+          } else {
+            throw e;
+          }
         }
       }
     }
@@ -376,21 +424,27 @@ export async function closeRound(
       log(`settle skipped: checkpoint records the round as settled`);
       result.skipped.push("settle already complete (checkpoint)");
     } else {
-      try {
-        await sdk.settle(rid);
+      const recoveredSettle = await recoverBeforeRetry(deps, rid, "settle", "settle");
+      if (recoveredSettle) {
         result.settled = true;
-        log(`settled round ${rid}`);
-        recordStep(deps, rid, "settle");
-      } catch (e) {
-        if (errorMatches(e, ["AlreadySettled", "NotCleared", "WrongStatus"])) {
-          result.skipped.push(`settle skipped: ${errorName(e)}`);
-          // The contract telling us it is already settled is proof the step landed —
-          // record it so the next restart does not broadcast it again.
-          if (errorMatches(e, ["AlreadySettled"])) {
-            recordStep(deps, rid, "settle");
+        log(`settle transaction recovered as confirmed for round ${rid}`);
+      } else {
+        try {
+          await sdk.settle(rid);
+          result.settled = true;
+          log(`settled round ${rid}`);
+          recordStep(deps, rid, "settle");
+        } catch (e) {
+          if (errorMatches(e, ["AlreadySettled", "NotCleared", "WrongStatus"])) {
+            result.skipped.push(`settle skipped: ${errorName(e)}`);
+            // The contract telling us it is already settled is proof the step landed —
+            // record it so the next restart does not broadcast it again.
+            if (errorMatches(e, ["AlreadySettled"])) {
+              recordStep(deps, rid, "settle");
+            }
+          } else {
+            throw e;
           }
-        } else {
-          throw e;
         }
       }
     }
@@ -509,6 +563,16 @@ export async function voidIfStale(
       );
     }
     result.finalStatus = round.status.tag;
+    return result;
+  }
+
+  const recoveredVoid = await recoverBeforeRetry(deps, rid, "void", "void");
+  if (recoveredVoid) {
+    result.voided = true;
+    guard?.markTerminal(rid, "voided on-chain");
+    log(`void transaction recovered as confirmed for round ${rid}`);
+    const after = await sdk.getRound(rid);
+    result.finalStatus = after.status.tag;
     return result;
   }
 

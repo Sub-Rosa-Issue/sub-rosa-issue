@@ -37,6 +37,7 @@ deployments/*.local.json
 .keeper-store.json.corrupted.*
 .keeper-checkpoint.json
 .keeper-checkpoint.json.corrupted.*
+.keeper-submissions.json
 
 # Coverage
 coverage/

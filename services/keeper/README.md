@@ -163,6 +163,10 @@ Steps tracked: `open-reveal`, `reveal`, `clear`, `settle`, `void`.
 
 `open-reveal` is recorded but never used to skip work: whether the reveal window is open is already authoritative on-chain, and trusting the cursor there could strand an Open round. An unreadable or corrupted checkpoint file is backed up (`*.corrupted.<ts>`) and the keeper starts from a fresh cursor rather than guessing.
 
+### In-flight transaction recovery
+
+The keeper also uses a separate durable submission journal (default `.keeper-submissions.json`, override with `KEEPER_SUBMISSION_PATH`). The SDK writes the hash, operation, round, network, submission time, and expiry before the RPC send call. On restart, the keeper polls a pending hash before constructing a replacement transaction. Confirmed hashes are recorded in the completion checkpoint; definitive failures stop the pass; expired hashes permit one replacement. The journal stores no signed XDR or secret key and refuses to open under a different network or contract binding.
+
 ### Dry-run
 
 `KEEPER_DRY_RUN=true npm run start` prints the checkpoint it *would* write — path, binding, proposed step, and the exact file content — inside the dry-run summary. It submits no transactions (`transactionsSubmitted: 0`) and writes nothing (`checkpoint.filesWritten: 0`). If the existing checkpoint would block a live run, the summary reports it as `checkpoint.mismatch` (`network` or `contractId`).
