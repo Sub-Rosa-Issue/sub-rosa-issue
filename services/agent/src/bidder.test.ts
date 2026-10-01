@@ -76,7 +76,7 @@ function bidderFixture() {
       calls.sealed++; duringSeal();
       assert.equal(revealRound, 123);
       assert.deepEqual(auditorPublicKey, new Uint8Array(round.auditor_pubkey));
-      return { commitment: new Uint8Array(32), ciphertext: new Uint8Array(4), auditorBlob: new Uint8Array(4) };
+      return { commitment: new Uint8Array(32), ciphertext: new Uint8Array(4), auditorBlob: new Uint8Array(4), sealRound: 123 };
     },
   };
   return { config, round, calls, deps, clock,

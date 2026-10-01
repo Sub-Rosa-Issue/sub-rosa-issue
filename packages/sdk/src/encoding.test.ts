@@ -154,6 +154,7 @@ test("a tlock SealedBid encodes byte-for-byte into commit", () => {
     commitment: h,
     ciphertext: new TextEncoder().encode("age-armored"),
     auditorBlob: new Uint8Array(0),
+    sealRound: 9,
   };
 
   const args = c.spec.funcArgsToScVals("commit", {

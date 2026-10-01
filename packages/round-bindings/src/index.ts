@@ -289,8 +289,11 @@ export interface Client {
    * - `escrow` is a public USDC budget and an upper bound on the sealed bid;
    * locked now so the winner can always pay.
    * - `auditor_blob` is the bidder identity encrypted to the auditor key.
+   * - `seal_round` must equal the round's stored `reveal_round`: the seal is
+   * only meaningful for the Drand round this auction committed to open.
+   * Mismatched seals are rejected before any escrow is locked.
    */
-  commit: ({round_id, bidder, commitment, ciphertext, escrow, auditor_blob}: {round_id: u64, bidder: string, commitment: Buffer, ciphertext: Buffer, escrow: i128, auditor_blob: Buffer}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+  commit: ({round_id, bidder, commitment, ciphertext, escrow, auditor_blob, seal_round}: {round_id: u64, bidder: string, commitment: Buffer, ciphertext: Buffer, escrow: i128, auditor_blob: Buffer, seal_round: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a reveal transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.

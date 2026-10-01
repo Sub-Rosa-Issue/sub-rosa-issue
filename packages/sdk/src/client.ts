@@ -170,15 +170,12 @@ export interface CommitParams {
   /** Bidder address. Default: the configured signer's public key. */
   bidder?: string;
   /**
-   * The value, nonce, and Drand round the seal was produced from.
-   *
-   * Supplying it makes `commit` verify the seal against them before submitting
-   * — same acceptance rule the sealer works to, so a blob that decodes but
-   * commits to the wrong value is rejected here instead of becoming an
-   * on-chain commitment the contract can never open. The value is never logged
-   * or included in the resulting error.
+   * Drand round the seal was encrypted to. Must equal the round's stored
+   * `reveal_round` — the contract rejects mismatched seals before locking
+   * escrow (issue #376). Defaults to `sealed.sealRound` when the seal carries
+   * it (tlock >= this change), otherwise it must be supplied.
    */
-  binding?: SealedBidBinding;
+  sealRound?: number | bigint;
 }
 
 export interface RevealParams {
@@ -509,6 +506,13 @@ export class SubRosaClient {
     }
 
     const bidder = params.bidder ?? this.#requireSource("bidder");
+    const rawSealRound = params.sealRound ?? (params.sealed as { sealRound?: number | bigint }).sealRound;
+    if (rawSealRound === undefined) {
+      throw new SubRosaClientConfigError(
+        "sealRound is required: pass the Drand round the seal was encrypted to (issue #376 commit window)",
+      );
+    }
+    const seal_round = toBigInt(rawSealRound);
     const tx = await this.#validatedContractCall(() =>
       this.contract.commit({
         round_id: normalizeRoundId(params.roundId),
@@ -517,6 +521,7 @@ export class SubRosaClient {
         ciphertext: toBuffer(params.sealed.ciphertext),
         escrow: params.escrow,
         auditor_blob: toBuffer(params.sealed.auditorBlob),
+        seal_round,
       }),
     );
     await this.#sendUnwrap(tx);
@@ -631,6 +636,13 @@ export class SubRosaClient {
     }
     return this.#preflight("commit", () => {
       const bidder = params.bidder ?? this.#requireSource("bidder");
+      const rawSealRound = params.sealRound ?? (params.sealed as { sealRound?: number | bigint }).sealRound;
+      if (rawSealRound === undefined) {
+        throw new SubRosaClientConfigError(
+          "sealRound is required: pass the Drand round the seal was encrypted to (issue #376 commit window)",
+        );
+      }
+      const seal_round = toBigInt(rawSealRound);
       return this.#validatedContractCall(() =>
         this.contract.commit({
           round_id: toBigInt(params.roundId),
@@ -639,6 +651,7 @@ export class SubRosaClient {
           ciphertext: toBuffer(params.sealed.ciphertext),
           escrow: params.escrow,
           auditor_blob: toBuffer(params.sealed.auditorBlob),
+          seal_round,
         }),
       );
     });

@@ -294,6 +294,7 @@ describe("SubRosaClient preflight helpers", () => {
         commitment: new Uint8Array(32),
         ciphertext: new Uint8Array(64),
         auditorBlob: new Uint8Array(32),
+        sealRound: 1,
       },
       escrow: 1_000_000n,
     });

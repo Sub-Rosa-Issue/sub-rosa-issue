@@ -21,8 +21,6 @@ identities/
 # Editor / OS
 .DS_Store
 .idea
-.vscode/*
-!.vscode/extensions.json
 
 # Build artifacts
 /artifacts
@@ -44,3 +42,7 @@ coverage/
 *.lcov.info
 lcov.info
 .nyc_output/
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore

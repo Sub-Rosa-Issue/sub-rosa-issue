@@ -119,6 +119,7 @@ async function main() {
     value,
     nonce,
     round: revealRound,
+    revealRound,
     client: drand,
     identity: new TextEncoder().encode("bidder:keeper-e2e"),
     auditorPublicKey: auditor.publicKey,

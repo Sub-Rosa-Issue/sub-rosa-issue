@@ -217,6 +217,7 @@ const requestBody = JSON.stringify(req);
     value: bidValue,
     nonce,
     round: revealRound,
+    revealRound,
     client: drand,
     identity: new TextEncoder().encode(`agent:${sessionKp.publicKey()}`),
     auditorPublicKey,

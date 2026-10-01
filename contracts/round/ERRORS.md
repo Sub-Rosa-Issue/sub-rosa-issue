@@ -71,6 +71,9 @@ stay in sync with `contracts/round/src/types.rs`.
 | 37 | `NoValidBids` | `settle` | `round.winner` is `None` on a round whose status is `Cleared`. | Round has no winner to settle against. | Investigate: under current behavior the contract transitions to `Voided` (with all escrow refunded) when no valid bid is revealed, so this code should not appear in normal flow. If it does, the round is in an inconsistent state and warrants a manual review. |
 | 38 | `RoundFull` | `commit` | `round.bidders.len() >= MAX_BIDDERS` (500). | The round has reached its bidder cap. | Start a new round to accept further bidders. |
 | 39 | `InvalidLimit` | `get_bidders_page` | `limit == 0` or `limit > 100`. | Page size must be between 1 and 100 (inclusive). | Pass a `limit` in `[1, 100]`; use `next_cursor` from the previous page to walk larger rounds. |
+| 40 | `SealRoundTooEarly` | `commit` | `seal_round < round.reveal_round`: the seal names a Drand round before the one the auction committed to open. | The sealed bid is locked to the wrong Drand round. | Reseal the bid to the round published in the `created` event (`reveal_round`) and commit again; no escrow was moved. |
+| 41 | `SealRoundTooLate` | `commit` | `seal_round > round.reveal_round`: the seal names a Drand round after the one the auction committed to open. | The sealed bid is locked to the wrong Drand round. | Reseal the bid to the round published in the `created` event (`reveal_round`) and commit again; no escrow was moved. |
+| 42 | `InvalidSealRoundZero` | `create_round`, `commit` | `reveal_round == 0` at round creation, or `seal_round == 0` at commit. A zero or overflowing round can never be published by the Drand chain. | The Drand round number is malformed. | Use a positive round the quicknet chain can actually publish (`genesis + period × R` must fit in `u64`); check before locking escrow. |
 
 ## Escrow accounting (40–49)
 

@@ -50,6 +50,9 @@ export interface SealPayloadParams extends PayloadEnvelope {
   contractId: string;
   bidderId: string;
   round: number;
+  /// The Drand round the auction committed to open (`Round::reveal_round`).
+  /// The seal must name exactly this round, or sealing is rejected.
+  revealRound: number;
   client: DrandClient;
   identity?: Uint8Array;
   auditorPublicKey?: Uint8Array;
@@ -154,6 +157,7 @@ export async function sealPayload(params: SealPayloadParams): Promise<SealedPayl
     contractId,
     bidderId,
     round,
+    revealRound,
     client,
     identity,
     auditorPublicKey,

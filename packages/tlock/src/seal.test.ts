@@ -33,6 +33,7 @@ test(
       value,
       nonce,
       round,
+      revealRound: round,
       client,
       identity,
       auditorPublicKey: auditor.publicKey,
@@ -83,6 +84,7 @@ test(
       nonce,
       payload,
       round,
+      revealRound: round,
       client,
       identity,
       auditorPublicKey: auditor.publicKey,
@@ -151,6 +153,7 @@ test(
       value: 999n,
       nonce: generateNonce(),
       round: futureRound,
+      revealRound: futureRound,
       client,
     });
     await assert.rejects(openBid(sealed.ciphertext, client));

@@ -25,6 +25,9 @@ export interface SealBidParams {
   nonce: Uint8Array;
   round: number;
   client: DrandClient;
+  /// The Drand round the auction committed to open (`Round::reveal_round`).
+  /// The seal must name exactly this round, or sealing is rejected.
+  revealRound: number;
   /// Optional selective-disclosure identity, sealed to the auditor key.
   identity?: Uint8Array;
   auditorPublicKey?: Uint8Array;
@@ -37,6 +40,10 @@ export interface SealedBid {
   ciphertext: Uint8Array;
   /// enc(identity, auditor_pubkey); empty if no identity was provided.
   auditorBlob: Uint8Array;
+  /// The Drand round this seal was encrypted to. The SDK forwards it to the
+  /// contract `commit` as `seal_round`, where it must equal the auction's
+  /// stored `reveal_round` (issue #376).
+  sealRound: number;
 }
 
 export function generateNonce(): Uint8Array {
@@ -55,6 +62,9 @@ export async function sealBid(params: SealBidParams): Promise<SealedBid> {
   if (!nonce || nonce.length !== NONCE_BYTES) {
     throw new Error(`nonce must be ${NONCE_BYTES} bytes, got ${nonce?.length}`);
   }
+  // Issue #376: the seal must name exactly the round the auction committed to
+  // open — same rule the contract enforces inside `commit`.
+  assertSealRoundWindow(round, revealRound);
 
   const preimage = encodeBidPreimage(value, nonce);
   const h = commitment(value, nonce);
@@ -73,7 +83,7 @@ export async function sealBid(params: SealBidParams): Promise<SealedBid> {
     throw new Error("identity and auditorPublicKey must be provided together");
   }
 
-  return { commitment: h, ciphertext, auditorBlob };
+  return { commitment: h, ciphertext, auditorBlob, sealRound: round };
 }
 
 export interface OpenedBid {

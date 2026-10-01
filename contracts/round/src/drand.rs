@@ -3,7 +3,7 @@ use soroban_sdk::{
     Bytes, BytesN, Env, Vec,
 };
 
-use crate::types::GlobalConfig;
+use crate::types::{Error, GlobalConfig, Round};
 
 /// Verify a Drand `round` threshold signature on-chain.
 ///
@@ -55,10 +55,31 @@ pub fn verify_round(
 
 /// Wall-clock time (unix seconds) at which Drand round `round` is published.
 ///
-/// Saturating arithmetic: an absurdly large `round` clamps to `u64::MAX`, which
-/// `create_round` then rejects via its deadline checks rather than panicking.
-pub fn time_of_round(config: &GlobalConfig, round: u64) -> u64 {
-    config
-        .drand_genesis
-        .saturating_add(config.drand_period.saturating_mul(round))
+/// Returns `None` for a zero round or an intermediate product/sum that would
+/// exceed `u64` — i.e. a round number the chain can never publish. Callers must
+/// reject `None` instead of comparing a saturating placeholder against real
+/// deadlines: an overflowing round must fail validation before any escrow is
+/// locked, never silently map to the far future or the epoch.
+pub fn checked_time_of_round(config: &GlobalConfig, round: u64) -> Option<u64> {
+    if round == 0 {
+        return None;
+    }
+    let offset = config.drand_period.checked_mul(round)?;
+    config.drand_genesis.checked_add(offset)
+}
+
+/// Validate that a bidder's seal round equals the round the auction stored.
+///
+/// The allowed reveal round is always `round.reveal_round` — the value the
+/// operator committed to at `create_round` — never a caller-supplied value. A
+/// seal for any other round cannot be committed (issue #376). Returns a stable
+/// [`Error`] for each failure shape so SDK callers and integrators can branch
+/// without parsing strings.
+pub fn validate_seal_round(round: &Round, seal_round: u64) -> Result<(), Error> {
+    match seal_round {
+        0 => Err(Error::InvalidSealRoundZero),
+        r if r == round.reveal_round => Ok(()),
+        r if r > round.reveal_round => Err(Error::SealRoundTooLate),
+        _ => Err(Error::SealRoundTooEarly),
+    }
 }

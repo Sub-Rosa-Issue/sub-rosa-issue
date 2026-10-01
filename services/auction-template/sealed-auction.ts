@@ -251,12 +251,12 @@ async function testnetMain() {
     }
     const nonce = generateNonce();
     const sealed = await sealBid({
-      value, nonce, round: revealRound, client: drand,
+      value, nonce, round: revealRound, revealRound, client: drand,
       identity: new TextEncoder().encode(`bidder:${who}`),
       auditorPublicKey: auditor.publicKey,
     });
     const client = new SubRosaClient({ rpcUrl: RPC_URL, networkPassphrase: NETWORK, contractId, secretKey: secret });
-    await client.commit({ roundId, sealed, escrow });
+    await client.commit({ roundId, sealed, escrow, sealRound: revealRound });
     diagnostics.info("progress-4", `  ${who}: bid ${usdc(value)} / escrow ${usdc(escrow)}`);
   }
 

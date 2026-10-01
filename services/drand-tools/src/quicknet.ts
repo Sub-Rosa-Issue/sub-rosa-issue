@@ -38,6 +38,21 @@ export function roundAt(info: ChainInfo, unixSeconds: number): number {
   return Math.floor((unixSeconds - info.genesis_time) / info.period) + 1;
 }
 
+/// Wall-clock time (unix seconds) at which Drand round `round` is published.
+/// Throws for a zero/unsafe round or an intermediate value that overflows the
+/// safe-integer range: the chain can never publish such a round, so callers
+/// must reject it before committing any seal or locking escrow (issue #376).
 export function timeOfRound(info: ChainInfo, round: number): number {
-  return info.genesis_time + info.period * round;
+  if (!Number.isSafeInteger(round) || round < 1) {
+    throw new RangeError(`round must be a positive safe integer, got ${round}`);
+  }
+  if (!Number.isSafeInteger(info.period) || info.period <= 0) {
+    throw new RangeError(`period must be a positive safe integer, got ${info.period}`);
+  }
+  const offsetSeconds = info.period * round;
+  const publishAtSeconds = info.genesis_time + offsetSeconds;
+  if (!Number.isSafeInteger(offsetSeconds) || !Number.isSafeInteger(publishAtSeconds)) {
+    throw new RangeError(`round ${round} publish time overflows the safe-integer range`);
+  }
+  return publishAtSeconds;
 }

@@ -131,6 +131,7 @@ async function main() {
     value,
     nonce,
     round: revealRound,
+    revealRound,
     client: drand,
     identity,
     auditorPublicKey: auditor.publicKey,

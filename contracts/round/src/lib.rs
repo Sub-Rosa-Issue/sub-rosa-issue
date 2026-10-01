@@ -82,14 +82,19 @@ impl SubRosaRound {
         bump_instance(&env);
 
         if reveal_round == 0 {
-            return Err(Error::InvalidAmount);
+            return Err(Error::InvalidSealRoundZero);
         }
         if auditor_pubkey.len() > MAX_AUDITOR_PUBKEY {
             return Err(Error::PayloadTooLarge);
         }
 
         let now = env.ledger().timestamp();
-        let t_reveal = drand::time_of_round(&config, reveal_round);
+        // Reject a reveal round the quicknet chain can never publish before any
+        // deadline comparison: genesis + period×R must fit in u64. A saturating
+        // placeholder here would let an overflowing round pass the deadline
+        // checks and strand the round past the void grace window.
+        let t_reveal = drand::checked_time_of_round(&config, reveal_round)
+            .ok_or(Error::InvalidSealRoundZero)?;
 
         // Commit must close strictly before R is published, otherwise a bidder
         // could decrypt others' sealed bids before committing.
@@ -134,6 +139,9 @@ impl SubRosaRound {
     /// - `escrow` is a public USDC budget and an upper bound on the sealed bid;
     ///   locked now so the winner can always pay.
     /// - `auditor_blob` is the bidder identity encrypted to the auditor key.
+    /// - `seal_round` must equal the round's stored `reveal_round`: the seal is
+    ///   only meaningful for the Drand round this auction committed to open.
+    ///   Mismatched seals are rejected before any escrow is locked.
     pub fn commit(
         env: Env,
         round_id: u64,
@@ -142,6 +150,7 @@ impl SubRosaRound {
         ciphertext: Bytes,
         escrow: i128,
         auditor_blob: Bytes,
+        seal_round: u64,
     ) -> Result<(), Error> {
         bidder.require_auth();
         let config = get_config(&env)?;
@@ -165,6 +174,11 @@ impl SubRosaRound {
         if ciphertext.len() > MAX_CIPHERTEXT || auditor_blob.len() > MAX_AUDITOR_BLOB {
             return Err(Error::PayloadTooLarge);
         }
+        // The allowed reveal round is the one stored on the auction, not a
+        // caller-supplied value. Rejecting here — before the escrow transfer —
+        // means a seal for a different Drand round can never lock funds and the
+        // bidder keeps their full error budget for honest resubmission.
+        drand::validate_seal_round(&round, seal_round)?;
 
         let usdc = token::Client::new(&env, &config.usdc);
         let contract = env.current_contract_address();

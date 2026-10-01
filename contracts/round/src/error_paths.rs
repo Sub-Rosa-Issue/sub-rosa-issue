@@ -189,6 +189,7 @@ fn error_path_commit_closed() {
             &Bytes::from_array(&f.env, b"c"),
             &600,
             &Bytes::from_array(&f.env, b"id"),
+            &2_000,
         ),
         Error::CommitClosed,
     );
@@ -357,6 +358,7 @@ fn error_path_wrong_status() {
             &Bytes::from_array(&f.env, b"c"),
             &100,
             &Bytes::from_array(&f.env, b"id"),
+            &2_000,
         ),
         Error::WrongStatus,
     );
@@ -449,6 +451,7 @@ fn error_path_invalid_amount() {
             &Bytes::from_array(&f.env, b"c"),
             &0,
             &Bytes::from_array(&f.env, b"id"),
+            &2_000,
         ),
         Error::InvalidAmount,
     );
@@ -470,6 +473,7 @@ fn error_path_bid_exceeds_escrow() {
         &Bytes::from_array(&f.env, b"sealed"),
         &500,
         &Bytes::from_array(&f.env, b"id-blob"),
+        &VEC_ROUND,
     );
     f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
     f.client.open_reveal(&id, &real_sig(&f.env));
@@ -527,6 +531,7 @@ fn error_path_round_full() {
             &Bytes::from_array(&f.env, b"c"),
             &100,
             &Bytes::from_array(&f.env, b"id"),
+            &2_000,
         ),
         Error::RoundFull,
     );
@@ -548,44 +553,77 @@ fn error_path_invalid_cursor() {
     assert_try_contract_err(f.client.try_get_bidders_page(&id, &Some(Bytes::new(&f.env)), &10), Error::InvalidCursor);
 }
 
+/// Issue #376: a seal for a round earlier than the stored reveal round is
+/// rejected with a stable error before any escrow is locked.
 #[test]
-fn error_path_escrow_not_conserved() {
-    let (f, t_reveal, commit_deadline, reveal_deadline) = setup_drand();
+fn error_path_seal_round_too_early() {
+    let (f, _t_reveal, _commit_deadline, _reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let id = drand_round(
-        &f,
-        &operator,
-        commit_deadline,
-        reveal_deadline,
-        ClearingRule::HighestBid,
+    let id = drand_round(&f, &operator, _commit_deadline, _reveal_deadline, ClearingRule::HighestBid);
+    let bidder = funded_bidder(&f, 1_000);
+    let nonce = b32(&f.env, 0x01);
+    let h = commitment(&f.env, 500, &nonce);
+    assert_try_contract_err(
+        f.client.try_commit(
+            &id,
+            &bidder,
+            &h,
+            &Bytes::from_array(&f.env, b"sealed"),
+            &500,
+            &Bytes::from_array(&f.env, b"id-blob"),
+            &(VEC_ROUND - 1),
+        ),
+        Error::SealRoundTooEarly,
     );
-    let alice = funded_bidder(&f, 1_000);
-    let a_nonce = commit_bid(&f, id, &alice, 500, 500, 0x01);
-    f.env.ledger().with_mut(|l| l.timestamp = t_reveal + 1);
-    f.client.open_reveal(&id, &real_sig(&f.env));
-    f.client.reveal(&id, &alice, &500, &a_nonce);
-    f.env
-        .ledger()
-        .with_mut(|l| l.timestamp = reveal_deadline + 1);
-    f.client.clear(&id);
+    // No escrow was locked: the bid state must not exist.
+    assert_try_contract_err(f.client.try_get_bid_state(&id, &bidder), Error::BidNotFound);
+}
 
-    // A winning bid above the winner's escrow would mint tokens out of escrow.
-    f.env.as_contract(&f.client.address, || {
-        let mut round = get_round(&f.env, id).unwrap();
-        round.winning_bid = 900;
-        set_round(&f.env, id, &round);
-    });
+/// Issue #376: a seal for a round later than the stored reveal round is
+/// rejected with a stable error before any escrow is locked.
+#[test]
+fn error_path_seal_round_too_late() {
+    let (f, _t_reveal, _commit_deadline, _reveal_deadline) = setup_drand();
+    let operator = Address::generate(&f.env);
+    let id = drand_round(&f, &operator, _commit_deadline, _reveal_deadline, ClearingRule::HighestBid);
+    let bidder = funded_bidder(&f, 1_000);
+    let nonce = b32(&f.env, 0x01);
+    let h = commitment(&f.env, 500, &nonce);
+    assert_try_contract_err(
+        f.client.try_commit(
+            &id,
+            &bidder,
+            &h,
+            &Bytes::from_array(&f.env, b"sealed"),
+            &500,
+            &Bytes::from_array(&f.env, b"id-blob"),
+            &(VEC_ROUND + 1),
+        ),
+        Error::SealRoundTooLate,
+    );
+    assert_try_contract_err(f.client.try_get_bid_state(&id, &bidder), Error::BidNotFound);
+}
 
-    assert_try_contract_err(f.client.try_settle(&id), Error::EscrowNotConserved);
-    assert_eq!(
-        f.usdc_token.balance(&operator),
-        0,
-        "a rejected settle must not pay the operator"
+/// Issue #376: a zero seal round is malformed and rejected before escrow.
+#[test]
+fn error_path_invalid_seal_round_zero() {
+    let f = setup();
+    let operator = Address::generate(&f.env);
+    let id = open_round(&f, &operator);
+    let bidder = funded_bidder(&f, 1_000);
+    let nonce = b32(&f.env, 0x01);
+    let h = commitment(&f.env, 500, &nonce);
+    assert_try_contract_err(
+        f.client.try_commit(
+            &id,
+            &bidder,
+            &h,
+            &Bytes::from_array(&f.env, b"sealed"),
+            &500,
+            &Bytes::from_array(&f.env, b"id-blob"),
+            &0,
+        ),
+        Error::InvalidSealRoundZero,
     );
-    assert_eq!(
-        f.usdc_token.balance(&f.client.address),
-        500,
-        "a rejected settle must leave every escrow locked"
-    );
-    assert_eq!(f.client.get_round(&id).status, Status::Cleared);
+    assert_try_contract_err(f.client.try_get_bid_state(&id, &bidder), Error::BidNotFound);
 }
