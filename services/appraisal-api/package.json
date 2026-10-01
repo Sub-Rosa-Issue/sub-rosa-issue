@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@sub-rosa/logging": "workspace:*",
+    "@sub-rosa/sdk": "workspace:*",
     "@stellar/stellar-sdk": "^15.1.0",
     "@x402/core": "^2.14.0",
     "@x402/stellar": "^2.11.0"
