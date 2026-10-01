@@ -27,6 +27,8 @@ export {
   type TransactionSubmitter,
 } from "./submitter.js";
 export {
+  SDK_ERROR_CODES,
+  sdkErrorCode,
   ROUND_CONTRACT_ERRORS,
   ROUND_CONTRACT_ERRORS_BY_NAME,
   getRoundContractError,
@@ -50,6 +52,7 @@ export type {
   NetworkMismatchErrorParams,
   NetworkMismatchReason,
   PreflightFailureKind,
+  SdkErrorCode,
   SubRosaPreflightErrorParams,
   TimeoutErrorParams,
 } from "./errors.js";

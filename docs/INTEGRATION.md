@@ -241,3 +241,13 @@ table to translate on-chain failures into actionable messages. The contract
 test suite (`cargo test -p sub-rosa-round ::error_codes`) keeps the table in
 lock-step with the exported `Error` enum, so a divergent code is a test
 failure, not a silent docs bug.
+
+## SDK error codes
+
+`sdkErrorCode(error)` maps anything thrown by the SDK to a member of
+`SDK_ERROR_CODES` (type `SdkErrorCode`), for example `STATUS_API_ERROR`,
+`PREFLIGHT_FAILED` or `TRANSACTION_TIMEOUT`. Classification is by error class
+only; values the SDK did not raise map to `UNKNOWN`. Because the set is closed
+and no property of the thrown value is read, a code is safe to render where
+error messages are not — the dashboard error state shows only this code, so a
+failed load cannot display a bid that is still sealed.

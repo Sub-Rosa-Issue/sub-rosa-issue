@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import { StatusApiError, StatusJsonParseError } from "./status-client.js";
 import type {
   EscrowConservationPhase,
   EscrowConservationReport,
@@ -293,4 +294,43 @@ export class SubRosaTimeoutError extends Error {
     this.timeoutMs = params.timeoutMs;
     this.pollIntervalMs = params.pollIntervalMs;
   }
+}
+
+/**
+ * Stable, machine-readable codes for SDK failures. The set is closed, so a
+ * code is safe to render at a UI boundary: it never carries a message, a
+ * round payload, or any bid data.
+ */
+export const SDK_ERROR_CODES = [
+  "CLIENT_CONFIG",
+  "NETWORK_MISMATCH",
+  "SUBMIT_FAILED",
+  "TRANSACTION_FAILED",
+  "MISSING_RETURN_VALUE",
+  "PREFLIGHT_FAILED",
+  "TRANSACTION_TIMEOUT",
+  "STATUS_API_ERROR",
+  "STATUS_INVALID_RESPONSE",
+  "UNKNOWN",
+] as const;
+
+export type SdkErrorCode = (typeof SDK_ERROR_CODES)[number];
+
+/**
+ * Map a thrown value to its SDK error code. Classification is by error class
+ * only -- properties on the value (including any `code` it carries) are never
+ * read, so untrusted errors cannot choose what gets displayed. Anything the
+ * SDK did not raise maps to "UNKNOWN".
+ */
+export function sdkErrorCode(error: unknown): SdkErrorCode {
+  if (error instanceof SubRosaClientConfigError) return "CLIENT_CONFIG";
+  if (error instanceof SubRosaNetworkMismatchError) return "NETWORK_MISMATCH";
+  if (error instanceof SubRosaSubmitError) return "SUBMIT_FAILED";
+  if (error instanceof SubRosaTransactionError) return "TRANSACTION_FAILED";
+  if (error instanceof SubRosaMissingReturnValueError) return "MISSING_RETURN_VALUE";
+  if (error instanceof SubRosaPreflightError) return "PREFLIGHT_FAILED";
+  if (error instanceof SubRosaTimeoutError) return "TRANSACTION_TIMEOUT";
+  if (error instanceof StatusApiError) return "STATUS_API_ERROR";
+  if (error instanceof StatusJsonParseError) return "STATUS_INVALID_RESPONSE";
+  return "UNKNOWN";
 }

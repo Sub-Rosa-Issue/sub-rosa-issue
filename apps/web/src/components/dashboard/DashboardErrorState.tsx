@@ -1,11 +1,18 @@
 // Copyright (c) 2026 Sub Rosa contributors
+import { SDK_ERROR_CODES, type SdkErrorCode } from "@sub-rosa/sdk";
+
+// The only input is an SDK error code. This component deliberately accepts no
+// message, round, or bid object, so a failed load has nothing sealed to render.
 export function DashboardErrorState({
-  error,
+  code,
   onRetry,
 }: {
-  error: string;
+  code: SdkErrorCode;
   onRetry: () => void;
 }) {
+  // Re-check against the closed set so an untyped caller cannot pass free text.
+  const safeCode: SdkErrorCode = SDK_ERROR_CODES.includes(code) ? code : "UNKNOWN";
+
   return (
     <div className="dashboard-error-state" role="alert">
       <div className="dashboard-error-icon">
@@ -27,7 +34,9 @@ export function DashboardErrorState({
         </svg>
       </div>
       <h2>Failed to Load Dashboard</h2>
-      <p className="dashboard-error-message">{error}</p>
+      <p className="dashboard-error-message">
+        The dashboard could not load round data. Error code: <code>{safeCode}</code>
+      </p>
       <button type="button" className="primary-action" onClick={onRetry}>
         Retry
       </button>

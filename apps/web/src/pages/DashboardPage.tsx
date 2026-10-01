@@ -2,55 +2,12 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { LOGO_SRC } from "../lib/chain";
-import {
-  RoundStatusCard,
-  KeeperStatusCard,
-  BidderProgressCard,
-  SettlementCard,
-  DashboardEmptyState,
-  DashboardErrorState,
-} from "../components/dashboard";
-
-function StaleBanner({ fetchedAt }: { fetchedAt: string }) {
-  const formatted = new Intl.DateTimeFormat(undefined, {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(Date.parse(fetchedAt));
-  return (
-    <div className="dashboard-stale-banner">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-      <span>
-        Data may be stale. Last fetched:{" "}
-        {formatted}
-      </span>
-    </div>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="dashboard-loading-state">
-      <div className="dashboard-spinner" />
-      <p>Loading dashboard...</p>
-    </div>
-  );
-}
+import { DashboardContent } from "../components/dashboard";
 
 export function DashboardPage({ goHome }: { goHome: () => void }) {
   const reduce = useReducedMotion();
+  const dashboard = useDashboardData();
+  const { refreshing, refetch } = dashboard;
   const { data, loading, error, stale, refetch, snapshot } = useDashboardData();
 
   const transition = reduce
@@ -74,9 +31,9 @@ export function DashboardPage({ goHome }: { goHome: () => void }) {
             type="button"
             className="secondary-action compact"
             onClick={refetch}
-            disabled={loading}
+            disabled={refreshing}
           >
-            {loading ? "Refreshing..." : "Refresh"}
+            {refreshing ? "Refreshing..." : "Refresh"}
           </button>
           <button type="button" className="secondary-action compact" onClick={goHome}>
             Back to home
@@ -94,6 +51,7 @@ export function DashboardPage({ goHome }: { goHome: () => void }) {
         <p>Real-time keeper actions and settlement status</p>
       </motion.header>
 
+      <DashboardContent state={dashboard} onRetry={refetch} transition={transition} />
       {stale && data && <StaleBanner fetchedAt={data.meta.fetchedAt} />}
 
       {loading && !data ? (

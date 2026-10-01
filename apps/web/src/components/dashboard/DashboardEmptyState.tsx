@@ -1,4 +1,6 @@
 // Copyright (c) 2026 Sub Rosa contributors
+// Rendered only when the load succeeds and reports no round. It takes no props,
+// so there is no round or bid data it could display.
 export function DashboardEmptyState() {
   return (
     <div className="dashboard-empty-state">
@@ -22,12 +24,11 @@ export function DashboardEmptyState() {
       </div>
       <h2>No Round Data Available</h2>
       <p>
-        The dashboard could not find any round data to display. This might mean:
+        The dashboard loaded successfully but there is no round to display. This might mean:
       </p>
       <ul>
         <li>No rounds have been created yet</li>
-        <li>The configured endpoint returned no data</li>
-        <li>The data source is temporarily unavailable</li>
+        <li>The configured endpoint returned no round</li>
       </ul>
       <p className="dashboard-empty-hint">
         If using a custom endpoint, verify <code>VITE_DASHBOARD_ENDPOINT</code> is set correctly.

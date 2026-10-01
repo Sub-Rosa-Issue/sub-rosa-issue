@@ -6,3 +6,4 @@ export { BidderProgressCard } from "./BidderProgressCard";
 export { SettlementCard } from "./SettlementCard";
 export { DashboardEmptyState } from "./DashboardEmptyState";
 export { DashboardErrorState } from "./DashboardErrorState";
+export { DashboardContent } from "./DashboardContent";
