@@ -43,6 +43,7 @@ export {
   SubRosaTimeoutError,
   SubRosaTransactionError,
   SubRosaAssetValidationError,
+  SubRosaPaginationError,
 } from "./errors.js";
 export type {
   DeploymentMismatchErrorParams,
@@ -71,6 +72,8 @@ export {
   type ProveEscrowConservationOptions,
 } from "./conservation.js";
 export {
+  networkPassphrasesMatch,
+  SubRosaNetworkPassphraseMismatchError,
   validateContractNetwork,
   validatePasskeySession,
   type ContractNetworkValidationConfig,
@@ -132,6 +135,7 @@ export {
   hasBlockingFailures,
   nativeXlmSacId,
   parseMainnetReadinessFixture,
+  parseMicroStroops,
   readLiveDeployment,
   runMainnetReadiness,
   summarizeDeploymentValue,

@@ -294,3 +294,35 @@ export class SubRosaTimeoutError extends Error {
     this.pollIntervalMs = params.pollIntervalMs;
   }
 }
+
+/**
+ * Raised when a paged read (`client.bidders`) observes an internally
+ * inconsistent or non-monotonic page from the Round contract. The page is
+ * rejected rather than partially yielded, so callers never see a truncated or
+ * duplicated bidder set.
+ */
+export type SubRosaPaginationErrorReason =
+  | "invalid_page"
+  | "repeated_bidder"
+  | "repeated_cursor";
+
+export class SubRosaPaginationError extends Error {
+  readonly name = "SubRosaPaginationError";
+  readonly roundId: string;
+  readonly reason: SubRosaPaginationErrorReason;
+  readonly address?: string;
+
+  constructor(
+    roundId: string,
+    reason: SubRosaPaginationErrorReason,
+    address?: string,
+  ) {
+    super(
+      `pagination error for round ${roundId}: ${reason}` +
+        (address ? ` (${address})` : ""),
+    );
+    this.roundId = roundId;
+    this.reason = reason;
+    this.address = address;
+  }
+}
