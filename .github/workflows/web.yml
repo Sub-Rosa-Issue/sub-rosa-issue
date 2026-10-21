@@ -31,6 +31,9 @@ jobs:
       - name: Check web CI configuration
         run: node --test scripts/web-ci.test.mjs
 
+      - name: Reject install-time lifecycle scripts (reads package.json only, before any install)
+        run: node scripts/check-lifecycle-scripts.mjs && node --test scripts/check-lifecycle-scripts.test.mjs
+
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
