@@ -1,0 +1,40 @@
+name: Line lengths check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  # This workflow only reads the repo: clones, installs and runs
+  # tests. It does not push, comment, publish, or touch secrets.
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check line lengths in executable config files
+        run: pnpm line-lengths:check
+
+      - name: Run line lengths script tests
+        run: pnpm line-lengths:test
