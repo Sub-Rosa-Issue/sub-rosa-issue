@@ -1,0 +1,20 @@
+# Fixture: lockfile with a host that would be allowed via allowlist
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      # Package from a custom registry that would be allowlisted
+      custom-package:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  custom-package@1.0.0:
+    resolution: {integrity: sha512-example, tarball: https://custom.registry.example.com/custom-package/-/custom-package-1.0.0.tgz}

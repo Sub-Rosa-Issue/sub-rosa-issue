@@ -1,0 +1,69 @@
+# Negative fixture: lockfile with various source policy violations
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      # Git dependency (should fail)
+      lodash-git:
+        specifier: github:lodash/lodash#4.17.21
+        version: https://codeload.github.com/lodash/lodash/tar.gz/f299b52f39486275a9e6483b60a410e06520c538
+      # Git+SSH dependency (should fail)
+      private-repo:
+        specifier: git+ssh://git@github.com/user/private-repo.git#v1.0.0
+        version: git+ssh://git@github.com/user/private-repo.git#v1.0.0
+      # File dependency (should fail)
+      local-package:
+        specifier: file:../local-package
+        version: link:../local-package
+      # HTTP (non-HTTPS) dependency (should fail)
+      insecure-package:
+        specifier: http://registry.example.com/insecure-package/-/insecure-package-1.0.0.tgz
+        version: http://registry.example.com/insecure-package/-/insecure-package-1.0.0.tgz
+      # Valid HTTPS from allowed registry (should pass)
+      express:
+        specifier: ^4.18.2
+        version: 4.18.2
+    devDependencies:
+      # Valid workspace dependency (should pass)
+      '@sub-rosa/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
+      # Link dependency to external package (should fail)
+      external-link:
+        specifier: link:../../external-package
+        version: link:../../external-package
+
+packages:
+
+  '@sub-rosa/sdk@1.0.0':
+    resolution: {integrity: sha512-example}
+
+  express@4.18.2:
+    resolution: {integrity: sha512-5/PsL6iGPdfQ/lKM1UuielYgv3BUoJfz1aUwU9vHZ+J7gyvwdQXFEBIEIaxeGf0GIcreATNyBExtalisDbuMqQ==}
+    engines: {node: '>= 0.10.0'}
+
+  lodash-git@https://codeload.github.com/lodash/lodash/tar.gz/f299b52f39486275a9e6483b60a410e06520c538:
+    resolution: {gitHosted: true, integrity: sha512-example, tarball: https://codeload.github.com/lodash/lodash/tar.gz/f299b52f39486275a9e6483b60a410e06520c538}
+    version: 4.17.21
+
+  private-repo@git+ssh://git@github.com/user/private-repo.git#v1.0.0:
+    resolution: {gitHosted: true, integrity: sha512-example, tarball: git+ssh://git@github.com/user/private-repo.git#v1.0.0}
+    version: 1.0.0
+
+  local-package@link:../local-package:
+    resolution: {integrity: sha512-example}
+    version: 1.0.0
+
+  insecure-package@http://registry.example.com/insecure-package/-/insecure-package-1.0.0.tgz:
+    resolution: {integrity: sha512-example, tarball: http://registry.example.com/insecure-package/-/insecure-package-1.0.0.tgz}
+    version: 1.0.0
+
+  external-link@link:../../external-package:
+    resolution: {integrity: sha512-example}
+    version: 1.0.0
