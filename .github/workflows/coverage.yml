@@ -39,6 +39,9 @@ jobs:
       - name: Validate error normalization
         run: pnpm errors:normalize:test && pnpm errors:normalize:check
 
+      - name: Validate the secret protection settings check
+        run: pnpm secrets:test
+
       - name: Mainnet readiness matches the committed manifest (recorded fixture, no RPC, no secrets)
         run: |
           pnpm --filter @sub-rosa/sdk exec tsx scripts/mainnet-ready.ts --strict --fixture

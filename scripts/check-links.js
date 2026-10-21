@@ -17,6 +17,7 @@ const FILES = [
   'docs/THREAT_MODEL.md',
   'docs/DEPLOY.md',
   'docs/DEMO_SCRIPT.md',
+  'docs/SECRET_PROTECTION.md',
   'docs/INTEGRATION.md',
   'docs/RECEIPTS.md',
   'docs/SCF_TRANCHE_PLAN.md',

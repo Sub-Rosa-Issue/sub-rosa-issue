@@ -3,6 +3,21 @@
 This document describes automated checks that protect the TypeScript workspace
 (`packages/*` and `services/*`).
 
+## Secret scanning gate
+
+Workflow: `.github/workflows/secret-scan.yml`
+
+It runs on pushes to `main` and on incoming pull requests. Every run scans
+the git history and the working tree with gitleaks (default rule set, config
+in `.gitleaks.toml`) and fails when a credential is found. Findings are
+uploaded to code scanning as SARIF, and every report is redacted: the job log
+and the SARIF carry the rule, the file and the line, never the secret value.
+
+The GitHub-side settings (secret scanning, push protection, non-provider
+patterns, validity checks) live in the repository configuration rather than in
+the tree. `pnpm secrets:check` reads them and `pnpm secrets:enable` turns
+them on. See [SECRET_PROTECTION.md](./SECRET_PROTECTION.md).
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for
