@@ -1,0 +1,50 @@
+# Positive fixture: valid lockfile with only allowed sources
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      express:
+        specifier: ^4.18.2
+        version: 4.18.2
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.3.3
+
+  packages/example:
+    dependencies:
+      '@sub-rosa/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@sub-rosa/tlock':
+        specifier: workspace:*
+        version: link:../tlock
+
+packages:
+
+  '@sub-rosa/sdk@1.0.0':
+    resolution: {integrity: sha512-example}
+
+  '@sub-rosa/tlock@1.0.0':
+    resolution: {integrity: sha512-example}
+
+  express@4.18.2:
+    resolution: {integrity: sha512-5/PsL6iGPdfQ/lKM1UuielYgv3BUoJfz1aUwU9vHZ+J7gyvwdQXFEBIEIaxeGf0GIcreATNyBExtalisDbuMqQ==}
+    engines: {node: '>= 0.10.0'}
+
+  lodash@4.17.21:
+    resolution: {integrity: sha512-example}
+
+  typescript@5.3.3:
+    resolution: {integrity: sha512-example}
+    engines: {node: '>=14.17'}
+    hasBin: true
