@@ -72,6 +72,8 @@
     "web:test": "pnpm --filter @sub-rosa/web test",
     "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
     "snapshot:check": "node scripts/check-snapshots.mjs",
+    "vscode-tasks:check": "node scripts/check-vscode-tasks.mjs",
+    "vscode-tasks:test": "node --test scripts/check-vscode-tasks.test.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
     "docs:check-links": "node scripts/check-links.js",
     "coverage:test": "node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",

@@ -50,3 +50,21 @@ in the PR. The default is calibrated against the **weighted** covered/total
 ratio after including unexecuted `src/` files. Lower the threshold only when
 the existing codebase cannot meet a higher bar yet; prefer adding tests instead
 of weakening the gate.
+
+## Repository hygiene gates
+
+`.github/workflows/coverage.yml` also runs a check over the repository itself
+rather than over its TypeScript sources.
+
+### VS Code tasks that run on folder open
+
+`scripts/check-vscode-tasks.mjs` fails when a tracked `.vscode/tasks.json` declares
+`"runOn": "folderOpen"`. That trigger executes a task as soon as the folder is
+opened, before anyone reads what it does. The guard audits tracked manifests only,
+prints the offending path and line without the file contents, and never parses or
+runs a task command.
+
+```bash
+pnpm vscode-tasks:test    # unit tests plus CLI fixtures
+pnpm vscode-tasks:check   # the CI step
+```
