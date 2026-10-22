@@ -50,3 +50,27 @@ in the PR. The default is calibrated against the **weighted** covered/total
 ratio after including unexecuted `src/` files. Lower the threshold only when
 the existing codebase cannot meet a higher bar yet; prefer adding tests instead
 of weakening the gate.
+
+## Bindings check
+
+GitHub Actions workflow: `.github/workflows/bindings-check.yml`
+
+Generated contract bindings are built with Stellar CLI **22.8.2**. That is the
+latest stable 22.x release on crates.io, and it is the newest CLI that still
+supports this repo's `soroban-sdk` 22 (`Cargo.lock` resolves 22.0.11).
+`stellar-cli` 23.0.0 and newer depend on `soroban-sdk` 23, so they are not
+used for this contract.
+
+CI installs that release with:
+
+```bash
+cargo install stellar-cli --version 22.8.2 --locked
+stellar --version
+```
+
+`stellar --version` runs before `pnpm bindings:check`. The pin, `--locked`, and
+print order are asserted by:
+
+```bash
+node --test scripts/check-bindings-cli.test.mjs
+```

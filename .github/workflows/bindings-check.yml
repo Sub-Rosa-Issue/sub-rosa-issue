@@ -21,6 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Assert pinned Stellar CLI workflow
+        run: node --test scripts/check-bindings-cli.test.mjs
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -34,7 +37,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev libsodium-dev
 
       - name: Install stellar CLI
-        run: cargo install stellar-cli --locked
+        # 22.8.2 is the latest stable stellar-cli that still supports soroban-sdk 22.
+        # CLI 23.0.0 and newer require soroban-sdk 23.
+        run: cargo install stellar-cli --version 22.8.2 --locked
+
+      - name: Print Stellar CLI version
+        run: stellar --version
 
       - uses: pnpm/action-setup@v4
         with:
