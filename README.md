@@ -190,6 +190,7 @@ pnpm mainnet:verify         # mainnet read-only proof
 | [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md) | 5-minute jury walkthrough |
 | [docs/DEPLOY.md](./docs/DEPLOY.md) | Env: UI build vs runtime secrets |
 | [docs/LIMITATIONS.md](./docs/LIMITATIONS.md) | Known scope boundaries |
+| [docs/DEPENDABOT_SECURITY.md](./docs/DEPENDABOT_SECURITY.md) | Enable and verify Dependabot alerts + security updates |
 
 ## Status (submission)
 
