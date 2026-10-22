@@ -18,6 +18,7 @@ import {
   runMainnetReadiness,
   runMicroRunnerGate,
 } from "../src/mainnet-readiness.js";
+import { assertMainnetConfirmed, assertReadinessForExecute } from "../src/mainnet-readiness.js";
 import { generateAuditorKeypair, generateNonce, quicknet, sealBid } from "@sub-rosa/tlock";
 import { systemClock } from "@sub-rosa/time";
 
@@ -173,6 +174,7 @@ async function main() {
         value: bid,
         nonce,
         round: revealRound,
+        revealRound: revealRound,
         client: drand,
         identity: new TextEncoder().encode(`micro:${bidderKp.publicKey()}`),
         auditorPublicKey: auditor.publicKey,

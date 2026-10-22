@@ -49,11 +49,8 @@ function source(options: FakeIndex): EscrowConservationSource & { calls: number 
       const data = options.pages ? options.pages(slice) : slice;
       return {
         data,
-        next_cursor: options.nextCursor
-          ? options.nextCursor(cursor)
-          : cursor + size >= options.bidders.length
-            ? 0
-            : cursor + size,
+        has_more: true,
+        next_cursor: undefined,
         total: options.totals ? options.totals(cursor) : options.bidders.length,
       };
     },

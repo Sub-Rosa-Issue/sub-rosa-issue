@@ -43,7 +43,7 @@ export {
   SubRosaTimeoutError,
   SubRosaTransactionError,
   SubRosaAssetValidationError,
-} from "./errors.js";
+} from "./errors";
 export type {
   DeploymentMismatchErrorParams,
   ManifestErrorParams,
@@ -52,7 +52,7 @@ export type {
   PreflightFailureKind,
   SubRosaPreflightErrorParams,
   TimeoutErrorParams,
-} from "./errors.js";
+} from "./errors";
 
 // Escrow conservation: the off-chain mirror of the contract's
 // EscrowNotConserved guard (issue #374).

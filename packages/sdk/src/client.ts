@@ -13,6 +13,7 @@ import type {
   Result,
 } from "@stellar/stellar-sdk/contract";
 import type { RoundAssetConfig } from "@sub-rosa/round-bindings";
+/** Local SDK RoundAssetConfig shape - mirrors the Rust struct until bindings are regenerated. */
 import { basicNodeSigner } from "@stellar/stellar-sdk/contract";
 import {
   Client as RoundContract,
@@ -28,7 +29,9 @@ import {
   expectedRoundEventSequence,
 } from "@sub-rosa/round-bindings/event-snapshot";
 import { toHex } from "@sub-rosa/tlock";
+import type { RoundReceiptEvent } from "./receipt.js";
 import type { SealedBid } from "@sub-rosa/tlock";
+import { SubRosaPaginationError } from "./errors.js";
 import type { RoundReceipt } from "./receipt.js";
 import { assertSealedBid } from "./encrypted-blob.js";
 import type { SealedBidBinding } from "./encrypted-blob.js";
@@ -119,6 +122,11 @@ export interface SubRosaClientConfig {
    */
   assetConfig?: import("./asset-config.js").AssetConfig;
   /**
+   * Optional passkey session binding for the client.
+   * When provided, commits will validate the session before proceeding.
+   */
+  session?: PasskeySessionBinding;
+  /**
    * @internal Testing hook: inject a mock Soroban RPC server for simulation.
    */
   _server?: rpc.Server;
@@ -127,14 +135,16 @@ export interface SubRosaClientConfig {
 export type ClearingRuleTag = ClearingRule["tag"];
 
 /**
- * The contract's `RoundAssetConfig` (contracts/round/src/types.rs).
- *
+ * The contract's `RoundAssetConfig` (contracts/round/src/types.rs). Local SDK shape in `SdkRoundAssetConfig`. *
  * Declared here rather than imported because the generated bindings in this
  * tree predate the `asset_config` argument on `create_round`; the shape mirrors
  * the Rust struct exactly. Once the bindings are regenerated this type and the
  * accompanying cast at the call site can both be dropped.
  */
-interface RoundAssetConfig {
+/** The contract's RoundAssetConfig shape, mirroring contracts/round/src/types.rs.
+ * Declared locally because the generated bindings predate the asset_config argument.
+ * Will be removable once the bindings are regenerated. */
+interface SdkRoundAssetConfig {
   asset_type: string;
   contract_id: string;
   code: string;
@@ -165,6 +175,10 @@ export interface CommitParams {
   roundId: number | bigint;
   /** The off-chain seal produced by @sub-rosa/tlock `sealBid`. */
   sealed: SealedBid;
+  /** Binding used to verify the sealed bid's identity. */
+  binding?: SealedBidBinding;
+  /** Optional passkey session binding for session validation. */
+  session?: PasskeySessionBinding;
   /** Public USDC budget locked now; upper bound on the sealed bid. */
   escrow: bigint;
   /** Bidder address. Default: the configured signer's public key. */
@@ -428,7 +442,7 @@ export class SubRosaClient {
   #sleep: (ms: number) => Promise<void> = (ms) => this.#scheduler.sleep(ms);
 
   // ── State-changing calls (sign + submit over RPC) ──────────────────────  /** Build the on-chain asset_config argument from SDK params. */
-  #buildAssetConfig(params: CreateRoundParams): RoundAssetConfig {
+  #buildAssetConfig(params: CreateRoundParams): SdkRoundAssetConfig {
     if (!params.assetConfig) {
       return {
         asset_type: "native",
@@ -455,7 +469,7 @@ export class SubRosaClient {
       values: undefined,
     } as ClearingRule;    
     // Build asset config for the round
-    let assetConfig: RoundAssetConfig = {
+    let assetConfig: SdkRoundAssetConfig = {
       asset_type: "native",
       contract_id: "",
       code: "XLM",
@@ -777,7 +791,7 @@ export class SubRosaClient {
     return proveEscrowConservationFromPages(
       {
         getBiddersPage: async (cursor, limit) =>
-          (await this.getBiddersPage(rid, cursor, limit)) as BiddersPage,
+          (await this.getBiddersPage(rid, cursor === undefined ? undefined : (cursor as unknown as Uint8Array), limit)) as BiddersPage,
         getBidState: async (bidder) => {
           try {
             return await this.getBidState(rid, bidder);

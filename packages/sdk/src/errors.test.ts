@@ -17,7 +17,7 @@ import {
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
   SubRosaTimeoutError,
-} from "./errors.js";
+} from "./errors";
 import { Errors as RoundBindingsErrors } from "@sub-rosa/round-bindings";
 import { SubRosaClient } from "./client.js";
 import { createFakeTime } from "@sub-rosa/time";
@@ -377,12 +377,11 @@ describe("ROUND_CONTRACT_ERRORS mapping coverage", () => {
 
   it("fails when a fixture error without a mapping is present", () => {
     const fixtureWithUnmapped = [
-      ...Object.values(ROUND_CONTRACT_ERRORS).map((e) => ({
-        code: e.code,
-        name: e.name,
+      ...Object.entries(ROUND_CONTRACT_ERRORS).map(([, code]) => ({
+        code,
+        name: String(code),
       })),
-      { code: 99, name: "UnmappedContractError" },
-    ];
+      { code: 99, name: "UnmappedContractError" }];
     const failures = diffContractErrorMapping(fixtureWithUnmapped);
     assert.equal(failures.length, 1);
     assert.match(failures[0], /UnmappedContractError/);
@@ -390,10 +389,14 @@ describe("ROUND_CONTRACT_ERRORS mapping coverage", () => {
   });
 
   it("fails when a mapped SDK error is missing from the contract list", () => {
-    const incompleteList = Object.values(ROUND_CONTRACT_ERRORS)
-      .filter((e) => e.name !== "NotInitialized")
-      .map((e) => ({ code: e.code, name: e.name }));
+    const incompleteList = Object.entries(ROUND_CONTRACT_ERRORS)
+      .filter(([, name]: [string, number]) => {
+      const n = name as unknown as string;
+      return n !== "NotInitialized";
+    })
+      .map(([, v]: [string, number]) => ({ code: v, name: String(v) }));
     const failures = diffContractErrorMapping(incompleteList);
+
     assert.equal(failures.length, 1);
     assert.match(failures[0], /NotInitialized/);
     assert.match(failures[0], /missing from contract errors list/);
@@ -480,12 +483,12 @@ describe("isRoundContractErrorRetryable classification", () => {
 
   it("treats unknown errors as non-retryable", () => {
     assert.equal(isRoundContractErrorRetryable("UnknownTrap"), false);
-    assert.equal(isRoundContractErrorRetryable(999), false);
-    assert.equal(isRoundContractErrorRetryable(0), false);
+    assert.equal(isRoundContractErrorRetryable(999 as number), false);
+    assert.equal(isRoundContractErrorRetryable(0 as number), false);
     assert.equal(isRoundContractErrorRetryable(undefined), false);
-    assert.equal(isRoundContractErrorRetryable(null), false);
+    assert.equal(isRoundContractErrorRetryable(null as null), false);
     assert.equal(getRoundContractError("UnknownTrap"), undefined);
-    assert.equal(getRoundContractError(999), undefined);
+    assert.equal(getRoundContractError(String(999)), undefined);
   });
 });
 

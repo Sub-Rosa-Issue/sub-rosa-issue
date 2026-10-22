@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Keypair, rpc, StrKey } from "@stellar/stellar-sdk";
+import { readFileSync } from "node:fs";
 
 import { SubRosaClient } from "./client.js";
 import {
@@ -9,7 +10,8 @@ import {
   SubRosaNetworkMismatchError,
   SubRosaSessionMismatchError,
   SubRosaSubmitError,
-} from "./errors.js";
+  SubRosaPaginationError,
+} from "./errors";
 import type {
   SubmitSignedTransactionParams,
   TransactionSubmitter,

@@ -23,6 +23,9 @@ import type { SealedBidBinding } from "../encrypted-blob.js";
 const QUICKNET_PUBLIC_KEY =
   "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
+const validContractId = "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM";
+const validBidderId = "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY";
+
 const offlineClient = {
   chain: () => ({
     info: async () => ({
@@ -47,9 +50,12 @@ export function sealFixture(overrides?: {
   auditorPublicKey?: Uint8Array;
 }): Promise<SealedBid> {
   return sealBid({
+    contractId: validContractId,
+    bidderId: validBidderId,
     value: overrides?.value ?? BID_VALUE,
     nonce: overrides?.nonce ?? BID_NONCE,
     round: overrides?.round ?? BID_ROUND,
+    revealRound: overrides?.round ?? BID_ROUND,
     client: offlineClient,
     ...(overrides?.identity ? { identity: overrides.identity } : {}),
     ...(overrides?.auditorPublicKey

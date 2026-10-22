@@ -14,6 +14,7 @@ import { commitment, decodeBidPreimage, encodeBidPreimage, NONCE_BYTES } from ".
 import { sealIdentityForBidder } from "./auditor.js";
 import type { DrandClient } from "./quicknet.js";
 import { assertContractId, assertBidderId } from "./validate.js";
+import { assertSealRoundWindow } from "./window.js";
 
 const utf8Encode = new TextEncoder();
 const utf8Decode = new TextDecoder();
@@ -42,8 +43,8 @@ export interface SealedBid {
   auditorBlob: Uint8Array;
   /// The Drand round this seal was encrypted to. The SDK forwards it to the
   /// contract `commit` as `seal_round`, where it must equal the auction's
-  /// stored `reveal_round` (issue #376).
-  sealRound: number;
+  /// stored `reveal_round` (issue #376). Defaults to the round number if not supplied.
+  sealRound?: number;
 }
 
 export function generateNonce(): Uint8Array {
@@ -51,7 +52,7 @@ export function generateNonce(): Uint8Array {
 }
 
 export async function sealBid(params: SealBidParams): Promise<SealedBid> {
-  const { contractId, bidderId, value, nonce, round, client, identity, auditorPublicKey } = params;
+  const { contractId, bidderId, value, nonce, round, client, identity, auditorPublicKey, revealRound } = params;
 
   assertContractId(contractId);
   assertBidderId(bidderId);

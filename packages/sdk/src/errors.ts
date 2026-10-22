@@ -294,3 +294,210 @@ export class SubRosaTimeoutError extends Error {
     this.pollIntervalMs = params.pollIntervalMs;
   }
 }
+
+export const ROUND_CONTRACT_ERRORS = {
+  NotInitialized: 1,
+  AlreadyInitialized: 2,
+  RoundNotFound: 3,
+  BidNotFound: 4,
+  CommitClosed: 10,
+  CommitNotClosed: 11,
+  CommitDeadlineAfterReveal: 12,
+  RevealNotOpen: 13,
+  RevealAlreadyOpen: 14,
+  RevealWindowClosed: 15,
+  RevealStillOpen: 16,
+  NotCleared: 17,
+  AlreadyCleared: 18,
+  AlreadySettled: 19,
+  RoundVoided: 20,
+  NotVoidable: 21,
+  WrongStatus: 22,
+  InvalidDrandSignature: 30,
+  HashMismatch: 31,
+  AlreadyRevealed: 32,
+  PayloadTooLarge: 33,
+  InvalidAmount: 34,
+  BidExceedsEscrow: 35,
+  DeadlineInPast: 36,
+  NoValidBids: 37,
+  RoundFull: 38,
+  InvalidLimit: 39,
+  EscrowNotConserved: 40,
+  SealRoundTooEarly: 40,
+  SealRoundTooLate: 41,
+  InvalidSealRoundZero: 42,
+};
+
+export const ROUND_CONTRACT_ERRORS_BY_NAME: Record<string, number> = {
+  NotInitialized: 1,
+  AlreadyInitialized: 2,
+  RoundNotFound: 3,
+  BidNotFound: 4,
+  CommitClosed: 10,
+  CommitNotClosed: 11,
+  CommitDeadlineAfterReveal: 12,
+  RevealNotOpen: 13,
+  RevealAlreadyOpen: 14,
+  RevealWindowClosed: 15,
+  RevealStillOpen: 16,
+  NotCleared: 17,
+  AlreadyCleared: 18,
+  AlreadySettled: 19,
+  RoundVoided: 20,
+  NotVoidable: 21,
+  WrongStatus: 22,
+  InvalidDrandSignature: 30,
+  HashMismatch: 31,
+  AlreadyRevealed: 32,
+  PayloadTooLarge: 33,
+  InvalidAmount: 34,
+  BidExceedsEscrow: 35,
+  DeadlineInPast: 36,
+  NoValidBids: 37,
+  RoundFull: 38,
+  InvalidLimit: 39,
+  EscrowNotConserved: 40,
+  SealRoundTooEarly: 40,
+  SealRoundTooLate: 41,
+  InvalidSealRoundZero: 42,
+};
+
+export function diffContractErrorMapping(left: { name: string; code: number }[], right?: { name: string; code: number }[]): string[] {
+  // TypeScript has issues with Map inference from .map() callbacks; use explicit casts
+  const rightByName: Map<string, number> = new Map(
+    ((right ?? Object.entries(ROUND_CONTRACT_ERRORS_BY_NAME)) as [string, number][]).map(([name, code]) => [name, code] as [string, number]),
+  );
+  const leftByName: Map<string, number> = new Map(
+    (left as { name: string; code: number }[]).map((v: { name: string; code: number }) => [v.name, v.code] as [string, number])
+  );
+  /** @type {string[]} */
+  const failures: string[] = [];
+
+  for (const [name, code] of leftByName) {
+    if (!rightByName.has(name)) {
+      failures.push(`${name} (${code}) in left but missing from right`);
+      continue;
+    }
+    const otherCode = rightByName.get(name);
+    if (otherCode !== code) {
+      failures.push(
+        `${name} code mismatch: left=${code}, right=${otherCode}`,
+      );
+    }
+  }
+
+  for (const [name, code] of rightByName) {
+    if (!leftByName.has(name)) {
+      failures.push(`${name} (${code}) in right but missing from left`);
+    }
+  }
+
+  return failures;
+}
+
+export function getRoundContractError(name: string): { code: number; retryable: boolean } | undefined {
+  const code = ROUND_CONTRACT_ERRORS_BY_NAME[name];
+  if (code === undefined) {
+    return undefined;
+  }
+  return {
+    code,
+    retryable: isRoundContractErrorRetryableByName[name],
+  };
+}
+
+export const isRoundContractErrorRetryableByName: Record<string, boolean> = {
+  NotInitialized: false,
+  AlreadyInitialized: false,
+  RoundNotFound: false,
+  BidNotFound: false,
+  CommitClosed: false,
+  CommitNotClosed: false,
+  CommitDeadlineAfterReveal: false,
+  RevealNotOpen: false,
+  RevealAlreadyOpen: false,
+  RevealWindowClosed: false,
+  RevealStillOpen: true,
+  NotCleared: true,
+  AlreadyCleared: false,
+  AlreadySettled: false,
+  RoundVoided: false,
+  NotVoidable: false,
+  WrongStatus: false,
+  InvalidDrandSignature: false,
+  HashMismatch: false,
+  AlreadyRevealed: false,
+  PayloadTooLarge: false,
+  InvalidAmount: false,
+  BidExceedsEscrow: false,
+  DeadlineInPast: false,
+  NoValidBids: false,
+  RoundFull: false,
+  InvalidLimit: false,
+  EscrowNotConserved: false,
+  SealRoundTooEarly: false,
+  SealRoundTooLate: false,
+  InvalidSealRoundZero: false,
+};
+
+export function isRoundContractErrorRetryable(codeOrName: number | string | undefined | null): boolean {
+  if (codeOrName == null) {
+    return false;
+  }
+  let code: number;
+  if (typeof codeOrName === "number") {
+    code = codeOrName;
+  } else {
+    code = ROUND_CONTRACT_ERRORS_BY_NAME[codeOrName];
+    if (code === undefined) {
+      return false;
+    }
+  }
+  return isRoundContractErrorRetryableByCode[code];
+}
+
+export const isRoundContractErrorRetryableByCode: Record<number, boolean> = {
+  1: false,
+  2: false,
+  3: false,
+  4: false,
+  10: false,
+  11: false,
+  12: false,
+  13: false,
+  14: false,
+  15: false,
+  16: true,
+  17: true,
+  18: false,
+  19: false,
+  20: false,
+  21: false,
+  22: false,
+  30: false,
+  31: false,
+  32: false,
+  33: false,
+  34: false,
+  35: false,
+  36: false,
+  37: false,
+  38: false,
+  39: false,
+  40: false,
+};
+
+export class SubRosaPaginationError extends Error {
+  readonly name = "SubRosaPaginationError";
+  readonly roundId: bigint;
+  readonly bidder?: string;
+  readonly reason: string;
+
+  constructor(roundId: number | bigint, code: string, bidder?: string) {
+    super(`round ${typeof roundId === "bigint" ? roundId.toString() : String(roundId)} pagination error: ${code}`);
+    this.bidder = bidder;
+    this.roundId = typeof roundId === "bigint" ? roundId : BigInt(roundId);
+    this.reason = code;
+  }
+}

@@ -9,6 +9,10 @@ import {
   validateContractNetwork,
   validatePasskeySession,
   type NetworkValidationServer,
+  networkDisplayName,
+  networkPassphrasesMatch,
+  describeNetworkPassphraseMismatch,
+  SubRosaNetworkPassphraseMismatchError,
 } from "./network.js";
 
 const TESTNET = "Test SDF Network ; September 2015";
