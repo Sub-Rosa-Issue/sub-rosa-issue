@@ -38,18 +38,10 @@ import { ExactStellarScheme as FacilitatorStellarScheme } from "@x402/stellar/ex
 import { ExactStellarScheme as ServerStellarScheme } from "@x402/stellar/exact/server";
 
 import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_BYTES, parseAppraisalRequest } from "./appraisal.js";
+import { takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
-
-function readBody(req: http.IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c as Buffer));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
-}
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
 function makeAdapter(
@@ -165,14 +157,16 @@ export async function buildAppraisalServer(
         });
       }
 
-      const rawBody = await readBody(req);
+      const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);
+      if ("status" in taken) {
+        // Fail closed before JSON parsing and before any payment offer.
+        send(res, taken.status, {}, taken.body);
+        res.on("finish", () => req.destroy());
+        return;
+      }
+      const rawBody = taken.raw;
       let parsedBody: unknown = undefined;
       if (rawBody.length > 0) {
-        // Fail closed before any payment offer: oversized bodies never get a
-        // 402 quote and paid retries with unsafe bodies never settle.
-        if (rawBody.length > MAX_APPRAISAL_BODY_BYTES) {
-          return send(res, 400, {}, { error: "Invalid appraisal request" });
-        }
         try {
           parsedBody = JSON.parse(rawBody.toString("utf8"));
         } catch {

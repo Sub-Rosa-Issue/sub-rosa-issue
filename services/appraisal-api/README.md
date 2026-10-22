@@ -67,6 +67,10 @@ The other endpoints are free (used for healthchecks / discovery):
 | GET    | `/`        | Discovery: price, asset, network |
 | GET    | `/healthz` | Health check                     |
 
+A `POST /appraise` body larger than 8192 bytes is rejected with **HTTP 413**
+`{ "error": "payload_too_large", "limitBytes": 8192 }` before the bytes are
+parsed as JSON, so the request never receives a 402 payment quote.
+
 ## Schema fixtures
 
 The canonical request/response shapes and the per-failure-mode payloads live as
