@@ -50,3 +50,31 @@ in the PR. The default is calibrated against the **weighted** covered/total
 ratio after including unexecuted `src/` files. Lower the threshold only when
 the existing codebase cannot meet a higher bar yet; prefer adding tests instead
 of weakening the gate.
+
+## pnpm version manifest check
+
+CI fails if any GitHub Actions workflow's `pnpm/action-setup` step declares
+a different pnpm version than the root `package.json` `packageManager` field
+(currently `pnpm@10.13.1`). This keeps every workflow on the exact pnpm
+version developers and the committed lockfile use.
+
+### Run locally
+
+```bash
+pnpm ci:pnpm-version:test   # unit tests for the checker itself
+pnpm ci:pnpm-version:check  # scans .github/workflows/*.yml
+```
+
+Checker source: `scripts/check-pnpm-version.mjs` (tests in
+`scripts/check-pnpm-version.test.mjs`).
+
+### CI workflow
+
+Wired into `.github/workflows/coverage.yml` (Node-only, runs on every push
+and pull request to `main`).
+
+### Changing the pnpm version
+
+Bump `packageManager` in `package.json` and every `pnpm/action-setup`
+`version:` in `.github/workflows/*.yml` together in the same PR; the check
+fails loudly if they drift apart.
