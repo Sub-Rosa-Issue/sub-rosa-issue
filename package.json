@@ -72,6 +72,8 @@
     "web:test": "pnpm --filter @sub-rosa/web test",
     "web:typecheck": "pnpm --filter @sub-rosa/web typecheck",
     "snapshot:check": "node scripts/check-snapshots.mjs",
+    "lockfile:check": "node scripts/check-root-lockfile.mjs",
+    "lockfile:test": "node --test scripts/check-root-lockfile.test.mjs",
     "vscode-tasks:check": "node scripts/check-vscode-tasks.mjs",
     "vscode-tasks:test": "node --test scripts/check-vscode-tasks.test.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",

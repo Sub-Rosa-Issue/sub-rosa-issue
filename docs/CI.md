@@ -53,8 +53,22 @@ of weakening the gate.
 
 ## Repository hygiene gates
 
-`.github/workflows/coverage.yml` also runs a check over the repository itself
+`.github/workflows/coverage.yml` also runs two checks over the repository itself
 rather than over its TypeScript sources.
+
+### Single root lockfile
+
+`scripts/check-root-lockfile.mjs` fails when the repository root tracks more than
+one lockfile, tracks none, or tracks a lockfile that does not belong to the package
+manager declared in `package.json`. This workspace is installed with
+**pnpm 10.13.1**, so `pnpm-lock.yaml` is the only permitted tracked root lockfile;
+`package-lock.json`, `yarn.lock`, `bun.lock` and `bun.lockb` are gitignored at the
+root. Lockfiles inside a workspace folder are not part of this rule.
+
+```bash
+pnpm lockfile:test     # unit tests plus CLI fixtures
+pnpm lockfile:check    # the CI step
+```
 
 ### VS Code tasks that run on folder open
 

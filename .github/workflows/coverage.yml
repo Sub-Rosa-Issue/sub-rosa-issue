@@ -36,6 +36,9 @@ jobs:
       - name: Reject VS Code tasks that run on folder open
         run: pnpm vscode-tasks:test && pnpm vscode-tasks:check
 
+      - name: Enforce the single root lockfile
+        run: pnpm lockfile:test && pnpm lockfile:check
+
       - name: Validate structured logging
         run: pnpm logging:test && pnpm logging:check
 
