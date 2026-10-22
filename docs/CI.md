@@ -1,7 +1,16 @@
 # CI and quality gates
 
-This document describes automated checks that protect the TypeScript workspace
-(`packages/*` and `services/*`).
+This document describes automated checks for the web app and TypeScript
+workspaces (`apps/*`, `packages/*`, and `services/*`).
+
+## Web checks
+
+The `Web checks` workflow (`.github/workflows/web.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm web:test`,
+`pnpm web:typecheck`, and `pnpm web:build` in order. Run the same three commands
+locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
+CI job configuration.
 
 ## Test coverage gate
 
