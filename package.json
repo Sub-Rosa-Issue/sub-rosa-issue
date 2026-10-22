@@ -25,6 +25,8 @@
     }
   },
   "scripts": {
+    "env:check": "node scripts/check-env-examples.mjs",
+    "env:test": "node --test scripts/check-env-examples.test.mjs",
     "logging:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-logging.test.mjs",
     "logging:check": "node scripts/check-logging.mjs",
     "contract:build": "stellar contract build",

@@ -3,6 +3,11 @@
 
 Sub Rosa **does not require a committed `.env` file**. Secrets stay out of git; you inject them where each layer runs.
 
+CI runs `node scripts/check-env-examples.mjs` on the root and web `.env.example`
+files. It rejects duplicate active names within either file and populated
+secret-shaped values; keep credential fields empty or use clear placeholders.
+Run `node --test scripts/check-env-examples.test.mjs` for the focused tests.
+
 ## Three layers
 
 | Layer | Needs env? | When vars are read |
