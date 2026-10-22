@@ -50,3 +50,5 @@ jobs:
 
       - name: Check generated bindings are up to date
         run: pnpm bindings:check
+      - name: Fail if the worktree is dirty after the bindings check
+        run: git diff --exit-code

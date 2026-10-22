@@ -50,3 +50,22 @@ in the PR. The default is calibrated against the **weighted** covered/total
 ratio after including unexecuted `src/` files. Lower the threshold only when
 the existing codebase cannot meet a higher bar yet; prefer adding tests instead
 of weakening the gate.
+
+## Bindings worktree cleanliness gate
+
+After `pnpm bindings:check` regenerates the round contract's TypeScript
+bindings, CI runs `git diff --exit-code` so any unexpected drift in a
+tracked, generated file is visible and blocking, not just the specific
+`index.ts` comparison `bindings:check` already does on its own.
+
+### CI workflow
+
+`.github/workflows/bindings-check.yml`, immediately after the
+"Check generated bindings are up to date" step.
+
+### Run locally
+
+```bash
+pnpm bindings:check
+git diff --exit-code
+```
