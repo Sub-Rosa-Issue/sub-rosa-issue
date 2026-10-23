@@ -105,7 +105,9 @@
     "wf-creds:check": "node scripts/check-workflow-credentials.mjs",
     "wf-creds:test": "node --test scripts/check-workflow-credentials.test.mjs",
     "lockfile:check": "node scripts/check-lockfile-sources.mjs",
-    "lockfile:test": "node --test scripts/check-lockfile-sources.test.mjs"
+    "lockfile:test": "node --test scripts/check-lockfile-sources.test.mjs",
+    "font:check": "node scripts/check-font-magic.mjs",
+    "font:test": "node --test scripts/check-font-magic.test.mjs"
   },
   "devDependencies": {
     "yaml": "^2.9.1"
