@@ -45,6 +45,9 @@ const ERROR_PATH_REGISTRY: &[(Error, &'static str)] = &[
     (Error::NoValidBids, "error_path_no_valid_bids"),
     (Error::RoundFull, "error_path_round_full"),
     (Error::InvalidLimit, "error_path_invalid_limit"),
+    (Error::SealRoundTooEarly, "error_path_seal_round_too_early"),
+    (Error::SealRoundTooLate, "error_path_seal_round_too_late"),
+    (Error::InvalidSealRoundZero, "error_path_invalid_seal_round_zero"),
     (Error::EscrowNotConserved, "error_path_escrow_not_conserved"),
 ];
 
@@ -88,7 +91,7 @@ fn settle_happy_path(f: &Fixture, t_reveal: u64, commit_deadline: u64, reveal_de
 fn error_paths_registry_covers_every_variant() {
     assert_eq!(
         ERROR_PATH_REGISTRY.len(),
-        28,
+        31,
         "update ERROR_PATH_REGISTRY when adding/removing Error variants"
     );
     for (variant, name) in ERROR_PATH_REGISTRY {

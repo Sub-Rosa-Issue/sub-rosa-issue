@@ -17,6 +17,7 @@ import {
   type DrandClient,
   type SealedBid,
 } from "@sub-rosa/tlock";
+import { StrKey } from "@stellar/stellar-sdk";
 import type { SealedBidBinding } from "../encrypted-blob.js";
 
 /** quicknet's real chain public key. */
@@ -38,6 +39,11 @@ export const BID_VALUE = 8_675_309n;
 export const BID_NONCE = new Uint8Array(NONCE_BYTES).fill(0x2a);
 export const BID_ROUND = 1_234_567;
 
+/** Fixed identities baked into the offline fixture (issue #413 validates both). */
+export const FIXTURE_CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32));
+export const FIXTURE_BIDDER_ID =
+  "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
 /** Seal a bid offline. Each call re-encrypts, so ciphertexts differ per call. */
 export function sealFixture(overrides?: {
   value?: bigint;
@@ -47,9 +53,12 @@ export function sealFixture(overrides?: {
   auditorPublicKey?: Uint8Array;
 }): Promise<SealedBid> {
   return sealBid({
+    contractId: FIXTURE_CONTRACT_ID,
+    bidderId: FIXTURE_BIDDER_ID,
     value: overrides?.value ?? BID_VALUE,
     nonce: overrides?.nonce ?? BID_NONCE,
     round: overrides?.round ?? BID_ROUND,
+    revealRound: overrides?.round ?? BID_ROUND,
     client: offlineClient,
     ...(overrides?.identity ? { identity: overrides.identity } : {}),
     ...(overrides?.auditorPublicKey

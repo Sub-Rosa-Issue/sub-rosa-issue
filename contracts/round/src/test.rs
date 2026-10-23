@@ -2272,7 +2272,7 @@ pub(super) const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
     (Error::RoundVoided, 20),
     (Error::NotVoidable, 21),
     (Error::WrongStatus, 22),
-    // ── 30–40: cryptography & validation ──
+    // ── 30–39: cryptography & validation ──
     (Error::InvalidDrandSignature, 30),
     (Error::HashMismatch, 31),
     (Error::AlreadyRevealed, 32),
@@ -2283,8 +2283,12 @@ pub(super) const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
     (Error::NoValidBids, 37),
     (Error::RoundFull, 38),
     (Error::InvalidLimit, 39),
-    // ── 40–49: escrow accounting ──
-    (Error::EscrowNotConserved, 40),
+    // ── 40–42: seal-round window ──
+    (Error::SealRoundTooEarly, 40),
+    (Error::SealRoundTooLate, 41),
+    (Error::InvalidSealRoundZero, 42),
+    // ── 43–49: escrow accounting ──
+    (Error::EscrowNotConserved, 43),
 ];
 
 /// Convert an `Error` to its on-chain discriminant using the [`repr(u32)`]
@@ -2323,6 +2327,9 @@ pub(super) fn variant_name(e: Error) -> &'static str {
         Error::NoValidBids => "NoValidBids",
         Error::RoundFull => "RoundFull",
         Error::InvalidLimit => "InvalidLimit",
+        Error::SealRoundTooEarly => "SealRoundTooEarly",
+        Error::SealRoundTooLate => "SealRoundTooLate",
+        Error::InvalidSealRoundZero => "InvalidSealRoundZero",
         Error::EscrowNotConserved => "EscrowNotConserved",
     }
 }
@@ -2344,7 +2351,7 @@ fn error_discriminants_match_document() {
 
 #[test]
 fn error_codes_have_no_duplicate_discriminants() {
-    // O(n²) is fine: n = 28. Done without `std::collections` because the
+    // O(n²) is fine: n = 31. Done without `std::collections` because the
     // contract's `#![no_std]` applies to this module.
     for (i, (variant_a, code_a)) in DOCUMENTED_ERROR_CODES.iter().enumerate() {
         let name_a = variant_name(*variant_a);
@@ -2371,7 +2378,7 @@ fn error_table_enumerates_every_variant() {
     // DOCUMENTED_ERROR_CODES.
     assert_eq!(
         DOCUMENTED_ERROR_CODES.len(),
-        28,
+        31,
         "DOCUMENTED_ERROR_CODES appears missing entries. The exhaustive \
          `variant_name` match already enforces parity at compile time — \
          update it together with this list and contracts/round/ERRORS.md."
@@ -2384,7 +2391,8 @@ fn error_codes_use_reserved_ranges() {
     //   1–4     → initialization/lookup
     //   10–22   → lifecycle/timing
     //   30–39   → crypto/validation
-    //   40–49   → escrow accounting
+    //   40–42   → seal-round window
+    //   43–49   → escrow accounting
     // New categories should pick a fresh, contiguous range — not collide with
     // logging conventions — and update ERRORS.md at the same time.
     for (variant, code) in DOCUMENTED_ERROR_CODES {

@@ -6,8 +6,6 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { fileURLToPath } from "node:url";
-
 import {
   diffVariants,
   parseErrorsMd,
@@ -48,7 +46,7 @@ describe("parseTypesRs", () => {
       "utf-8",
     );
     const variants = parseTypesRs(content);
-    assert.equal(variants.length, 28);
+    assert.equal(variants.length, 31);
     assert.deepEqual(
       variants.find((v) => v.name === "CommitClosed"),
       { name: "CommitClosed", code: 10 },
@@ -63,7 +61,7 @@ describe("parseErrorsMd", () => {
       "utf-8",
     );
     const variants = parseErrorsMd(content);
-    assert.equal(variants.length, 28);
+    assert.equal(variants.length, 31);
     assert.deepEqual(
       variants.find((v) => v.name === "InvalidLimit"),
       { name: "InvalidLimit", code: 39 },
@@ -78,7 +76,7 @@ describe("parseSdkErrors", () => {
       "utf-8",
     );
     const variants = parseSdkErrors(content);
-    assert.equal(variants.length, 27);
+    assert.equal(variants.length, 31);
     assert.deepEqual(
       variants.find((v) => v.name === "InvalidLimit"),
       { name: "InvalidLimit", code: 39 },
@@ -90,9 +88,9 @@ describe("check-round-errors script", () => {
   it("passes against the real repo sources", () => {
     const result = runScript();
     assert.match(result, /PASS\s+types\.rs, ERRORS\.md, and SDK list the same error codes\./);
-    assert.match(result, /types\.rs : 27 variants/);
-    assert.match(result, /ERRORS\.md: 27 rows/);
-    assert.match(result, /SDK errors: 27 variants/);
+    assert.match(result, /types\.rs : 31 variants/);
+    assert.match(result, /ERRORS\.md: 31 rows/);
+    assert.match(result, /SDK errors: 31 variants/);
   });
 
   it("fails when ERRORS.md is missing a variant", () => {

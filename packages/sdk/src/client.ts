@@ -55,6 +55,7 @@ import {
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
   SubRosaAssetValidationError,
+  SubRosaPaginationError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
   SubRosaTransactionError,

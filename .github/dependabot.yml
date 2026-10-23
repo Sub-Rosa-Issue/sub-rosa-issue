@@ -1,0 +1,46 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+    groups:
+      # Group patch and minor updates together
+      "npm-and-minor":
+        update-types: ["patch", "minor"]
+        package-management-puppet: true
+
+  # Enable version updates for Cargo
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "cargo"
+    groups:
+      # Group patch and minor updates together
+      "cargo-and-minor":
+        update-types: ["patch", "minor"]
+        package-management-puppet: true
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      # Group patch and minor updates together
+      "github-actions-and-minor":
+        update-types: ["patch", "minor"]
+        package-management-puppet: true

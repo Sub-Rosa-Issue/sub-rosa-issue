@@ -35,8 +35,13 @@ pub enum Error {
     NoValidBids = 37,
     RoundFull = 38,
     InvalidLimit = 39,
+    // Seal-round window (issue #376): a seal must name the round the auction
+    // committed to open — exactly `Round::reveal_round`, never ±1 or 0.
+    SealRoundTooEarly = 40,
+    SealRoundTooLate = 41,
+    InvalidSealRoundZero = 42,
     // Escrow accounting
-    EscrowNotConserved = 40,
+    EscrowNotConserved = 43,
 }
 
 /// Round lifecycle. Mirrors the state machine in PRD §6.

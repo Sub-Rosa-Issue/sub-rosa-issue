@@ -1,4 +1,8 @@
-import { publicErrorMessage } from "@sub-rosa/logging/errors";
+import {
+  normalizeError,
+  publicErrorMessage,
+  type NormalizedError,
+} from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useMemo, useState } from "react";
 import { SubRosaClient, validatePasskeySession } from "@sub-rosa/sdk";
@@ -60,7 +64,7 @@ export function PasskeyPanel({
     contractId?: string;
   } | null>(null);
   const [session, setSession] = useState<PasskeySession | null>(initialSession);
-  const [panelError, setPanelError] = useState<Error | null>(null);
+  const [panelError, setPanelError] = useState<NormalizedError | null>(null);
 
   const walletWasmHash = resolvePasskeyWalletWasmHash();
   const rpId = import.meta.env.VITE_PASSKEY_RP_ID ?? window.location.hostname;
@@ -131,7 +135,7 @@ export function PasskeyPanel({
       );
     } catch (e) {
       setStatus("error");
-      const err = e instanceof Error ? e : new Error(String(e));
+      const err = normalizeError(e);
       setPanelError(err);
       setMessage(publicErrorMessage(e));
     }
@@ -173,7 +177,7 @@ export function PasskeyPanel({
       setMessage(`Smart wallet deployed on testnet: ${created.contractId}`);
     } catch (e) {
       setStatus("error");
-      const err = e instanceof Error ? e : new Error(String(e));
+      const err = normalizeError(e);
       setPanelError(err);
       const detail = publicErrorMessage(e);
       setMessage(
@@ -233,7 +237,7 @@ export function PasskeyPanel({
       setMessage("Passkey commit submitted successfully.");
     } catch (e: unknown) {
       setStatus("error");
-      const err = e instanceof Error ? e : new Error(String(e));
+      const err = normalizeError(e);
       setPanelError(err);
       // Ensure fixture secret seed is kept strictly out of the error message
       const scrubbed = err.message.replace(/\bS[A-Z2-7]{55}\b/g, "[REDACTED]");

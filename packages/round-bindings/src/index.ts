@@ -81,7 +81,10 @@ export const Errors = {
   37: {message:"NoValidBids"},
   38: {message:"RoundFull"},
   39: {message:"InvalidLimit"},
-  40: {message:"EscrowNotConserved"}
+  40: {message:"SealRoundTooEarly"},
+  41: {message:"SealRoundTooLate"},
+  42: {message:"InvalidSealRoundZero"},
+  43: {message:"EscrowNotConserved"}
 }
 
 

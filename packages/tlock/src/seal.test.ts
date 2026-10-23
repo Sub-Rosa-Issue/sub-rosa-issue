@@ -113,7 +113,7 @@ test(
     const round = (await currentRound(client)) - 5;
     const value = 555n;
     const nonce = generateNonce();
-    const sealed = await sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round, client });
+    const sealed = await sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round, revealRound: round, client });
     const opened = await openBid(sealed.ciphertext, client);
 
     const wrongNonce = new Uint8Array(32).fill(0x42);

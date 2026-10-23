@@ -28,7 +28,8 @@ stay in sync with `contracts/round/src/types.rs`.
 | 1–4     | Initialization & state lookup |
 | 10–22   | Lifecycle & timing |
 | 30–39   | Cryptography & validation |
-| 40–49   | Escrow accounting |
+| 40–42   | Seal-round window |
+| 43–49   | Escrow accounting |
 
 ## Initialization & state lookup (1–4)
 
@@ -57,7 +58,7 @@ stay in sync with `contracts/round/src/types.rs`.
 | 21 | `NotVoidable` | `void` | Round is past the `Open` status, or `now <= reveal_deadline + VOID_GRACE` (3600 s). | The round cannot be voided from its current state, or the grace window has not elapsed yet. | Either complete the normal lifecycle, or wait until `reveal_deadline + 1 hour` and try `void` again. |
 | 22 | `WrongStatus` | `commit` | `round.status != Status::Open`. | A bid can only be submitted to a round in the Open status. | Start a new round; a Revealing/Cleared/Settled/Voided round no longer accepts commits. |
 
-## Cryptography & validation (30–40)
+## Cryptography & validation (30–39)
 
 | Code | Variant | Raised by | Trigger | User-facing message | Suggested next action |
 | ---: | --- | --- | --- | --- | --- |
@@ -71,11 +72,20 @@ stay in sync with `contracts/round/src/types.rs`.
 | 37 | `NoValidBids` | `settle` | `round.winner` is `None` on a round whose status is `Cleared`. | Round has no winner to settle against. | Investigate: under current behavior the contract transitions to `Voided` (with all escrow refunded) when no valid bid is revealed, so this code should not appear in normal flow. If it does, the round is in an inconsistent state and warrants a manual review. |
 | 38 | `RoundFull` | `commit` | `round.bidders.len() >= MAX_BIDDERS` (500). | The round has reached its bidder cap. | Start a new round to accept further bidders. |
 | 39 | `InvalidLimit` | `get_bidders_page` | `limit == 0` or `limit > 100`. | Page size must be between 1 and 100 (inclusive). | Pass a `limit` in `[1, 100]`; use `next_cursor` from the previous page to walk larger rounds. |
+
+## Seal-round window (40–42)
+
+A committed seal must name the Drand round the auction committed to open —
+exactly `Round::reveal_round`, never ±1 or 0 (issue #376). The window is
+enforced before any escrow is locked, so a rejected seal moves no funds.
+
+| Code | Variant | Raised by | Trigger | User-facing message | Suggested next action |
+| ---: | --- | --- | --- | --- | --- |
 | 40 | `SealRoundTooEarly` | `commit` | `seal_round < round.reveal_round`: the seal names a Drand round before the one the auction committed to open. | The sealed bid is locked to the wrong Drand round. | Reseal the bid to the round published in the `created` event (`reveal_round`) and commit again; no escrow was moved. |
 | 41 | `SealRoundTooLate` | `commit` | `seal_round > round.reveal_round`: the seal names a Drand round after the one the auction committed to open. | The sealed bid is locked to the wrong Drand round. | Reseal the bid to the round published in the `created` event (`reveal_round`) and commit again; no escrow was moved. |
 | 42 | `InvalidSealRoundZero` | `create_round`, `commit` | `reveal_round == 0` at round creation, or `seal_round == 0` at commit. A zero or overflowing round can never be published by the Drand chain. | The Drand round number is malformed. | Use a positive round the quicknet chain can actually publish (`genesis + period × R` must fit in `u64`); check before locking escrow. |
 
-## Escrow accounting (40–49)
+## Escrow accounting (43–49)
 
 Escrow conservation is one predicate, enforced by `reveal`, `clear`, `void`,
 and `settle`: committed escrow equals the settled payout plus refunds plus the
@@ -84,7 +94,7 @@ the round's bidder index.
 
 | Code | Variant | Raised by | Trigger | User-facing message | Suggested next action |
 | ---: | --- | --- | --- | --- | --- |
-| 40 | `EscrowNotConserved` | `reveal`, `clear`, `settle`, `void` | The round's escrow ledger does not satisfy `committed == payout + refunds + locked`; or the escrow it reports locked is not matched by indexed, unsettled bids; or a planned payout plus refunds would not drain exactly the locked balance. Concretely: a bidder index that drifted from the escrowed set (dropped, duplicated, or phantom bidder), a payout above the winner's escrow, a bid already marked settled, or a locked balance that survives a terminal round. | The round's escrow cannot be reconciled with the bids it was taken against, so no funds were moved. | Do not retry — the round's state is inconsistent. Export a receipt (`exportReceipt` / `getRound` + `getBidState` per bidder) and compare the bidder index against the escrowed set. If the index is intact, re-simulate from a fresh ledger view before escalating. |
+| 43 | `EscrowNotConserved` | `reveal`, `clear`, `settle`, `void` | The round's escrow ledger does not satisfy `committed == payout + refunds + locked`; or the escrow it reports locked is not matched by indexed, unsettled bids; or a planned payout plus refunds would not drain exactly the locked balance. Concretely: a bidder index that drifted from the escrowed set (dropped, duplicated, or phantom bidder), a payout above the winner's escrow, a bid already marked settled, or a locked balance that survives a terminal round. | The round's escrow cannot be reconciled with the bids it was taken against, so no funds were moved. | Do not retry — the round's state is inconsistent. Export a receipt (`exportReceipt` / `getRound` + `getBidState` per bidder) and compare the bidder index against the escrowed set. If the index is intact, re-simulate from a fresh ledger view before escalating. |
 
 Because the check runs before and after the transfers inside a single
 invocation, a rejection reverts every transfer the call had already made: a

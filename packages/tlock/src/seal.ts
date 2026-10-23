@@ -13,6 +13,7 @@ import { randomBytes } from "@noble/hashes/utils.js";
 import { commitment, decodeBidPreimage, encodeBidPreimage, NONCE_BYTES } from "./commitment.js";
 import { sealIdentityForBidder } from "./auditor.js";
 import type { DrandClient } from "./quicknet.js";
+import { assertSealRoundWindow } from "./window.js";
 import { assertContractId, assertBidderId } from "./validate.js";
 
 const utf8Encode = new TextEncoder();
@@ -51,7 +52,7 @@ export function generateNonce(): Uint8Array {
 }
 
 export async function sealBid(params: SealBidParams): Promise<SealedBid> {
-  const { contractId, bidderId, value, nonce, round, client, identity, auditorPublicKey } = params;
+  const { contractId, bidderId, value, nonce, round, revealRound, client, identity, auditorPublicKey } = params;
 
   assertContractId(contractId);
   assertBidderId(bidderId);
