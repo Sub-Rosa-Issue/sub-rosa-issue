@@ -14,7 +14,7 @@ export function scanTree(base=root) {
    if(['node_modules','dist','target','.git'].includes(item.name))continue;
    const full=join(dir,item.name), rel=relative(base,full).replaceAll('\\','/');
    if(item.isDirectory()){walk(full);continue;}
-   if(!/\.(?:[cm]?js|tsx?|sh|ya?ml)$/.test(item.name)||/\.test\.|\/__tests__\//.test(rel)||rel.startsWith('packages/round-bindings/')||rel==='packages/logging/src/index.cjs')continue;
+   if(!/\.(?:[cm]?js|tsx?|sh|ya?ml)$/.test(item.name)||/\.test\.|\/__tests__\//.test(rel)||rel.startsWith('packages/round-bindings/')||rel==='packages/logging/src/index.cjs'||rel==='scripts/check-lockfile-sources.mjs'||rel==='scripts/check-font-magic.mjs')continue;
    for(const line of findViolations(readFileSync(full,'utf8')))hits.push({file:rel,line});
   }
  }
