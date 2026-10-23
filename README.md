@@ -189,6 +189,7 @@ pnpm mainnet:verify         # mainnet read-only proof
 | [docs/ECOSYSTEM.md](./docs/ECOSYSTEM.md) | Passkey-Kit, Smart Account Kit, OZ Relayer |
 | [docs/DEMO_SCRIPT.md](./docs/DEMO_SCRIPT.md) | 5-minute jury walkthrough |
 | [docs/DEPLOY.md](./docs/DEPLOY.md) | Env: UI build vs runtime secrets |
+| [docs/GITHUB_ACTIONS_SECURITY.md](./docs/GITHUB_ACTIONS_SECURITY.md) | Repository Actions security settings, including fork PR approval |
 | [docs/LIMITATIONS.md](./docs/LIMITATIONS.md) | Known scope boundaries |
 
 ## Status (submission)
