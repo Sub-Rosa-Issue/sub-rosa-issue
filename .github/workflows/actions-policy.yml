@@ -1,0 +1,43 @@
+name: Actions policy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions-allowlist.json'
+      - 'scripts/check-actions-policy.mjs'
+      - 'scripts/check-actions-policy.test.mjs'
+      - 'package.json'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions-allowlist.json'
+      - 'scripts/check-actions-policy.mjs'
+      - 'scripts/check-actions-policy.test.mjs'
+      - 'package.json'
+
+permissions:
+  # This workflow only reads the repository: it checks the pinning policy.
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Test the Actions policy checker
+        run: node --test scripts/check-actions-policy.test.mjs
+
+      - name: Verify SHA pins and the reviewed allowlist
+        run: node scripts/check-actions-policy.mjs
