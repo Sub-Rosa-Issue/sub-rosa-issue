@@ -83,3 +83,75 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## GitHub Actions supply-chain policy
+
+Workflow changes are reviewed as code, and the repository enforces three rules
+on every workflow under `.github/workflows/`:
+
+1. **Full-length SHA pins.** Every external `uses:` must reference a
+   40-character lowercase commit SHA. Tags and branches (`@v4`, `@stable`) are
+   rejected because they are mutable.
+2. **Reviewed allowlist.** A pinned action must be listed, with that exact SHA,
+   in `.github/actions-allowlist.json`. A pin the allowlist does not know about
+   fails even when the action itself is trusted, and an allowlist entry no
+   workflow uses fails as well, so the allowlist cannot silently widen.
+3. **Read-only tokens.** Only `read` (or `none`) entries are accepted in a
+   `permissions:` block. Adding `write` scopes requires a reviewed change to the
+   checker itself.
+
+Local composite actions (`uses: ./...`) are part of this repository and are
+reviewed directly. `docker://` actions are rejected because they cannot be
+pinned by commit SHA.
+
+### Run locally
+
+```bash
+pnpm actions:test   # tests for the policy checker
+pnpm actions:check  # verify every workflow pin and the allowlist
+```
+
+`Actions policy` (`.github/workflows/actions-policy.yml`) runs both commands on
+pull requests and pushes that touch workflows, the allowlist, or the checker.
+
+### Reviewed allowlist
+
+| Action | Pinned SHA | Upstream ref |
+| --- | --- | --- |
+| `actions/checkout` | `11d5960a326750d5838078e36cf38b85af677262` | `v4.4.0` |
+| `actions/setup-node` | `49933ea5288caeca8642d1e84afbd3f7d6820020` | `v4.4.0` |
+| `pnpm/action-setup` | `b906affcce14559ad1aafd4ab0e942779e9f58b1` | `v4.3.0` |
+| `dtolnay/rust-toolchain` | `b725eda525362e7cf34af9a7243cac1e3f01a7ec` | `stable` |
+| `Swatinem/rust-cache` | `d1527c8f67ef9af357290475d4af4b0fab8f12e0` | `v2.9.3` |
+
+`dtolnay/rust-toolchain` derives the toolchain from the ref it is invoked with.
+Once pinned to a SHA that no longer holds a toolchain name, pass it explicitly:
+
+```yaml
+- uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+  with:
+    toolchain: stable
+```
+
+### Updating a pin
+
+1. Review the upstream diff between the pinned SHA and the new release.
+2. Update the `uses:` line and keep the human-readable version in the trailing
+   comment (`# v4.4.0`).
+3. Update the matching SHA in `.github/actions-allowlist.json`.
+4. Run `pnpm actions:check` and open the PR with the upstream diff link.
+
+### Repository settings
+
+The checker backs the same guarantees at review time, but the authoritative
+control is a repository setting that only maintainers can change. In
+**Settings → Actions → General**:
+
+- **Actions permissions:** *Allow select actions and reusable workflows*.
+- Allow **GitHub-owned actions**, **verified Marketplace actions**, and the
+  third-party actions in the table above (`pnpm/action-setup`,
+  `dtolnay/rust-toolchain`, `Swatinem/rust-cache`). Nothing else is needed by
+  the current workflows.
+- **Require actions to be pinned to a full-length commit SHA:** enabled.
+
+Settings are not stored in git, so record any change here when it happens.
