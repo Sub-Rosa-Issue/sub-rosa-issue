@@ -83,3 +83,45 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Install-time lifecycle scripts
+
+`pnpm install` runs `preinstall`, `install`, `postinstall` and `prepare`
+automatically, and `prepublish` / `prepublishOnly` run on publish flows. A new
+one in any workspace `package.json` would be a new automatic execution path on
+every contributor machine and CI runner, so CI rejects them by default.
+
+`scripts/check-lifecycle-scripts.mjs` reads the root `package.json` and every
+package matched by `pnpm-workspace.yaml`. It parses JSON only: it never runs a
+script and never prints a script body. A failure names the manifest path and
+the script name, nothing else. The step runs in every workflow job that installs
+dependencies, before the install. The same script reads `.github/workflows` and
+fails if a job runs `pnpm install` (or `npm ci`, `npm install`, `yarn install`)
+before running the check, so a new installing job cannot leave it out.
+
+```bash
+pnpm lifecycle-scripts:check
+pnpm lifecycle-scripts:test
+```
+
+The check also fails on a manifest that is not valid JSON, on a workspace glob
+it cannot expand, and on an allowlist entry that no longer matches a script.
+
+### Requesting an exception
+
+`scripts/lifecycle-scripts-allowlist.json` is empty and should stay that way
+unless there is no alternative. To add an exception, open a PR that adds an
+entry:
+
+```json
+{ "path": "packages/example/package.json", "script": "postinstall", "reason": "why it is needed and why it is safe" }
+```
+
+Maintainers review it like any other code that runs on install: what the
+command does, what it downloads or executes, and whether a build step or an
+explicit command could replace it. The entry is scoped to that one manifest
+and script, and `reason` is required. Remove the entry when the script goes
+away; a stale entry fails the check.
+
+A dependency that needs a build script is a separate question handled by
+`pnpm.onlyBuiltDependencies` in the root `package.json`, not by this allowlist.

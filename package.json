@@ -86,6 +86,8 @@
     "time:guard:test": "node --test scripts/check-direct-time-access.test.mjs",
     "errors:normalize:check": "node scripts/check-error-normalization.mjs",
     "errors:normalize:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-error-normalization.test.mjs",
+    "lifecycle-scripts:check": "node scripts/check-lifecycle-scripts.mjs",
+    "lifecycle-scripts:test": "node --test scripts/check-lifecycle-scripts.test.mjs",
     "line-lengths:check": "node scripts/check-line-lengths.mjs",
     "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs"
   }
