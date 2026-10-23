@@ -49,3 +49,6 @@ jobs:
 
       - name: Run coverage gate
         run: pnpm coverage:test
+
+      - name: Assert all workflow checkout steps disable credential persistence
+        run: pnpm wf-creds:check
