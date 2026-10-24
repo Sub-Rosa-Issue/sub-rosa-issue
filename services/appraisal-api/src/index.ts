@@ -20,6 +20,15 @@ export {
 
 export { buildAppraisalServer } from "./server.js";
 export {
+  APPRAISAL_BODY_TOO_LARGE,
+  APPRAISAL_UNSUPPORTED_MEDIA_TYPE,
+  appraisalBodyTooLargeBody,
+  appraisalUnsupportedMediaTypeBody,
+  checkAppraisalContentType,
+  isJsonContentType,
+  takeAppraisalRequestBody,
+} from "./body-limit.js";
+export {
   AppraisalConfigError,
   configFromEnv,
   type AppraisalServerConfig,

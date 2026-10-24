@@ -4,6 +4,66 @@ import type { IncomingMessage } from "node:http";
 /** Stable error code for an appraisal body above the configured byte cap. */
 export const APPRAISAL_BODY_TOO_LARGE = "payload_too_large";
 
+/** Stable error code when `POST /appraise` omits or uses a non-JSON `Content-Type`. */
+export const APPRAISAL_UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type";
+
+export function appraisalUnsupportedMediaTypeBody(): {
+  error: typeof APPRAISAL_UNSUPPORTED_MEDIA_TYPE;
+  expected: "application/json";
+} {
+  return {
+    error: APPRAISAL_UNSUPPORTED_MEDIA_TYPE,
+    expected: "application/json",
+  };
+}
+
+/**
+ * Return true when `Content-Type` is `application/json`, allowing optional
+ * media-type parameters such as `; charset=utf-8` (case-insensitively).
+ */
+export function isJsonContentType(
+  headerValue: string | string[] | undefined,
+): boolean {
+  const raw = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+  if (typeof raw !== "string" || raw.trim() === "") return false;
+  const parts = raw.split(";").map((part) => part.trim());
+  const mediaType = parts[0]?.toLowerCase() ?? "";
+  if (mediaType !== "application/json") return false;
+  for (let i = 1; i < parts.length; i++) {
+    const param = parts[i];
+    if (!param) return false;
+    const eqIdx = param.indexOf("=");
+    if (eqIdx <= 0) return false;
+    const name = param.slice(0, eqIdx).trim().toLowerCase();
+    const rawVal = param.slice(eqIdx + 1).trim();
+    const val = rawVal.replace(/^"(.*)"$/, "$1").trim().toLowerCase();
+    if (!val) return false;
+    if (name === "charset" && val !== "utf-8" && val !== "utf8") {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Validate `Content-Type` on `POST /appraise`. Returns a stable 415 response
+ * instruction when the media type is missing or not `application/json`.
+ */
+export function checkAppraisalContentType(
+  req: Pick<IncomingMessage, "headers">,
+): {
+  status: 415;
+  body: ReturnType<typeof appraisalUnsupportedMediaTypeBody>;
+} | null {
+  if (isJsonContentType(req.headers["content-type"])) {
+    return null;
+  }
+  return {
+    status: 415,
+    body: appraisalUnsupportedMediaTypeBody(),
+  };
+}
+
 export class AppraisalBodyTooLargeError extends Error {
   readonly name = "AppraisalBodyTooLargeError";
   readonly status = 413 as const;
