@@ -33,7 +33,8 @@ TypeScript packages and services that ship unit tests.
    **uncovered**.
 4. The script prints per-workspace covered/total line counts and a **weighted**
    aggregate: `sum(covered) / sum(total)` across all configured workspaces.
-5. CI fails when the weighted aggregate drops below `lineThresholdPercent`.
+5. The runner writes a compact coverage summary artifact (`coverage/coverage-summary.md` and `coverage/coverage-summary.json`) and appends the Markdown table to `GITHUB_STEP_SUMMARY` when present.
+6. CI fails when the weighted aggregate drops below `lineThresholdPercent`.
 
 Runner unit tests live in `scripts/run-ts-coverage.test.mjs`
 (`node --test scripts/run-ts-coverage.test.mjs`).
