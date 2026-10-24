@@ -83,3 +83,12 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Agent checks
+
+Run the blocking test and typecheck suite for Agent locally and in CI:
+
+```bash
+pnpm agent:ci
+node --test scripts/agent-ci.test.mjs
+```

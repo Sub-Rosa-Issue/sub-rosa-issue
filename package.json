@@ -34,7 +34,7 @@
     "errors:check": "node scripts/check-round-errors.mjs",
     "errors:test": "node --test scripts/check-round-errors.test.mjs",
     "bindings:generate": "stellar contract build --out-dir artifacts && rm -rf tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir tmp-bindings --overwrite && cp tmp-bindings/src/index.ts packages/round-bindings/src/index.ts && rm -rf tmp-bindings",
-    "bindings:check": "stellar contract build --out-dir artifacts && rm -rf tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir tmp-bindings --overwrite && (diff tmp-bindings/src/index.ts packages/round-bindings/src/index.ts; diff_exit=$?; rm -rf tmp-bindings; if [ $diff_exit -ne 0 ]; then echo '❌ Round bindings are stale. Run pnpm bindings:generate to update them.'; exit 1; else echo '✅ Round bindings are up to date.'; fi)",
+    "bindings:check": "stellar contract build --out-dir artifacts && rm -rf tmp-bindings && stellar contract bindings typescript --wasm artifacts/sub_rosa_round.wasm --output-dir tmp-bindings --overwrite && (diff tmp-bindings/src/index.ts packages/round-bindings/src/index.ts; diff_exit=$?; rm -rf tmp-bindings; if [ $diff_exit -ne 0 ]; then echo '\u274c Round bindings are stale. Run pnpm bindings:generate to update them.'; exit 1; else echo '\u2705 Round bindings are up to date.'; fi)",
     "sdk:test": "pnpm --filter @sub-rosa/sdk test",
     "sdk:typecheck": "pnpm --filter @sub-rosa/sdk typecheck",
     "bindings:test": "pnpm --filter @sub-rosa/round-bindings test",
@@ -87,6 +87,7 @@
     "errors:normalize:check": "node scripts/check-error-normalization.mjs",
     "errors:normalize:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-error-normalization.test.mjs",
     "line-lengths:check": "node scripts/check-line-lengths.mjs",
-    "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs"
+    "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs",
+    "agent:ci": "node --test scripts/agent-ci.test.mjs && pnpm agent:test && pnpm agent:typecheck"
   }
 }
