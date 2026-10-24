@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -20,9 +21,24 @@ export interface ToastItem {
   detail?: string;
 }
 
+export interface FocusableElement {
+  focus(): void;
+  isConnected?: boolean;
+  contains?(node: unknown): boolean;
+}
+
+export interface FocusEnvironment {
+  readonly activeElement: FocusableElement | null;
+  readonly body?: FocusableElement | null;
+}
+
+export interface DismissToastOptions {
+  restoreFocus?: boolean;
+}
+
 interface ToastContextValue {
   push: (tone: ToastTone, title: string, detail?: string) => string;
-  dismiss: (id: string) => void;
+  dismiss: (id: string, options?: DismissToastOptions) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -55,24 +71,105 @@ const TONE_DURATION: Record<ToastTone, number> = {
   error: 8000,
 };
 
-export function ToastProvider({ children }: { children: ReactNode }) {
+function defaultFocusEnvironment(): FocusEnvironment | undefined {
+  if (typeof document === "undefined") return undefined;
+  return {
+    get activeElement() {
+      const el = document.activeElement as unknown as FocusableElement | null;
+      return el && typeof el.focus === "function" ? el : null;
+    },
+    get body() {
+      const el = document.body as unknown as FocusableElement | null;
+      return el && typeof el.focus === "function" ? el : null;
+    },
+  };
+}
+
+export function ToastProvider({
+  children,
+  focusEnv,
+}: {
+  children: ReactNode;
+  focusEnv?: FocusEnvironment;
+}) {
   const { scheduler } = useTime();
   const [items, setItems] = useState<ToastItem[]>([]);
   const seq = useRef(0);
+  const openersRef = useRef<Map<string, FocusableElement>>(new Map());
+  const toastNodesRef = useRef<Map<string, FocusableElement>>(new Map());
+  const lastOpenerRef = useRef<FocusableElement | null>(null);
 
-  const dismiss = useCallback((id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const getEnv = useCallback(
+    () => focusEnv ?? defaultFocusEnvironment(),
+    [focusEnv],
+  );
+
+  const isInsideAnyToast = useCallback((target: FocusableElement | null): boolean => {
+    if (!target) return false;
+    for (const node of toastNodesRef.current.values()) {
+      if (node === target || (typeof node.contains === "function" && node.contains(target))) {
+        return true;
+      }
+    }
+    return false;
   }, []);
+
+  const dismiss = useCallback(
+    (id: string, options?: DismissToastOptions) => {
+      const env = getEnv();
+      const active = env?.activeElement ?? null;
+      const toastNode = toastNodesRef.current.get(id) ?? null;
+      const focusInsideToast =
+        toastNode != null &&
+        active != null &&
+        (toastNode === active ||
+          (typeof toastNode.contains === "function" && toastNode.contains(active)));
+      const shouldRestoreFocus = Boolean(options?.restoreFocus) || focusInsideToast;
+
+      const opener = openersRef.current.get(id) ?? lastOpenerRef.current;
+      openersRef.current.delete(id);
+      toastNodesRef.current.delete(id);
+
+      setItems((prev) => prev.filter((item) => item.id !== id));
+
+      if (shouldRestoreFocus && opener && opener.isConnected !== false) {
+        opener.focus();
+      }
+    },
+    [getEnv],
+  );
 
   const push = useCallback(
     (tone: ToastTone, title: string, detail?: string) => {
       const id = `toast-${++seq.current}`;
+      const env = getEnv();
+      const active = env?.activeElement ?? null;
+      const isBody = active != null && env?.body != null && active === env.body;
+      const candidate =
+        active && !isBody && !isInsideAnyToast(active) ? active : lastOpenerRef.current;
+
+      if (candidate) {
+        openersRef.current.set(id, candidate);
+        lastOpenerRef.current = candidate;
+      }
+
       setItems((prev) => [{ id, tone, title, detail }, ...prev].slice(0, 4));
       const ttl = TONE_DURATION[tone];
       if (ttl > 0) scheduler.setTimeout(() => dismiss(id), ttl);
       return id;
     },
-    [dismiss, scheduler],
+    [dismiss, getEnv, isInsideAnyToast, scheduler],
+  );
+
+  const handleToastKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLElement>, id: string) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        dismiss(id, { restoreFocus: true });
+      }
+    },
+    [dismiss],
   );
 
   const value = useMemo(() => ({ push, dismiss }), [push, dismiss]);
@@ -85,12 +182,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           {items.map((item) => (
             <motion.div
               key={item.id}
+              ref={(node: HTMLElement | null) => {
+                if (node) {
+                  toastNodesRef.current.set(item.id, node);
+                } else {
+                  toastNodesRef.current.delete(item.id);
+                }
+              }}
               layout
               initial={{ opacity: 0, y: 24, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.95, transition: { duration: 0.18 } }}
               transition={{ type: "spring", stiffness: 420, damping: 32 }}
               className={`toast toast-${item.tone}`}
+              tabIndex={-1}
+              onKeyDown={(event) => handleToastKeyDown(event, item.id)}
             >
               <span className="toast-icon" aria-hidden="true">
                 {TONE_ICON[item.tone]}
@@ -103,7 +209,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 className="toast-close"
                 aria-label={`Dismiss: ${item.title}`}
-                onClick={() => dismiss(item.id)}
+                onClick={() => dismiss(item.id, { restoreFocus: true })}
               >
                 ×
               </button>
