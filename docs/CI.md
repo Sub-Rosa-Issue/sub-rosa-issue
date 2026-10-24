@@ -83,3 +83,12 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## tlock checks
+
+Run the blocking test and typecheck suite for tlock locally and in CI:
+
+```bash
+pnpm tlock:ci
+node --test scripts/tlock-ci.test.mjs
+```
