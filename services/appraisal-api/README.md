@@ -71,6 +71,22 @@ A `POST /appraise` body larger than 8192 bytes is rejected with **HTTP 413**
 `{ "error": "payload_too_large", "limitBytes": 8192 }` before the bytes are
 parsed as JSON, so the request never receives a 402 payment quote.
 
+### Quote rate limiting & production adapter boundary
+
+Unpaid `POST /appraise` quote creation requests are rate-limited before a `402`
+quote is minted. Exceeding the limit returns **HTTP 429**
+`{ "error": "rate_limit_exceeded", "retryAfterSeconds": <seconds> }` with
+`Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
+`X-RateLimit-Reset` headers.
+
+- **Development default (`InMemoryQuoteRateLimiter`)**: Fixed-window in-memory
+  limiter (default `30` requests per `60_000` ms window, capped at `1_024`
+  tracked keys with expired/oldest eviction so memory stays strictly bounded).
+- **Production adapter boundary (`AppraisalQuoteRateLimiter`)**: Pass a
+  distributed store adapter via `buildAppraisalServer(config, { quoteRateLimiter })`
+  implementing `consume(key, nowMs)` (for example backed by Redis or an edge
+  token bucket) when running multiple server instances behind a load balancer.
+
 ## Schema fixtures
 
 The canonical request/response shapes and the per-failure-mode payloads live as
