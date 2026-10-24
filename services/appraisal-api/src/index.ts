@@ -18,7 +18,12 @@ export {
   type AppraisalAttributes,
 } from "./appraisal.js";
 
-export { buildAppraisalServer } from "./server.js";
+export {
+  APPRAISAL_RESPONSE_SECURITY_HEADERS,
+  buildAppraisalServer,
+  withNonCacheableHeaders,
+  type AppraisalServerOptions,
+} from "./server.js";
 export {
   AppraisalConfigError,
   configFromEnv,
