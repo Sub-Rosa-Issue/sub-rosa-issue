@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import * as sdk from "./index.js";
 
 const EXPECTED_EXPORTS = [
-  "SubRosaPaginationError",
   "ASSET_FIXTURES",
   "AssetConfigError",
   "DEPLOYMENT_CHECK_IDS",
@@ -49,6 +48,7 @@ const EXPECTED_EXPORTS = [
   "SubRosaTransactionError",
   "TERMINAL_ROUND_STATUSES",
   "assertDeploymentMatches",
+  "assertEndpointTransportSecurity",
   "assertMainnetConfirmed",
   "assertMicroAmounts",
   "assertReadinessForExecute",
@@ -76,6 +76,8 @@ const EXPECTED_EXPORTS = [
   "isKeeperRoundActive",
   "isKeeperRoundSettlementPending",
   "isKeeperRoundTerminal",
+  "isLoopbackHost",
+  "isMainnetPassphrase",
   "isRoundContractErrorRetryable",
   "isTerminalRoundStatus",
   "nativeXlmSacId",
@@ -86,7 +88,6 @@ const EXPECTED_EXPORTS = [
   "networkPassphrasesMatch",
   "normalizeRoundId",
   "normalizeSorobanContractId",
-  "parseMicroStroops",
   "parseReceipt",
   "proveEscrowConservationFromPages",
   "redactReceipt",

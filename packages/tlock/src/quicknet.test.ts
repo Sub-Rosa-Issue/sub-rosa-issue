@@ -2,7 +2,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { QUICKNET_HASH, assertQuicknetFixture } from "./quicknet.js";
+import {
+  DEFAULT_QUICKNET_URL,
+  QUICKNET_HASH,
+  assertDrandEndpointUrl,
+  assertQuicknetFixture,
+  quicknet,
+} from "./quicknet.js";
 import { classifyDrandRound } from "./freshness.js";
 
 import fs from "node:fs";
@@ -92,3 +98,37 @@ test("a mutated period fails the fixture comparison", () => {
   const mutated = { ...QUICKNET_FIXTURE, period: 4 };
   assert.throws(() => assertQuicknetFixture(mutated), /period mismatch/);
 });
+
+test("assertDrandEndpointUrl requires https:// for remote Drand endpoints and explicit opt-in for localhost http://", () => {
+  assert.equal(
+    assertDrandEndpointUrl(DEFAULT_QUICKNET_URL),
+    "https://api.drand.sh",
+  );
+  assert.equal(
+    assertDrandEndpointUrl("https://api.drand.sh/"),
+    "https://api.drand.sh",
+  );
+
+  assert.throws(
+    () => assertDrandEndpointUrl("http://api.drand.sh"),
+    /must use https:\/\//,
+  );
+  assert.throws(
+    () => assertDrandEndpointUrl("http://api.drand.sh", { allowLocalHttp: true }),
+    /must use https:\/\//,
+  );
+  assert.throws(
+    () => assertDrandEndpointUrl("http://localhost:8080"),
+    /must use https:\/\//,
+  );
+  assert.equal(
+    assertDrandEndpointUrl("http://localhost:8080/", { allowLocalHttp: true }),
+    "http://localhost:8080",
+  );
+
+  assert.throws(
+    () => quicknet({ url: "http://api.drand.sh" }),
+    /must use https:\/\//,
+  );
+});
+

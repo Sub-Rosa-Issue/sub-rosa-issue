@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { StrKey } from "@stellar/stellar-sdk";
 import {
+  SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
   SubRosaSessionMismatchError,
 } from "./errors.js";
+import { SubRosaClient } from "./client.js";
 import {
+  assertEndpointTransportSecurity,
+  isLoopbackHost,
+  isMainnetPassphrase,
   validateContractNetwork,
   validatePasskeySession,
   type NetworkValidationServer,
@@ -244,4 +249,74 @@ describe("validatePasskeySession", () => {
     }
   });
 });
+
+describe("assertEndpointTransportSecurity", () => {
+  it("identifies mainnet passphrases and loopback hosts", () => {
+    assert.equal(isMainnetPassphrase(PUBLIC), true);
+    assert.equal(isMainnetPassphrase(TESTNET), false);
+    assert.equal(isLoopbackHost("localhost"), true);
+    assert.equal(isLoopbackHost("127.0.0.1"), true);
+    assert.equal(isLoopbackHost("[::1]"), true);
+    assert.equal(isLoopbackHost("rpc.example.com"), false);
+  });
+
+  it("requires https:// on mainnet even when allowHttp is true or host is localhost", () => {
+    assert.doesNotThrow(() =>
+      assertEndpointTransportSecurity("https://rpc.mainnet.example", {
+        networkPassphrase: PUBLIC,
+      }),
+    );
+
+    for (const url of [
+      "http://rpc.mainnet.example",
+      "http://localhost:8000",
+    ]) {
+      assert.throws(
+        () =>
+          assertEndpointTransportSecurity(url, {
+            networkPassphrase: PUBLIC,
+            allowHttp: true,
+          }),
+        (err: unknown) => {
+          assert.ok(err instanceof SubRosaClientConfigError);
+          assert.match(err.message, /must use https:\/\/ when configured for mainnet/);
+          return true;
+        },
+      );
+      assert.throws(
+        () =>
+          new SubRosaClient({
+            rpcUrl: url,
+            networkPassphrase: PUBLIC,
+            contractId: CONTRACT_ID,
+            allowHttp: true,
+          }),
+        SubRosaClientConfigError,
+      );
+    }
+  });
+
+  it("allows http:// on testnet only when allowHttp is explicitly enabled", () => {
+    assert.throws(
+      () =>
+        new SubRosaClient({
+          rpcUrl: "http://localhost:8000",
+          networkPassphrase: TESTNET,
+          contractId: CONTRACT_ID,
+        }),
+      SubRosaClientConfigError,
+    );
+
+    assert.doesNotThrow(
+      () =>
+        new SubRosaClient({
+          rpcUrl: "http://localhost:8000",
+          networkPassphrase: TESTNET,
+          contractId: CONTRACT_ID,
+          allowHttp: true,
+        }),
+    );
+  });
+});
+
 

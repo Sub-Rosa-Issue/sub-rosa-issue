@@ -102,6 +102,16 @@ function parsePort(value: string | undefined): number {
   return port;
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "[::1]" ||
+    normalized === "::1"
+  );
+}
+
 function parseRpcUrl(
   value: string | undefined,
   network: AppraisalNetwork,
@@ -135,6 +145,21 @@ function parseRpcUrl(
       "RPC_URL",
       "must not contain credentials",
     );
+  }
+
+  if (url.protocol === "http:") {
+    if (network === STELLAR_PUBNET_CAIP2) {
+      throw new AppraisalConfigError(
+        "RPC_URL",
+        "must use https:// when X402_NETWORK=stellar:pubnet",
+      );
+    }
+    if (!isLoopbackHost(url.hostname)) {
+      throw new AppraisalConfigError(
+        "RPC_URL",
+        "http:// is only allowed for localhost/loopback endpoints on testnet; use https:// for remote RPC endpoints",
+      );
+    }
   }
 
   return url.toString().replace(/\/$/, "");

@@ -112,6 +112,8 @@ rejected because they would otherwise propagate invalidly into the math.
 
 ## Quick start
 
+> **Transport security (`RPC_URL`)**: `RPC_URL` must use `https://` whenever `X402_NETWORK=stellar:pubnet` and for all remote RPC hosts. Unencrypted `http://` is permitted only for local loopback development (`localhost`, `127.0.0.1`, `[::1]`) when running on `stellar:testnet`.
+
 ```bash
 pnpm appraisal:start   # boots the server on :4021
 pnpm appraisal:test    # unit + fixture tests (no external calls)

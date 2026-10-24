@@ -227,4 +227,40 @@ describe("RPC URL embedded credentials", () => {
       assert.equal(configFromEnv({ ...MINIMAL_ENV, RPC_URL }).rpcUrl, RPC_URL);
     });
   }
+
+  test("rejects http:// RPC_URL in stellar:pubnet mode", () => {
+    assertConfigError(
+      {
+        ...MINIMAL_ENV,
+        X402_NETWORK: STELLAR_PUBNET_CAIP2,
+        RPC_URL: "http://rpc.pubnet.example",
+      },
+      "RPC_URL",
+    );
+    assertConfigError(
+      {
+        ...MINIMAL_ENV,
+        X402_NETWORK: STELLAR_PUBNET_CAIP2,
+        RPC_URL: "http://localhost:8000",
+      },
+      "RPC_URL",
+    );
+  });
+
+  test("rejects non-loopback http:// RPC_URL on testnet while keeping localhost explicit", () => {
+    assertConfigError(
+      {
+        ...MINIMAL_ENV,
+        RPC_URL: "http://rpc.testnet.example:8000",
+      },
+      "RPC_URL",
+    );
+    assert.equal(
+      configFromEnv({
+        ...MINIMAL_ENV,
+        RPC_URL: "http://127.0.0.1:8000",
+      }).rpcUrl,
+      "http://127.0.0.1:8000",
+    );
+  });
 });
