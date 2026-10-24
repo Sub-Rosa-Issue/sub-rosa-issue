@@ -18,6 +18,23 @@ import {
 } from "./appraisal.js";
 import { normalizeError } from "@sub-rosa/logging/errors";
 
+/** Shared default timeout (ms) for external RPC and appraisal HTTP requests. */
+export const DEFAULT_RPC_TIMEOUT_MS = 10_000;
+
+export interface PaidClientTimeoutScheduler {
+  setTimeout(callback: () => void, delayMs: number): unknown;
+  clear(handle: unknown): void;
+}
+
+const defaultTimeoutScheduler: PaidClientTimeoutScheduler = {
+  setTimeout(callback, delayMs) {
+    return globalThis.setTimeout(callback, delayMs);
+  },
+  clear(handle) {
+    globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>);
+  },
+};
+
 export interface PaidClientConfig {
   /** Payer secret key (S...). Needs a USDC trustline + balance. */
   secret: string;
@@ -25,6 +42,12 @@ export interface PaidClientConfig {
   network?: Network;
   /** Optional custom Soroban RPC URL. */
   rpcUrl?: string;
+  /** Per-request timeout (ms). Defaults to `DEFAULT_RPC_TIMEOUT_MS` (10_000). */
+  timeoutMs?: number;
+  /** Injectable fetch implementation for testing. Defaults to `globalThis.fetch`. */
+  fetchImpl?: typeof fetch;
+  /** Injectable scheduler for timeout enforcement. */
+  scheduler?: PaidClientTimeoutScheduler;
   /**
    * Expected payment quote. When set, the 402 offer is validated before any
    * signed payment is built: asset/destination must match, amount must be
@@ -470,6 +493,43 @@ export function assertPaymentQuoteAllowed(
 /** Build a paid-fetch function bound to a payer wallet. */
 export function createPaidFetch(config: PaidClientConfig) {
   const network = config.network ?? "stellar:testnet";
+  const timeoutMs = config.timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(`timeoutMs must be a positive finite number, got ${timeoutMs}`);
+  }
+  const scheduler = config.scheduler ?? defaultTimeoutScheduler;
+  const boundedFetch = async (url: string, init: RequestInit): Promise<Response> => {
+    const fetchImpl = config.fetchImpl ?? globalThis.fetch;
+    const controller = new AbortController();
+    const timeoutError = new Error(`appraisal request timed out after ${timeoutMs}ms`);
+    let onTimeout!: () => void;
+    const timedOut = new Promise<never>((_resolve, reject) => {
+      onTimeout = () => {
+        controller.abort(timeoutError);
+        reject(timeoutError);
+      };
+    });
+    const timer = scheduler.setTimeout(onTimeout, timeoutMs);
+    const forwardAbort = () => controller.abort(init.signal?.reason);
+    init.signal?.addEventListener("abort", forwardAbort, { once: true });
+    let pending: Promise<Response>;
+    try {
+      pending = Promise.resolve(
+        fetchImpl(url, { ...init, signal: controller.signal }),
+      );
+    } catch (err) {
+      scheduler.clear(timer);
+      init.signal?.removeEventListener("abort", forwardAbort);
+      throw err;
+    }
+    try {
+      return await Promise.race([pending, timedOut]);
+    } finally {
+      scheduler.clear(timer);
+      init.signal?.removeEventListener("abort", forwardAbort);
+      pending.catch(() => {});
+    }
+  };
   const signer = createEd25519Signer(config.secret, network);
   const rpcConfig = config.rpcUrl ? { url: config.rpcUrl } : undefined;
   const core = new x402Client().register(
@@ -487,7 +547,7 @@ export function createPaidFetch(config: PaidClientConfig) {
     // oversized / credential-like bodies still fail here with no payment.
     assertPaidRequestBodyAllowed(init, { requireBody: false });
 
-    const first = await fetch(url, init);
+    const first = await boundedFetch(url, init);
     if (first.status !== 402) {
       return { status: first.status, body: await parseJsonResponse<T>(first) };
     }
@@ -516,10 +576,11 @@ export function createPaidFetch(config: PaidClientConfig) {
 
     // Bind the payment to the quote this call requested. A changed asset,
     // amount, destination, or expiry must not be paid.
-    if (!options.expectedQuote) {
+    if (options.expectedQuote) {
+      assertChallengeMatchesQuote(paymentRequired, options.expectedQuote, options.nowSeconds);
+    } else if (!config.expectedQuote) {
       throw new QuoteMismatchError("empty-challenge", first.status);
     }
-    assertChallengeMatchesQuote(paymentRequired, options.expectedQuote, options.nowSeconds);
 
     // Bind the quote to the mandate before any Stellar transfer.
     if (config.expectedQuote) {
@@ -540,7 +601,7 @@ export function createPaidFetch(config: PaidClientConfig) {
     const payload = await http.createPaymentPayload(paymentRequired);
     const payHeaders = http.encodePaymentSignatureHeader(payload);
 
-    const paid = await fetch(url, {
+    const paid = await boundedFetch(url, {
       ...init,
       headers: { ...(init.headers ?? {}), ...payHeaders },
     });

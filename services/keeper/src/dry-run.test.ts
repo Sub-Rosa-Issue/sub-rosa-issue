@@ -5,7 +5,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, test } from "node:test";
 
-import type { BidState, Round } from "@sub-rosa/sdk";
+import { DEFAULT_RPC_TIMEOUT_MS, type BidState, type Round } from "@sub-rosa/sdk";
 import { createFakeTime } from "@sub-rosa/time";
 
 import { KeeperCheckpointStore } from "./checkpoint.js";
@@ -55,6 +55,7 @@ describe("parseKeeperRunConfig", () => {
     assert.equal(config.dryRun, true);
     assert.equal(config.keeperSecret, undefined);
     assert.equal(config.roundId, 7n);
+    assert.equal(config.rpcTimeoutMs, DEFAULT_RPC_TIMEOUT_MS);
   });
 
   test("normal mode keeps KEEPER_SECRET required", () => {
@@ -97,6 +98,15 @@ describe("parseKeeperRunConfig", () => {
           MAX_WAIT_SECONDS: "-1",
         }),
       /MAX_WAIT_SECONDS must be a non-negative finite number/,
+    );
+    assert.throws(
+      () =>
+        parseKeeperRunConfig({
+          ROUND_CONTRACT_ID: CONTRACT_ID,
+          KEEPER_DRY_RUN: "true",
+          RPC_TIMEOUT_MS: "0",
+        }),
+      /RPC_TIMEOUT_MS must be a positive finite number/,
     );
   });
 });

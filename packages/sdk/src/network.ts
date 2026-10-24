@@ -1,9 +1,122 @@
 import { Contract, rpc } from "@stellar/stellar-sdk";
+import { systemScheduler, type Scheduler } from "@sub-rosa/time";
 import {
+  SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
   SubRosaSessionMismatchError,
 } from "./errors.js";
 import { normalizeSorobanContractId } from "./ids.js";
+
+/** Shared default timeout (ms) for external RPC, keeper, appraisal, and Drand requests. */
+export const DEFAULT_RPC_TIMEOUT_MS = 10_000;
+
+/** Raised when an external RPC or HTTP request exceeds its configured timeout. */
+export class SubRosaRpcRequestTimeoutError extends Error {
+  readonly name = "SubRosaRpcRequestTimeoutError";
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number, label = "RPC request") {
+    super(`${label} timed out after ${timeoutMs}ms`);
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+/** Validate an optional RPC timeout (ms), defaulting to {@link DEFAULT_RPC_TIMEOUT_MS}. */
+export function assertRpcTimeoutMs(
+  timeoutMs: number | undefined,
+  label = "rpcTimeoutMs",
+): number {
+  const resolved = timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
+  if (!Number.isFinite(resolved) || resolved <= 0) {
+    throw new SubRosaClientConfigError(
+      `${label} must be a positive finite number of milliseconds, got ${timeoutMs}`,
+    );
+  }
+  return resolved;
+}
+
+export interface BoundedTimeoutOptions {
+  timeoutMs?: number;
+  scheduler?: Scheduler;
+  signal?: AbortSignal;
+  label?: string;
+}
+
+/**
+ * Bound an asynchronous external RPC/HTTP operation with a single timeout
+ * (defaulting to {@link DEFAULT_RPC_TIMEOUT_MS}).
+ */
+export async function withBoundedTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  options: BoundedTimeoutOptions = {},
+): Promise<T> {
+  const timeoutMs = assertRpcTimeoutMs(options.timeoutMs);
+  const scheduler = options.scheduler ?? systemScheduler;
+  const label = options.label ?? "RPC request";
+  const controller = new AbortController();
+  const timeoutError = new SubRosaRpcRequestTimeoutError(timeoutMs, label);
+
+  let onTimeout!: () => void;
+  const timedOut = new Promise<never>((_resolve, reject) => {
+    onTimeout = () => {
+      controller.abort(timeoutError);
+      reject(timeoutError);
+    };
+  });
+
+  const timer = scheduler.setTimeout(onTimeout, timeoutMs);
+  const forwardAbort = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) {
+    scheduler.clear(timer);
+    throw options.signal.reason ?? new Error("Request aborted");
+  }
+  options.signal?.addEventListener("abort", forwardAbort, { once: true });
+
+  let pending: Promise<T>;
+  try {
+    pending = Promise.resolve(operation(controller.signal));
+  } catch (err) {
+    scheduler.clear(timer);
+    options.signal?.removeEventListener("abort", forwardAbort);
+    throw err;
+  }
+  try {
+    return await Promise.race([pending, timedOut]);
+  } finally {
+    scheduler.clear(timer);
+    options.signal?.removeEventListener("abort", forwardAbort);
+    pending.catch(() => {});
+  }
+}
+
+export interface BoundedFetchOptions {
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
+  scheduler?: Scheduler;
+  label?: string;
+}
+
+/** Wrap a `fetch` implementation so every request is bounded by one timeout. */
+export function createBoundedFetch(
+  options: BoundedFetchOptions = {},
+): typeof fetch {
+  const timeoutMs = assertRpcTimeoutMs(options.timeoutMs);
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const scheduler = options.scheduler ?? systemScheduler;
+  const label = options.label ?? "RPC request";
+
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+    withBoundedTimeout(
+      (signal) => fetchImpl(input, { ...init, signal }),
+      {
+        timeoutMs,
+        scheduler,
+        signal: init?.signal ?? undefined,
+        label,
+      },
+    );
+}
+
 
 /**
  * Human-readable label for a Stellar network passphrase. Unknown/custom

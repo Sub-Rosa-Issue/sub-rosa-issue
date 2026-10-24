@@ -1,13 +1,26 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { StrKey } from "@stellar/stellar-sdk";
+import { createFakeTime } from "@sub-rosa/time";
 import {
+  SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
   SubRosaSessionMismatchError,
 } from "./errors.js";
+import { SubRosaClient } from "./client.js";
+import { KeeperStatusClient } from "./status-client.js";
 import {
+  assertRpcTimeoutMs,
+  createBoundedFetch,
+  DEFAULT_RPC_TIMEOUT_MS,
+  describeNetworkPassphraseMismatch,
+  networkDisplayName,
+  networkPassphrasesMatch,
+  SubRosaNetworkPassphraseMismatchError,
+  SubRosaRpcRequestTimeoutError,
   validateContractNetwork,
   validatePasskeySession,
+  withBoundedTimeout,
   type NetworkValidationServer,
 } from "./network.js";
 
@@ -244,4 +257,71 @@ describe("validatePasskeySession", () => {
     }
   });
 });
+
+describe("DEFAULT_RPC_TIMEOUT_MS and bounded RPC requests", () => {
+  it("uses the shared 10_000ms default in SubRosaClient and KeeperStatusClient", () => {
+    assert.equal(DEFAULT_RPC_TIMEOUT_MS, 10_000);
+    assert.equal(assertRpcTimeoutMs(undefined), 10_000);
+
+    const client = new SubRosaClient({
+      rpcUrl: RPC_URL,
+      networkPassphrase: TESTNET,
+      contractId: CONTRACT_ID,
+    });
+    assert.equal(client.rpcTimeoutMs, DEFAULT_RPC_TIMEOUT_MS);
+
+    const statusClient = new KeeperStatusClient({
+      baseURL: "https://keeper.example.test",
+      fetchImpl: (async () => new Response("{}")) as typeof fetch,
+    });
+    assert.equal(statusClient.timeoutMs, DEFAULT_RPC_TIMEOUT_MS);
+
+    assert.throws(
+      () =>
+        new SubRosaClient({
+          rpcUrl: RPC_URL,
+          networkPassphrase: TESTNET,
+          contractId: CONTRACT_ID,
+          rpcTimeoutMs: 0,
+        }),
+      SubRosaClientConfigError,
+    );
+  });
+
+  it("aborts and rejects stalled requests after DEFAULT_RPC_TIMEOUT_MS", async () => {
+    const { scheduler } = createFakeTime();
+    let aborted = false;
+
+    const boundedFetch = createBoundedFetch({
+      scheduler,
+      fetchImpl: ((_input, init) => {
+        init?.signal?.addEventListener("abort", () => {
+          aborted = true;
+        });
+        return new Promise<Response>(() => {});
+      }) as typeof fetch,
+    });
+
+    const pending = boundedFetch("https://rpc.example.test");
+    scheduler.advance(DEFAULT_RPC_TIMEOUT_MS - 1);
+    assert.equal(aborted, false);
+
+    scheduler.advance(1);
+    await assert.rejects(pending, (err: unknown) => {
+      assert.ok(err instanceof SubRosaRpcRequestTimeoutError);
+      assert.equal(err.timeoutMs, DEFAULT_RPC_TIMEOUT_MS);
+      assert.match(err.message, /timed out after 10000ms/);
+      return true;
+    });
+    assert.equal(aborted, true);
+  });
+
+  it("clears the timeout timer once a bounded operation resolves", async () => {
+    const { scheduler } = createFakeTime();
+    const value = await withBoundedTimeout(async () => "ok", { scheduler });
+    assert.equal(value, "ok");
+    assert.equal(scheduler.pendingCount(), 0);
+  });
+});
+
 

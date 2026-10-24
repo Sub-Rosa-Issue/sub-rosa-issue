@@ -37,6 +37,7 @@ async function main() {
       rpcUrl: config.rpcUrl,
       networkPassphrase: config.networkPassphrase,
       contractId: config.contractId,
+      rpcTimeoutMs: config.rpcTimeoutMs,
     });
     // Dry run reads the checkpoint for context but never writes it and never
     // builds a transaction.
@@ -69,6 +70,7 @@ async function main() {
     networkPassphrase: config.networkPassphrase,
     contractId: config.contractId,
     secretKey: config.keeperSecret!,
+    rpcTimeoutMs: config.rpcTimeoutMs,
   });
 
   // Throws KeeperCheckpointMismatchError when the on-disk cursor was recorded

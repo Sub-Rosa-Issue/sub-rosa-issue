@@ -2,8 +2,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { QUICKNET_HASH, assertQuicknetFixture } from "./quicknet.js";
+import {
+  chainInfo,
+  DEFAULT_DRAND_TIMEOUT_MS,
+  DEFAULT_RPC_TIMEOUT_MS,
+  QUICKNET_HASH,
+  assertQuicknetFixture,
+  type DrandClient,
+} from "./quicknet.js";
 import { classifyDrandRound } from "./freshness.js";
+import { createFakeTime } from "@sub-rosa/time";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -92,3 +100,20 @@ test("a mutated period fails the fixture comparison", () => {
   const mutated = { ...QUICKNET_FIXTURE, period: 4 };
   assert.throws(() => assertQuicknetFixture(mutated), /period mismatch/);
 });
+
+test("bounds stalled Drand chainInfo requests with DEFAULT_RPC_TIMEOUT_MS", async () => {
+  assert.equal(DEFAULT_RPC_TIMEOUT_MS, 10_000);
+  assert.equal(DEFAULT_DRAND_TIMEOUT_MS, DEFAULT_RPC_TIMEOUT_MS);
+
+  const { scheduler } = createFakeTime();
+  const stalledClient = {
+    chain: () => ({
+      info: () => new Promise(() => {}),
+    }),
+  } as unknown as DrandClient;
+
+  const pending = chainInfo(stalledClient, { scheduler });
+  scheduler.advance(DEFAULT_RPC_TIMEOUT_MS);
+  await assert.rejects(pending, /Drand request timed out after 10000ms/);
+});
+

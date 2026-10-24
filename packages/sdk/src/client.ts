@@ -61,6 +61,8 @@ import {
 } from "./errors.js";
 import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 import {
+  assertRpcTimeoutMs,
+  DEFAULT_RPC_TIMEOUT_MS,
   validateContractNetwork,
   validatePasskeySession,
   type PasskeySessionBinding,
@@ -93,6 +95,11 @@ export interface SubRosaClientConfig {
   publicKey?: string;
   /** Allow http RPC URLs (e.g. a local quickstart node). Default: false. */
   allowHttp?: boolean;
+  /**
+   * Per-request timeout (ms) for external RPC calls.
+   * Defaults to `DEFAULT_RPC_TIMEOUT_MS` (10_000).
+   */
+  rpcTimeoutMs?: number;
   /** Optional external submitter. Direct Soroban RPC remains the default. */
   submitter?: TransactionSubmitter;
   /**
@@ -197,6 +204,7 @@ export class SubRosaClient {
   readonly contract: RoundContract;
   readonly contractId: string;
   readonly networkPassphrase: string;
+  readonly rpcTimeoutMs: number;
   readonly #source?: string;
   readonly #rpcUrl: string;
   readonly #allowHttp: boolean;
@@ -232,6 +240,11 @@ export class SubRosaClient {
         `pollInterval must be a finite number at least 100ms, got ${pollInterval}`,
       );
     }
+
+    this.rpcTimeoutMs = assertRpcTimeoutMs(
+      config.rpcTimeoutMs ?? DEFAULT_RPC_TIMEOUT_MS,
+      "rpcTimeoutMs",
+    );
 
     const keypair = config.secretKey
       ? Keypair.fromSecret(config.secretKey)

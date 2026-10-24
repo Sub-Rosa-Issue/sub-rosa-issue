@@ -1,8 +1,14 @@
 // Copyright (c) 2026 Sub Rosa contributors
-import type { BidState, Round, SubRosaClient } from "@sub-rosa/sdk";
+import {
+  assertRpcTimeoutMs,
+  DEFAULT_RPC_TIMEOUT_MS,
+  type BidState,
+  type Round,
+  type SubRosaClient,
+} from "@sub-rosa/sdk";
 import { systemClock } from "@sub-rosa/time";
 
-import { VOID_GRACE_SECONDS } from "./keeper.js";
+import { VOID_GRACE_SECONDS } from "./settlement-guard.js";
 import {
   CHECKPOINT_VERSION,
   DEFAULT_CHECKPOINT_PATH,
@@ -23,6 +29,7 @@ export interface KeeperRunConfig {
   dryRun: boolean;
   keeperSecret?: string;
   maxWaitSeconds: number;
+  rpcTimeoutMs: number;
 }
 
 export type KeeperDryRunPhase =
@@ -137,6 +144,12 @@ function parseMaxWaitSeconds(value: string | undefined): number {
   return seconds;
 }
 
+function parseRpcTimeoutMs(value: string | undefined): number {
+  const raw = value?.trim();
+  if (!raw) return DEFAULT_RPC_TIMEOUT_MS;
+  return assertRpcTimeoutMs(Number(raw), "RPC_TIMEOUT_MS");
+}
+
 export function parseKeeperRunConfig(
   env: Record<string, string | undefined> = process.env,
 ): KeeperRunConfig {
@@ -157,6 +170,7 @@ export function parseKeeperRunConfig(
     dryRun,
     ...(keeperSecret ? { keeperSecret } : {}),
     maxWaitSeconds: parseMaxWaitSeconds(env.MAX_WAIT_SECONDS),
+    rpcTimeoutMs: parseRpcTimeoutMs(env.RPC_TIMEOUT_MS),
   };
 }
 

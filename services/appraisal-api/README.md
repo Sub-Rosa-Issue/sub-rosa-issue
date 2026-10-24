@@ -112,6 +112,8 @@ rejected because they would otherwise propagate invalidly into the math.
 
 ## Quick start
 
+> **Default request timeout (`DEFAULT_RPC_TIMEOUT_MS = 10_000`)**: External RPC and appraisal HTTP requests across the SDK (`SubRosaClient`, `KeeperStatusClient`, `createOzChannelsSubmitter`), keeper (`RPC_TIMEOUT_MS`), `createPaidFetch`, and `@sub-rosa/tlock` Drand clients are bounded by a shared `10_000` ms (10s) default timeout.
+
 ```bash
 pnpm appraisal:start   # boots the server on :4021
 pnpm appraisal:test    # unit + fixture tests (no external calls)
