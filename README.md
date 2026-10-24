@@ -177,6 +177,7 @@ pnpm mainnet:verify         # mainnet read-only proof
 | Doc | Purpose |
 | --- | --- |
 | **[ARCHITECTURE.md](./ARCHITECTURE.md)** | System overview, lifecycle, trust boundaries, repo map |
+| **[SECURITY.md](./SECURITY.md)** | Supported versions, private vulnerability reporting, and incident response |
 | [docs/PLATFORM_PLAN.md](./docs/PLATFORM_PLAN.md) | Partner-ready protocol, SDK, template, and pilot delivery plan |
 | [docs/BUILD_PLAN.md](./docs/BUILD_PLAN.md) | Focused build/funding framing for sealed auction infrastructure |
 | [docs/GRANT_SUBMISSION.md](./docs/GRANT_SUBMISSION.md) | Grant submission narrative for the sealed auction product |
