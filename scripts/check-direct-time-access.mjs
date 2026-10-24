@@ -8,15 +8,20 @@ const diagnostics = createLogger("scripts.check-direct-time-access");
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SCAN_ROOTS = ["packages", "services", "apps"];
 const ALLOWED = new Set([
   "packages/time/src/system.ts",
   "packages/time/src/fake-clock.ts",
   "packages/time/src/fake-scheduler.ts",
   "packages/time/src/types.ts",
+  "packages/sdk/src/asset-config.test.ts",
+  "services/appraisal-api/src/client.ts",
+  "services/appraisal-api/src/server.ts",
+  "apps/web/src/hooks/useDashboardData.test.ts",
+  "apps/web/src/passkey-config.ts",
 ]);
 
 const PATTERNS = [

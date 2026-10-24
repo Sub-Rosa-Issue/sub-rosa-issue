@@ -1,7 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { findViolations, scanTree } from "./check-direct-time-access.mjs";
+
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 describe("findViolations", () => {
   it("allows packages/time/src/system.ts", () => {
@@ -47,5 +52,20 @@ describe("scanTree", () => {
       0,
       violations.map((v) => `${v.relPath}:${v.line}`).join("\n"),
     );
+  });
+
+  it("wires time:guard:test and time:guard into CI and documents the check", () => {
+    const pkg = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
+    assert.equal(pkg.scripts["time:guard"], "node scripts/check-direct-time-access.mjs");
+    assert.equal(
+      pkg.scripts["time:guard:test"],
+      "node --test scripts/check-direct-time-access.test.mjs",
+    );
+    assert.match(pkg.scripts["coverage:test"], /check-direct-time-access\.test\.mjs/);
+    assert.match(pkg.scripts["coverage:test"], /check-direct-time-access\.mjs/);
+
+    const ciDocs = readFileSync(join(REPO_ROOT, "docs", "CI.md"), "utf8");
+    assert.match(ciDocs, /pnpm time:guard:test/);
+    assert.match(ciDocs, /pnpm time:guard/);
   });
 });
