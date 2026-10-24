@@ -83,3 +83,12 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Appraisal API checks
+
+Run the blocking test and typecheck suite for Appraisal API locally and in CI:
+
+```bash
+pnpm appraisal:ci
+node --test scripts/appraisal-ci.test.mjs
+```
