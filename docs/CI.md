@@ -83,3 +83,12 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Drand tools checks
+
+Run the blocking test and typecheck suite for Drand tools locally and in CI:
+
+```bash
+pnpm drand-tools:ci
+node --test scripts/drand-tools-ci.test.mjs
+```
