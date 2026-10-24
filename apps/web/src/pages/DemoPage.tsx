@@ -31,6 +31,11 @@ import { getRoundStatusInfo } from "../lib/round-status";
 import { useRevealPhase } from "../lib/use-reveal-phase";
 import { shortAddr } from "../lib/format";
 import { RoundStatusBadge } from "../components/RoundStatusBadge";
+import {
+  TransactionStatusAnnouncer,
+  sanitizeSealedAnnouncement,
+  type TransactionLifecycleAction,
+} from "../components/TransactionStatusAnnouncer";
 import { LOGO_SRC } from "../lib/chain";
 import { ConfettiBurst } from "../ui/Confetti";
 import { CountUp } from "../ui/CountUp";
@@ -447,11 +452,17 @@ function FeedbackPanel({
   latest,
   roundId,
   commitValue,
+  revealed = false,
+  revealedCount = 0,
+  revealProgress = null,
 }: {
   status: ActionStatus;
   latest: string | null;
   roundId: bigint | null;
   commitValue: bigint | null;
+  revealed?: boolean;
+  revealedCount?: number;
+  revealProgress?: { current: number; total: number } | null;
 }) {
   const headline =
     status === "working"
@@ -462,11 +473,32 @@ function FeedbackPanel({
           ? "Check wallet / retry"
           : "Ready";
 
-  const escrowLabel = commitValue == null ? "—" : formatDemoAmount(commitValue);
+  const escrowLabel =
+    commitValue == null
+      ? "—"
+      : revealed
+        ? formatDemoAmount(commitValue)
+        : "Sealed until R";
+
+  const action: TransactionLifecycleAction =
+    revealProgress != null || revealed
+      ? "reveal"
+      : commitValue != null
+        ? "commit"
+        : status === "error"
+          ? "retry"
+          : "idle";
+
+  const safeLatest = latest
+    ? sanitizeSealedAnnouncement(latest, { revealed })
+    : null;
 
   return (
     <motion.section
       className={`feedback-panel ${status}`}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       layout
       transition={{ type: "spring", stiffness: 220, damping: 28 }}
     >
@@ -484,15 +516,24 @@ function FeedbackPanel({
       </AnimatePresence>
       <AnimatePresence mode="wait">
         <motion.p
-          key={latest ?? "ready"}
+          key={safeLatest ?? "ready"}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          {latest ?? "Each transaction shows up here with full context — wallet, round, seal, reveal."}
+          {safeLatest ?? "Each transaction shows up here with full context — wallet, round, seal, reveal."}
         </motion.p>
       </AnimatePresence>
+      <TransactionStatusAnnouncer
+        action={action}
+        state={status}
+        roundId={roundId}
+        revealed={revealed}
+        revealedCount={revealedCount}
+        revealProgress={revealProgress}
+        detail={safeLatest}
+      />
       <div className="receipt-grid">
         <div>
           <small>round</small>
@@ -638,6 +679,8 @@ function LivePanel({
       {revealProgress ? (
         <motion.p
           className="reveal-hint"
+          role="status"
+          aria-live="polite"
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
@@ -665,6 +708,9 @@ function LivePanel({
           latest={log[0] ?? null}
           roundId={roundId}
           commitValue={commitValue}
+          revealed={revealedCount > 0}
+          revealedCount={revealedCount}
+          revealProgress={revealProgress}
         />
       </div>
 
@@ -731,7 +777,7 @@ function LivePanel({
         </div>
       </section>
 
-      <section className={`tx-log ${status}`}>
+      <section className={`tx-log ${status}`} role="log" aria-live="polite" aria-relevant="additions text">
         <span>Activity log</span>
         <AnimatePresence initial={false}>
           {log.length === 0 ? (

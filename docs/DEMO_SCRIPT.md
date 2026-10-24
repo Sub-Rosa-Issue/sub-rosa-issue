@@ -115,6 +115,13 @@ pnpm mainnet:verify
 pnpm keeper:watch
 ```
 
+## Accessible Transaction Announcements
+
+`apps/web/src/components/TransactionStatusAnnouncer.tsx` provides a polite atomic
+live region (`role="status"`, `aria-live="polite"`, `aria-atomic="true"`) for
+commit, reveal, settle, and retry transitions while stripping pre-reveal bid and
+escrow values until the Drand reveal gate opens.
+
 ## Docs For Reviewers
 
 - [FUNDING_STRATEGY.md](./FUNDING_STRATEGY.md)
