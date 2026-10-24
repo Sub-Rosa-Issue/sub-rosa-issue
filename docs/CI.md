@@ -83,3 +83,18 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Deployment documentation check
+
+Deployment documentation (`docs/DEPLOY.md`) is validated in CI on every PR
+alongside the local Markdown link checker (`scripts/check-links.js` and
+`pnpm coverage:test`). `scripts/check-deploy-docs.mjs` verifies that every
+environment variable referenced in `docs/DEPLOY.md` is documented in
+`.env.example` or `apps/web/.env.example`, and every `pnpm` script referenced in
+`docs/DEPLOY.md` exists in the corresponding `package.json`:
+
+```bash
+pnpm docs:check
+pnpm docs:test
+pnpm docs:check-links
+```

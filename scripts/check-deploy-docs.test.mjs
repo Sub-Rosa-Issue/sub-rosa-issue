@@ -1,16 +1,17 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, copyFileSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-const SCRIPT_PATH = new URL("check-deploy-docs.mjs", import.meta.url).pathname;
-const CWD = new URL("..", import.meta.url).pathname;
+const SCRIPT_PATH = fileURLToPath(new URL("check-deploy-docs.mjs", import.meta.url));
+const CWD = fileURLToPath(new URL("..", import.meta.url));
 
 function runCheck(env = {}) {
-  return execFileSync("node", [SCRIPT_PATH], {
+  return execFileSync(process.execPath, [SCRIPT_PATH], {
     encoding: "utf-8",
     cwd: CWD,
     stdio: "pipe",
@@ -139,5 +140,18 @@ describe("check-deploy-docs", () => {
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it("wires docs:check and docs:test into CI alongside the link checker", () => {
+    const pkg = JSON.parse(readFileSync(join(CWD, "package.json"), "utf8"));
+    assert.equal(pkg.scripts["docs:check"], "node scripts/check-deploy-docs.mjs");
+    assert.equal(pkg.scripts["docs:test"], "node --test scripts/check-deploy-docs.test.mjs");
+    assert.match(pkg.scripts["coverage:test"], /check-deploy-docs\.mjs/);
+
+    const checkLinks = readFileSync(join(CWD, "scripts", "check-links.js"), "utf8");
+    assert.match(checkLinks, /check-deploy-docs\.mjs/);
+
+    const ciDocs = readFileSync(join(CWD, "docs", "CI.md"), "utf8");
+    assert.match(ciDocs, /pnpm docs:check/);
   });
 });
