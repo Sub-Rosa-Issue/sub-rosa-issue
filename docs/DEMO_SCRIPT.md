@@ -115,6 +115,13 @@ pnpm mainnet:verify
 pnpm keeper:watch
 ```
 
+## Reduced-Motion Support
+
+When `prefers-reduced-motion: reduce` is active, `apps/web` disables confetti
+bursts (`ConfettiBurst`), renders final `CountUp` numbers immediately without
+tweening, wraps the app in `<MotionConfig reducedMotion="user">`, and disables
+smooth scrolling and decorative pulse animations in `apps/web/src/styles/base.css`.
+
 ## Docs For Reviewers
 
 - [FUNDING_STRATEGY.md](./FUNDING_STRATEGY.md)

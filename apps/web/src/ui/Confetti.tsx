@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { usePrefersReducedMotion } from "../lib/reduced-motion";
 import { useTime } from "../lib/time";
 
 const COLORS = ["#6ef5b0", "#3dd68c", "#ffd36a", "#b18cff", "#f6f1e6", "#5be0ff"];
@@ -41,14 +42,26 @@ function makeBurst(id: number, count: number): Burst {
  * Fires a celebratory confetti burst from the screen center whenever `fire`
  * increments. Render once near the app root.
  */
-export function ConfettiBurst({ fire, count = 80 }: { fire: number; count?: number }) {
+export function ConfettiBurst({
+  fire,
+  count = 80,
+  reducedMotion,
+}: {
+  fire: number;
+  count?: number;
+  reducedMotion?: boolean;
+}) {
   const { scheduler } = useTime();
   const [bursts, setBursts] = useState<Burst[]>([]);
   const seq = useRef(0);
-  const reduce = useReducedMotion();
+  const reduce = usePrefersReducedMotion(reducedMotion);
 
   useEffect(() => {
-    if (fire <= 0 || reduce) return;
+    if (reduce) {
+      setBursts([]);
+      return;
+    }
+    if (fire <= 0) return;
     const id = ++seq.current;
     setBursts((prev) => [...prev, makeBurst(id, count)]);
     const handle = scheduler.setTimeout(() => {

@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
+import { MotionConfig } from "framer-motion";
 import { getUseCase } from "./config/useCases";
 import type { UseCaseId } from "./config/useCases";
 import { hashFor, routeFromHash, type RouteState } from "./config/routing";
@@ -30,30 +31,32 @@ export default function App() {
   const active = getUseCase(route.useCase);
 
   return (
-    <TimeProvider>
-      <ToastProvider>
-      {route.page === "landing" ? (
-        <LandingPage
-          onDemo={() => navigate("demo", "auction")}
-          onCase={(id) => navigate("demo", id)}
-        />
-      ) : route.page === "dashboard" ? (
-        <DashboardPage goHome={() => navigate("landing")} />
-      ) : (
-        <>
-          <ConfigBanner gate={gateDemoActions(SDK_CLIENT_IDENTITY, PUBLIC_ENV)} />
-          {route.page === "architecture" ? (
-            <ArchitecturePage goHome={() => navigate("landing")} />
-          ) : (
-            <DemoPage
-              active={active}
-              setActive={(id) => navigate("demo", id)}
-              goHome={() => navigate("landing")}
-            />
-          )}
-        </>
-      )}
-      </ToastProvider>
-    </TimeProvider>
+    <MotionConfig reducedMotion="user">
+      <TimeProvider>
+        <ToastProvider>
+        {route.page === "landing" ? (
+          <LandingPage
+            onDemo={() => navigate("demo", "auction")}
+            onCase={(id) => navigate("demo", id)}
+          />
+        ) : route.page === "dashboard" ? (
+          <DashboardPage goHome={() => navigate("landing")} />
+        ) : (
+          <>
+            <ConfigBanner gate={gateDemoActions(SDK_CLIENT_IDENTITY, PUBLIC_ENV)} />
+            {route.page === "architecture" ? (
+              <ArchitecturePage goHome={() => navigate("landing")} />
+            ) : (
+              <DemoPage
+                active={active}
+                setActive={(id) => navigate("demo", id)}
+                goHome={() => navigate("landing")}
+              />
+            )}
+          </>
+        )}
+        </ToastProvider>
+      </TimeProvider>
+    </MotionConfig>
   );
 }
