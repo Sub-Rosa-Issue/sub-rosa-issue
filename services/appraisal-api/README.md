@@ -71,6 +71,11 @@ A `POST /appraise` body larger than 8192 bytes is rejected with **HTTP 413**
 `{ "error": "payload_too_large", "limitBytes": 8192 }` before the bytes are
 parsed as JSON, so the request never receives a 402 payment quote.
 
+All appraisal quote challenges (`402`), paid appraisal responses (`200`), and
+error responses include `Cache-Control: no-store`, `Pragma: no-cache`,
+`Expires: 0`, and `X-Content-Type-Options: nosniff` so intermediary caches
+never store or replay time-bound payment quotes or paid valuations.
+
 ## Schema fixtures
 
 The canonical request/response shapes and the per-failure-mode payloads live as
