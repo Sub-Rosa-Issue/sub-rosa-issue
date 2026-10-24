@@ -83,3 +83,16 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Single workspace package manager (`pnpm@10.13.1`)
+
+`pnpm@10.13.1` is the required package manager and installer for the entire
+workspace (`"packageManager": "pnpm@10.13.1"` in root `package.json`), and
+`pnpm-lock.yaml` is the only supported root lockfile tracked in version control.
+Root `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `bun.lockb`, and
+`bun.lock` are ignored in `.gitignore` and rejected by CI:
+
+```bash
+pnpm lockfile:test
+pnpm lockfile:check
+```
