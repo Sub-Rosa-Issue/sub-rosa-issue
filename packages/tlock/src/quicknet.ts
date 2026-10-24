@@ -49,7 +49,65 @@ export function assertQuicknetFixture(info: {
 
 export type DrandClient = ReturnType<typeof quicknetClient>;
 
-export function quicknet(): DrandClient {
+export const DEFAULT_QUICKNET_URL = "https://api.drand.sh";
+
+export interface QuicknetClientOptions {
+  /** Drand HTTP(S) endpoint URL. Defaults to `DEFAULT_QUICKNET_URL` (`https://api.drand.sh`). */
+  url?: string;
+  /** Explicit opt-in for loopback `http://localhost` / `http://127.0.0.1` endpoints in local development. */
+  allowLocalHttp?: boolean;
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "[::1]" ||
+    normalized === "::1"
+  );
+}
+
+/**
+ * Validate a Drand endpoint URL, requiring `https://` for all remote endpoints
+ * and only permitting loopback `http://` when `allowLocalHttp: true` is passed.
+ */
+export function assertDrandEndpointUrl(
+  rawUrl: string,
+  options: { allowLocalHttp?: boolean } = {},
+): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl.trim());
+  } catch (cause) {
+    throw new Error(
+      `Drand endpoint must be a valid URL, got ${JSON.stringify(rawUrl)}`,
+      { cause },
+    );
+  }
+
+  if (parsed.protocol === "https:") {
+    return parsed.toString().replace(/\/$/, "");
+  }
+
+  if (parsed.protocol === "http:") {
+    if (options.allowLocalHttp && isLoopbackHost(parsed.hostname)) {
+      return parsed.toString().replace(/\/$/, "");
+    }
+    throw new Error(
+      "Drand endpoint must use https:// (remote or unopted-in http:// endpoints are rejected)",
+    );
+  }
+
+  throw new Error(
+    `Drand endpoint must use https://, got protocol ${parsed.protocol}`,
+  );
+}
+
+export function quicknet(options: QuicknetClientOptions = {}): DrandClient {
+  assertDrandEndpointUrl(options.url ?? DEFAULT_QUICKNET_URL, {
+    allowLocalHttp: options.allowLocalHttp,
+  });
   return quicknetClient();
 }
 

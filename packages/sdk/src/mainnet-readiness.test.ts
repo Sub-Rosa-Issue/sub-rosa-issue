@@ -607,6 +607,19 @@ describe("runMainnetReadiness — live comparison", () => {
     );
   });
 
+  it("blocks when rpcUrl uses http:// instead of https://", async () => {
+    const report = await runMainnetReadiness(
+      defaultMainnetReadinessInput({
+        live: false,
+        rpcUrl: "http://rpc.mainnet.example",
+      }),
+    );
+    const rpcCheck = report.checks.find((c) => c.id === "rpc-url");
+    assert.equal(rpcCheck?.status, "block");
+    assert.match(rpcCheck?.message ?? "", /must use HTTPS/);
+    assert.equal(hasBlockingFailures(report.checks), true);
+  });
+
   it("blocks every deployment field when no read-only client is available", async () => {
     const report = await runMainnetReadiness(defaultMainnetReadinessInput(), {
       rpc: mockRpc("500000000"),

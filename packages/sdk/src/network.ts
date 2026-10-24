@@ -1,9 +1,82 @@
 import { Contract, rpc } from "@stellar/stellar-sdk";
 import {
+  SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
   SubRosaSessionMismatchError,
 } from "./errors.js";
 import { normalizeSorobanContractId } from "./ids.js";
+
+/** True when `passphrase` identifies Stellar Public (Mainnet). */
+export function isMainnetPassphrase(passphrase: string): boolean {
+  return networkDisplayName(passphrase) === "Public";
+}
+
+/** True when `hostname` is a loopback address (`localhost`, `127.0.0.1`, `[::1]`). */
+export function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "[::1]" ||
+    normalized === "::1"
+  );
+}
+
+export interface EndpointTransportSecurityOptions {
+  /** Stellar network passphrase. Mainnet passphrases always require `https://`. */
+  networkPassphrase?: string;
+  /** Explicit opt-in for `http://` on non-mainnet development/test networks. */
+  allowHttp?: boolean;
+  /** Field or env-var label used in error messages. Default: `"rpcUrl"`. */
+  label?: string;
+}
+
+/**
+ * Enforce transport security on an RPC or service endpoint URL:
+ * - Mainnet (`Public Global Stellar Network ; September 2015`) ALWAYS requires `https://`,
+ *   even if `allowHttp` is set or the host is loopback.
+ * - Non-mainnet networks require `https://` unless `allowHttp: true` is explicitly set.
+ */
+export function assertEndpointTransportSecurity(
+  rawUrl: string,
+  options: EndpointTransportSecurityOptions = {},
+): URL {
+  const label = options.label ?? "rpcUrl";
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl.trim());
+  } catch (cause) {
+    throw new SubRosaClientConfigError(
+      `${label} must be a valid HTTP(S) URL`,
+      { cause },
+    );
+  }
+
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new SubRosaClientConfigError(
+      `${label} must use https:// or http:// (got ${parsed.protocol})`,
+    );
+  }
+
+  if (parsed.protocol === "http:") {
+    if (
+      options.networkPassphrase !== undefined &&
+      isMainnetPassphrase(options.networkPassphrase)
+    ) {
+      throw new SubRosaClientConfigError(
+        `${label} must use https:// when configured for mainnet`,
+      );
+    }
+    if (!options.allowHttp) {
+      throw new SubRosaClientConfigError(
+        `${label} must use https unless allowHttp is explicitly enabled`,
+      );
+    }
+  }
+
+  return parsed;
+}
+
 
 /**
  * Human-readable label for a Stellar network passphrase. Unknown/custom

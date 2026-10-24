@@ -61,6 +61,7 @@ import {
 } from "./errors.js";
 import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 import {
+  assertEndpointTransportSecurity,
   validateContractNetwork,
   validatePasskeySession,
   type PasskeySessionBinding,
@@ -213,11 +214,11 @@ export class SubRosaClient {
 
   constructor(config: SubRosaClientConfig) {
     const allowHttp = config.allowHttp ?? false;
-    if (/^http:\/\//i.test(config.rpcUrl) && !allowHttp) {
-      throw new SubRosaClientConfigError(
-        "rpcUrl must use https unless allowHttp is explicitly enabled",
-      );
-    }
+    assertEndpointTransportSecurity(config.rpcUrl, {
+      networkPassphrase: config.networkPassphrase,
+      allowHttp,
+      label: "rpcUrl",
+    });
 
     const confirmTimeout = config.confirmTimeout ?? 60_000;
     if (!Number.isFinite(confirmTimeout) || confirmTimeout < 1_000) {

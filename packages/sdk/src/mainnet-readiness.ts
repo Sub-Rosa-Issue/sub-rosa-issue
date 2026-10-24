@@ -822,8 +822,8 @@ function rpcUrlCheck(rpcUrl: string): ReadinessCheck {
     return check(
       "rpc-url",
       "RPC URL",
-      "warn",
-      "uses HTTP — prefer HTTPS for mainnet",
+      "block",
+      "uses HTTP — mainnet RPC endpoints must use HTTPS",
     );
   }
   return check(
