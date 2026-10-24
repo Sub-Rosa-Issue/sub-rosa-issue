@@ -121,3 +121,6 @@ test("health check rejects a demo trace containing an injected secret seed", () 
   );
 });
 
+import "./demo-a11y-smoke.test";
+
+

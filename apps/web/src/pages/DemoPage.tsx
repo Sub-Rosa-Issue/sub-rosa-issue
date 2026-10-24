@@ -854,13 +854,13 @@ export function DemoPage({
     <main className="app-page">
       <ConfettiBurst fire={confettiTick} />
       <section className="app-shell">
-        <aside className="case-nav">
+        <aside className="case-nav" aria-label="Demo navigation">
           <button type="button" className="brand-link" onClick={goHome}>
             <img src={LOGO_SRC} alt="" />
             <span>Sub Rosa</span>
           </button>
 
-          <div className="mode-switch" role="tablist">
+          <div className="mode-switch" role="tablist" aria-label="Demo mode">
             <button
               type="button"
               role="tab"
