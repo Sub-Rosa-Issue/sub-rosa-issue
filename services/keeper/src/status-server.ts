@@ -34,10 +34,12 @@ interface Route {
   ) => Promise<{ status: number; body: unknown }>;
 }
 
-const JSON_CONTENT = {
-  "content-type": "application/json",
+export const STATUS_RESPONSE_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
-};
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+} as const;
 
 function send(
   res: http.ServerResponse,
@@ -45,7 +47,7 @@ function send(
   body: unknown,
 ): void {
   const payload = JSON.stringify(body, bigintReplacer, 2);
-  res.writeHead(status, JSON_CONTENT);
+  res.writeHead(status, STATUS_RESPONSE_HEADERS);
   res.end(payload);
 }
 

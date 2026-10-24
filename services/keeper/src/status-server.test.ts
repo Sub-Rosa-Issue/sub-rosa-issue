@@ -6,7 +6,11 @@ import { createFakeTime } from "@sub-rosa/time";
 import http from "node:http";
 import { Readable } from "node:stream";
 
-import { createStatusHandler, createStatusServer } from "./status-server.js";
+import {
+  STATUS_RESPONSE_HEADERS,
+  createStatusHandler,
+  createStatusServer,
+} from "./status-server.js";
 import type { BuildStatusSource } from "./status.js";
 import type { WatchedRound } from "./store.js";
 
@@ -324,3 +328,36 @@ test("GET /status/health returns health shape", async () => {
     assert.ok(["ok", "degraded", "down"].includes(health.drand as string));
   });
 });
+
+test("sets explicit content-type, no-store, nosniff, and frame-denial headers on all status responses", async () => {
+  assert.deepEqual(STATUS_RESPONSE_HEADERS, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+  });
+
+  const paths = ["/", "/status", "/status/rounds/1", "/status/rounds/999", "/status/health", "/healthz", "/unknown"];
+  const source = makeSource();
+
+  for (const path of paths) {
+    const unitRes = await invokeHandler(source, path);
+    assert.equal(unitRes.headers["content-type"], "application/json; charset=utf-8", `unit content-type for ${path}`);
+    assert.equal(unitRes.headers["cache-control"], "no-store", `unit cache-control for ${path}`);
+    assert.equal(unitRes.headers["x-content-type-options"], "nosniff", `unit x-content-type-options for ${path}`);
+    assert.equal(unitRes.headers["x-frame-options"], "DENY", `unit x-frame-options for ${path}`);
+  }
+
+  await withServer(source, async (server) => {
+    const addr = server.address();
+    assert.ok(addr && typeof addr === "object");
+    for (const path of paths) {
+      const res = await fetch(`http://127.0.0.1:${addr.port}${path}`);
+      assert.equal(res.headers.get("content-type"), "application/json; charset=utf-8", `http content-type for ${path}`);
+      assert.equal(res.headers.get("cache-control"), "no-store", `http cache-control for ${path}`);
+      assert.equal(res.headers.get("x-content-type-options"), "nosniff", `http x-content-type-options for ${path}`);
+      assert.equal(res.headers.get("x-frame-options"), "DENY", `http x-frame-options for ${path}`);
+    }
+  });
+});
+

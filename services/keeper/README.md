@@ -91,6 +91,15 @@ Response shape (typed in `@sub-rosa/sdk` as `KeeperStatusResponse`):
 }
 ```
 
+### Response headers
+
+Every response from the status server (`200`, `400`, `404`, `500`, `503`) sets explicit security and caching headers:
+
+- `Content-Type: application/json; charset=utf-8`
+- `Cache-Control: no-store`
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+
 ### Round status fields
 
 - `status`: on-chain lifecycle (`Unknown | Open | Revealing | Cleared | Settled | Voided | NotFound`).
