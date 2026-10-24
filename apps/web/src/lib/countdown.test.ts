@@ -61,3 +61,6 @@ test("reveal stays available through the last second of the period", () => {
   assert.equal(duringPeriod.currentRound, 10);
 });
 
+import "../ui/Toast.test";
+
+

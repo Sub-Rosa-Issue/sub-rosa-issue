@@ -115,6 +115,13 @@ pnpm mainnet:verify
 pnpm keeper:watch
 ```
 
+## Toast Keyboard Focus Behavior
+
+Toasts in `apps/web/src/ui/Toast.tsx` record the active trigger element when
+opened (preserving the original opener across `working` → `success`/`error`
+transitions) and restore focus to that control when dismissed via the close
+button or `Escape`.
+
 ## Docs For Reviewers
 
 - [FUNDING_STRATEGY.md](./FUNDING_STRATEGY.md)
