@@ -83,3 +83,12 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Keeper checks
+
+Run the blocking test and typecheck suite for Keeper locally and in CI:
+
+```bash
+pnpm keeper:ci
+node --test scripts/keeper-ci.test.mjs
+```
