@@ -83,3 +83,26 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Repository malware marker scan
+
+`scripts/check-malware-markers.mjs` performs a static, text-only scan of tracked
+source and configuration files for known repository-malware indicator tokens.
+It excludes `.git`, `node_modules`, `.pnpm-store`, build/artifact directories
+(`dist`, `build`, `target`, `artifacts`, `coverage`), and the scanner's own
+implementation/test files, never evaluates matched files, and logs only the
+matched marker name and relative file path (never the full line).
+
+Run locally:
+
+```bash
+pnpm malware:test
+pnpm malware:check
+```
+
+### Updating the marker list
+
+1. Add a `{ name, token }` entry to `MALWARE_MARKERS` in
+   `scripts/check-malware-markers.mjs`.
+2. Add a positive detection case in `scripts/check-malware-markers.test.mjs`.
+3. Run `pnpm malware:test && pnpm malware:check` before opening a PR.
