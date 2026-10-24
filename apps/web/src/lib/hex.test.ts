@@ -146,3 +146,6 @@ for (const value of ["00aBff", "0x00abff", "0X00ABFF", " 00abff "]) {
     assert.deepEqual(hexToBytes(value), new Uint8Array([0, 171, 255]));
   });
 }
+
+import "../ui/reduced-motion.test";
+
