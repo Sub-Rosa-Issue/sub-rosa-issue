@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { SubRosaSubmitError } from "./errors.js";
+import { DEFAULT_RPC_TIMEOUT_MS } from "./network.js";
 
 export interface SubmittedTransaction {
   hash: string;
@@ -36,7 +37,7 @@ export function createOzChannelsSubmitter(config: OzChannelsSubmitterConfig): Tr
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
         ...(config.pluginId ? { pluginId: config.pluginId } : {}),
-        ...(config.timeoutMs ? { timeout: config.timeoutMs } : {}),
+        timeout: config.timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS,
       });
       const result = await client.submitTransaction({
         xdr: signedTransactionXdr,

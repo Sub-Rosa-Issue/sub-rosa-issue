@@ -26,6 +26,7 @@ export {
 } from "./config.js";
 export {
   createPaidFetch,
+  DEFAULT_RPC_TIMEOUT_MS,
   assertPaidRequestBodyAllowed,
   assertPaymentQuoteAllowed,
   quoteAmountToStroops,

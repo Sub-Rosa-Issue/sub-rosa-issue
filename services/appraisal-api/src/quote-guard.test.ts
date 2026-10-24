@@ -16,6 +16,8 @@ import {
   assertPaidRequestBodyAllowed,
   assertPaymentQuoteAllowed,
   createPaidFetch,
+  DEFAULT_RPC_TIMEOUT_MS,
+  type PaidClientTimeoutScheduler,
 } from "./client.js";
 import { validRequest } from "./fixtures/index.js";
 
@@ -279,5 +281,48 @@ describe("paid fetch never produces a payment transaction on drift (mocked fetch
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  test("bounds stalled appraisal requests with DEFAULT_RPC_TIMEOUT_MS", async () => {
+    assert.equal(DEFAULT_RPC_TIMEOUT_MS, 10_000);
+    let scheduledDelay = 0;
+    let triggerTimeout: (() => void) | undefined;
+    let cleared = false;
+    const scheduler: PaidClientTimeoutScheduler = {
+      setTimeout(cb, delayMs) {
+        scheduledDelay = delayMs;
+        triggerTimeout = cb;
+        return 1;
+      },
+      clear() {
+        cleared = true;
+      },
+    };
+    let aborted = false;
+
+    const paidFetch = createPaidFetch({
+      secret,
+      scheduler,
+      fetchImpl: ((_input, init) => {
+        init?.signal?.addEventListener("abort", () => {
+          aborted = true;
+        });
+        return new Promise<Response>(() => {});
+      }) as typeof fetch,
+    });
+
+    const pending = paidFetch("https://example.com/appraise", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validRequest.value),
+    });
+
+    assert.equal(scheduledDelay, DEFAULT_RPC_TIMEOUT_MS);
+    assert.equal(aborted, false);
+
+    triggerTimeout?.();
+    await assert.rejects(pending, /appraisal request timed out after 10000ms/);
+    assert.equal(aborted, true);
+    assert.equal(cleared, true);
   });
 });
