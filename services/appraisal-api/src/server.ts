@@ -38,7 +38,7 @@ import { ExactStellarScheme as FacilitatorStellarScheme } from "@x402/stellar/ex
 import { ExactStellarScheme as ServerStellarScheme } from "@x402/stellar/exact/server";
 
 import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_BYTES, parseAppraisalRequest } from "./appraisal.js";
-import { takeAppraisalRequestBody } from "./body-limit.js";
+import { checkAppraisalContentType, takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
@@ -155,6 +155,15 @@ export async function buildAppraisalServer(
           price: config.price,
           network: config.network,
         });
+      }
+
+      if (method === "POST" && url.pathname === "/appraise") {
+        const mediaError = checkAppraisalContentType(req);
+        if (mediaError) {
+          send(res, mediaError.status, {}, mediaError.body);
+          res.on("finish", () => req.destroy());
+          return;
+        }
       }
 
       const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);
