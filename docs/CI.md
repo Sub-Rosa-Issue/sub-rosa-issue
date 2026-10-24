@@ -3,6 +3,19 @@
 This document describes automated checks for the web app and TypeScript
 workspaces (`apps/*`, `packages/*`, and `services/*`).
 
+## Node version pin
+
+The repository targets **Node.js 22**, declared in `.nvmrc` and `.node-version`
+at the repository root (`22`) and matched by `package.json` (`"engines": { "node": ">=22" }`)
+and every GitHub Actions `actions/setup-node` workflow step.
+
+Verify consistency locally with:
+
+```bash
+pnpm node-version:check
+pnpm node-version:test
+```
+
 ## Web checks
 
 The `Web checks` workflow (`.github/workflows/web.yml`) runs on pushes to
