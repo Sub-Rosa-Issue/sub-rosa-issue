@@ -6,6 +6,7 @@ const diagnostics = createLogger("scripts.check-links");
 
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -157,6 +158,13 @@ if (external.length > 0) {
 
 if (broken === 0) {
   diagnostics.info("ok", `OK  ${checked} local link(s) checked, ${skipped} allowlisted`);
+  if (!process.argv.includes('--links-only')) {
+    execFileSync(
+      process.execPath,
+      [path.join(ROOT, 'scripts', 'check-threat-model-anchors.mjs'), 'docs/THREAT_MODEL.md'],
+      { cwd: ROOT, stdio: 'inherit' },
+    );
+  }
   process.exit(0);
 } else {
   diagnostics.error("fail", `\nFAIL  ${broken} broken link(s) — fix the paths above or add to ALLOWLIST in scripts/check-links.js`);
