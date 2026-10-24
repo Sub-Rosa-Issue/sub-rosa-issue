@@ -83,3 +83,18 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Pinned Rust toolchain
+
+The workspace pins Rust **1.85.0** with target `wasm32v1-none` in
+`rust-toolchain.toml` and `Cargo.toml` (`[workspace.package] rust-version = "1.85.0"`),
+replacing a moving `stable` channel reference so contract builds and
+`stellar-cli` bindings checks stay reproducible across local runs and both
+contract workflows (`.github/workflows/contract.yml` and
+`.github/workflows/bindings-check.yml`). Validate the pin and alignment locally
+with:
+
+```bash
+pnpm rust:toolchain:test
+pnpm rust:toolchain:check
+```
