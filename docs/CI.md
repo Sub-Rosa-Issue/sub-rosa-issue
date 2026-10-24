@@ -83,3 +83,12 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Receipt CLI checks
+
+Run the blocking test and typecheck suite for Receipt CLI locally and in CI:
+
+```bash
+pnpm receipt-cli:ci
+node --test scripts/receipt-cli-ci.test.mjs
+```
