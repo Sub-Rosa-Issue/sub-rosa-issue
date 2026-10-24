@@ -12,6 +12,26 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+## Production dependency audit
+
+Production JavaScript dependencies are audited via `scripts/audit-prod-deps.mjs`
+(`pnpm audit --prod --audit-level=high --json`):
+
+- **Severity threshold:** `high` and `critical` advisories in production
+  dependencies block by default (override with `--audit-level <level>` or
+  `PNPM_AUDIT_LEVEL`).
+- **Exception process:** Temporary exceptions for unpatched transitive
+  advisories must be recorded in `audit-exceptions.json` with `id`, `package`,
+  `reason`, `expiresOn` (`YYYY-MM-DD`), and `trackingIssue`. Expired or
+  incomplete exceptions fail the check automatically.
+
+Run locally with:
+
+```bash
+pnpm audit:prod
+pnpm audit:prod:test
+```
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for
