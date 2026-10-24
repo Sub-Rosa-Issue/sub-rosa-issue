@@ -1,19 +1,19 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-const SCRIPT_PATH = new URL(
-  "check-threat-model-anchors.mjs",
-  import.meta.url,
-).pathname;
-const PROJECT_ROOT = new URL("..", import.meta.url).pathname;
+const SCRIPT_PATH = fileURLToPath(
+  new URL("check-threat-model-anchors.mjs", import.meta.url),
+);
+const PROJECT_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 function runScript(args = [], options = {}) {
-  return execFileSync("node", [SCRIPT_PATH, ...args], {
+  return execFileSync(process.execPath, [SCRIPT_PATH, ...args], {
     encoding: "utf-8",
     cwd: PROJECT_ROOT,
     ...options,
@@ -163,5 +163,26 @@ describe("check-threat-model-anchors", () => {
     assert.equal(outcome.failed, true);
     const combined = outcome.stdout + outcome.stderr;
     assert.match(combined, /not found/);
+  });
+
+  it("wires threat-model:test and threat-model:check as blocking CI steps", () => {
+    const pkg = JSON.parse(readFileSync(join(PROJECT_ROOT, "package.json"), "utf8"));
+    assert.equal(
+      pkg.scripts["threat-model:check"],
+      "node scripts/check-threat-model-anchors.mjs docs/THREAT_MODEL.md",
+    );
+    assert.equal(
+      pkg.scripts["threat-model:test"],
+      "node --test scripts/check-threat-model-anchors.test.mjs",
+    );
+    assert.match(pkg.scripts["coverage:test"], /check-threat-model-anchors\.test\.mjs/);
+    assert.match(pkg.scripts["coverage:test"], /check-threat-model-anchors\.mjs/);
+
+    const checkLinks = readFileSync(join(PROJECT_ROOT, "scripts", "check-links.js"), "utf8");
+    assert.match(checkLinks, /check-threat-model-anchors\.mjs/);
+
+    const ciDocs = readFileSync(join(PROJECT_ROOT, "docs", "CI.md"), "utf8");
+    assert.match(ciDocs, /pnpm threat-model:test/);
+    assert.match(ciDocs, /pnpm threat-model:check/);
   });
 });

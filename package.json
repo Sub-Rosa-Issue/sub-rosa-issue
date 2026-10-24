@@ -76,7 +76,7 @@
     "snapshot:check": "node scripts/check-snapshots.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
     "docs:check-links": "node scripts/check-links.js",
-    "coverage:test": "node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
+    "coverage:test": "node --test scripts/check-threat-model-anchors.test.mjs && node scripts/check-threat-model-anchors.mjs docs/THREAT_MODEL.md && node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
     "drand:test": "pnpm --filter @sub-rosa/drand-tools test",
     "drand:typecheck": "pnpm --filter @sub-rosa/drand-tools typecheck",
     "receipt:test": "pnpm --filter @sub-rosa/receipt-cli test",

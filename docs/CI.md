@@ -83,3 +83,16 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Threat-model anchor check
+
+CI runs `threat-model:test` and `threat-model:check`
+(`scripts/check-threat-model-anchors.mjs docs/THREAT_MODEL.md`) as blocking
+steps so `docs/THREAT_MODEL.md` always covers the 5 required sealed-round risk
+topics (`commit-privacy`, `drand-reveal-timing`, `escrow-settlement`,
+`keeper-permissionlessness`, and `receipt-verification`):
+
+```bash
+pnpm threat-model:test
+pnpm threat-model:check
+```
