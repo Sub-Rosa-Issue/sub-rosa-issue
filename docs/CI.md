@@ -83,3 +83,16 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Direct time-access guard
+
+First-party code under `packages/`, `services/`, and `apps/` must use
+`@sub-rosa/time` (`systemTime`, `systemClock`, `FakeClock`, `FakeScheduler`)
+instead of calling wall-clock or timer globals (`Date.now`, `new Date`,
+`setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`) directly. CI runs
+the unit tests and repository scan as blocking steps:
+
+```bash
+pnpm time:guard:test
+pnpm time:guard
+```
