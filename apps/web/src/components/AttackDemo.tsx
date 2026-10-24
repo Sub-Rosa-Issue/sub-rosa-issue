@@ -5,11 +5,12 @@ import type { AttackStep } from "../lib/demoTypes";
 import { useToast } from "../ui/Toast";
 
 export function StepList({ steps, variant }: { steps: AttackStep[]; variant: "bad" | "good" }) {
+  const listLabel = variant === "bad" ? "Seal-off attack steps" : "Seal-on protection steps";
   return (
-    <ul className={`attack-steps ${variant}`}>
+    <ul className={`attack-steps ${variant}`} aria-label={listLabel}>
       {steps.map((s) => (
         <li key={s.label} className={s.ok ? "ok" : "fail"}>
-          <span className="attack-mark">{s.ok ? "✓" : "✗"}</span>
+          <span className="attack-mark" aria-hidden="true">{s.ok ? "✓" : "✗"}</span>
           <div>
             <strong>{s.label}</strong>
             <p>{s.detail}</p>
@@ -81,7 +82,7 @@ export function AttackDemo({ phase = "Reveal" }: { phase?: "Open" | "Reveal" | "
   const revealOpen = phase !== "Open";
 
   return (
-    <section className="panel attack-panel">
+    <section className="panel attack-panel" aria-label="Seal-off vs seal-on attack">
       <header className="panel-head attack-head">
         <div>
           <p className="eyebrow">Main stage</p>
@@ -94,24 +95,30 @@ export function AttackDemo({ phase = "Reveal" }: { phase?: "Open" | "Reveal" | "
       </header>
 
       <div className="attack-control">
-        <button type="button" className="btn primary" onClick={run} disabled={loading}>
+        <button
+          type="button"
+          className="btn primary"
+          onClick={run}
+          disabled={loading}
+          aria-busy={loading}
+        >
           {loading ? "Running live tlock demo..." : "Run live attack comparison"}
         </button>
         {round != null && (
           <p className="muted">Sealed to future Drand round R={round.toLocaleString()}</p>
         )}
-        {err && <p className="error">{err}</p>}
+        {err && <p className="error" role="alert">{err}</p>}
       </div>
 
       <div className="attack-columns">
-        <div className="attack-col bad">
+        <div className="attack-col bad" role="region" aria-label="Seal OFF — broken commit-reveal">
           <h3>Seal OFF — broken commit-reveal</h3>
           <p className="attack-sub">
             Bid stored in reversible form. Observer reads early. Losing bidder can abort.
           </p>
           <SealOffColumn steps={sealOff} revealOpen={revealOpen} />
         </div>
-        <div className="attack-col good">
+        <div className="attack-col good" role="region" aria-label="Seal ON — Sub Rosa + Drand tlock">
           <h3>Seal ON — Sub Rosa + Drand tlock</h3>
           <p className="attack-sub">
             Undecryptable until R. Permissionless mass reveal. Commitment binding on-chain.

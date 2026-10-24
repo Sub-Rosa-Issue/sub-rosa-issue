@@ -115,6 +115,19 @@ pnpm mainnet:verify
 pnpm keeper:watch
 ```
 
+## Accessibility Smoke Checks
+
+`apps/web/src/demo/demo-a11y-smoke.test.tsx` verifies accessible names, roles,
+landmarks, and focusable controls across the demo page's default, loading
+(`aria-busy="true"` / `role="status"`), error (`role="alert"` + retry button),
+seal-on (`aria-label="Seal-on protection steps"` / `aria-label="Sealed until reveal"`),
+and seal-off (`aria-label="Seal-off attack steps"` / withheld pre-reveal copy)
+states:
+
+```bash
+pnpm --filter @sub-rosa/web exec node --import tsx --test src/demo/demo-a11y-smoke.test.tsx
+```
+
 ## Docs For Reviewers
 
 - [FUNDING_STRATEGY.md](./FUNDING_STRATEGY.md)
