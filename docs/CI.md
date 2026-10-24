@@ -12,6 +12,19 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+## Orphaned test check
+
+To prevent newly added `*.test.*` files from being silently omitted from
+workspace `package.json` test scripts, `scripts/check-workspace-tests.mjs`
+compares tracked test files across `apps/*`, `packages/*`, and `services/*`
+with each workspace's `scripts.test` definition and fails if any unreferenced
+test file is found:
+
+```bash
+pnpm tests:check
+pnpm tests:check:test
+```
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for
