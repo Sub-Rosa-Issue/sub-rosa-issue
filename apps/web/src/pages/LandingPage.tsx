@@ -34,7 +34,7 @@ export function LandingPage({
     : { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] };
 
   return (
-    <main className="landing-page">
+    <div className="landing-page">
       <motion.nav
         className="landing-nav"
         initial={{ opacity: 0, y: -16 }}
@@ -60,6 +60,7 @@ export function LandingPage({
         </div>
       </motion.nav>
 
+      <main id="main-content" tabIndex={-1}>
       <motion.section
         className="landing-hero"
         variants={staggerParent}
@@ -243,6 +244,7 @@ export function LandingPage({
           ))}
         </motion.div>
       </section>
-    </main>
+      </main>
+    </div>
   );
 }
