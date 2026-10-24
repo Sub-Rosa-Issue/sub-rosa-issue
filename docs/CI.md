@@ -12,6 +12,11 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+`pnpm web:test` invokes `apps/web/scripts/run-tests.mjs`, which deterministically
+discovers every `*.test.ts` and `*.test.tsx` file under `apps/web/src` in sorted
+order (so newly added tests are never skipped). Run
+`node --test scripts/check-web-test-discovery.test.mjs` to verify test discovery.
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for
