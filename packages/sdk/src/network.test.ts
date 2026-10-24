@@ -2,10 +2,19 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { StrKey } from "@stellar/stellar-sdk";
 import {
+  SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
   SubRosaSessionMismatchError,
 } from "./errors.js";
+import { SubRosaClient } from "./client.js";
+import { KeeperStatusClient } from "./status-client.js";
 import {
+  assertNoUrlCredentials,
+  describeNetworkPassphraseMismatch,
+  hasUrlCredentials,
+  networkDisplayName,
+  networkPassphrasesMatch,
+  SubRosaNetworkPassphraseMismatchError,
   validateContractNetwork,
   validatePasskeySession,
   type NetworkValidationServer,
@@ -241,6 +250,60 @@ describe("validatePasskeySession", () => {
       assert.ok(e instanceof Error);
       assert.ok(!e.message.includes(FIXTURE_SEED));
       assert.ok(!/\bS[A-Z2-7]{55}\b/.test(e.message));
+    }
+  });
+});
+
+describe("assertNoUrlCredentials", () => {
+  it("accepts clean HTTP and HTTPS RPC URLs", () => {
+    assert.equal(hasUrlCredentials("https://soroban-testnet.stellar.org"), false);
+    assert.equal(hasUrlCredentials("http://localhost:8000/rpc"), false);
+    assert.doesNotThrow(() =>
+      assertNoUrlCredentials("https://soroban-testnet.stellar.org", "rpcUrl"),
+    );
+  });
+
+  it("rejects username and password URLs in SDK and status client without echoing credentials", () => {
+    for (const url of [
+      "https://alice:secret123@rpc.example.test",
+      "https://alice@rpc.example.test",
+      "https://:secret123@rpc.example.test",
+      "http://admin:pass@localhost:8000",
+    ]) {
+      assert.equal(hasUrlCredentials(url), true);
+      assert.throws(
+        () => assertNoUrlCredentials(url, "rpcUrl"),
+        (err: unknown) => {
+          assert.ok(err instanceof SubRosaClientConfigError);
+          assert.match(err.message, /must not contain credentials/);
+          assert.doesNotMatch(err.message, /alice|secret123|admin|pass/);
+          return true;
+        },
+      );
+      assert.throws(
+        () =>
+          new SubRosaClient({
+            rpcUrl: url,
+            networkPassphrase: TESTNET,
+            contractId: CONTRACT_ID,
+            allowHttp: true,
+          }),
+        (err: unknown) => {
+          assert.ok(err instanceof SubRosaClientConfigError);
+          assert.match(err.message, /must not contain credentials/);
+          assert.doesNotMatch(err.message, /alice|secret123|admin|pass/);
+          return true;
+        },
+      );
+      assert.throws(
+        () => new KeeperStatusClient({ baseURL: url }),
+        (err: unknown) => {
+          assert.ok(err instanceof SubRosaClientConfigError);
+          assert.match(err.message, /must not contain credentials/);
+          assert.doesNotMatch(err.message, /alice|secret123|admin|pass/);
+          return true;
+        },
+      );
     }
   });
 });

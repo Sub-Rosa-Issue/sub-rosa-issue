@@ -1,9 +1,56 @@
 import { Contract, rpc } from "@stellar/stellar-sdk";
 import {
+  SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
   SubRosaSessionMismatchError,
 } from "./errors.js";
 import { normalizeSorobanContractId } from "./ids.js";
+
+/**
+ * Return true when `rawUrl` parses as a URL with a non-empty `username` or
+ * `password` component (or contains an authority `@` before the path).
+ */
+export function hasUrlCredentials(rawUrl: string): boolean {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.username !== "" || parsed.password !== "";
+  } catch {
+    return /^[a-z][a-z0-9+.-]*:\/\/[^/\s?#]*@/i.test(trimmed);
+  }
+}
+
+/**
+ * Validate that an RPC or service endpoint URL uses HTTP(S) and does not embed
+ * a `username` or `password`. Throws {@link SubRosaClientConfigError} without
+ * echoing any credential fragments.
+ */
+export function assertNoUrlCredentials(
+  rawUrl: string,
+  label = "rpcUrl",
+): URL {
+  const trimmed = typeof rawUrl === "string" ? rawUrl.trim() : "";
+  if (!trimmed) {
+    throw new SubRosaClientConfigError(`${label}: must be a non-empty HTTP or HTTPS URL`);
+  }
+  if (hasUrlCredentials(trimmed)) {
+    throw new SubRosaClientConfigError(`${label}: must not contain credentials`);
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new SubRosaClientConfigError(`${label}: must be a valid HTTP or HTTPS URL`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new SubRosaClientConfigError(`${label}: must use http:// or https://`);
+  }
+  if (parsed.username !== "" || parsed.password !== "") {
+    throw new SubRosaClientConfigError(`${label}: must not contain credentials`);
+  }
+  return parsed;
+}
 
 /**
  * Human-readable label for a Stellar network passphrase. Unknown/custom

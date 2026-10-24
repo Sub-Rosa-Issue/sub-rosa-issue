@@ -71,6 +71,12 @@ export {
   type ProveEscrowConservationOptions,
 } from "./conservation.js";
 export {
+  assertNoUrlCredentials,
+  describeNetworkPassphraseMismatch,
+  hasUrlCredentials,
+  networkDisplayName,
+  networkPassphrasesMatch,
+  SubRosaNetworkPassphraseMismatchError,
   validateContractNetwork,
   validatePasskeySession,
   type ContractNetworkValidationConfig,
