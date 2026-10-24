@@ -40,8 +40,26 @@ import { ExactStellarScheme as ServerStellarScheme } from "@x402/stellar/exact/s
 import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_BYTES, parseAppraisalRequest } from "./appraisal.js";
 import { takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
+import {
+  appraisalRateLimitedBody,
+  InMemoryQuoteRateLimiter,
+  rateLimitHeaders,
+  resolveQuoteRateLimitKey,
+  type AppraisalQuoteRateLimiter,
+} from "./rate-limit.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
+
+export interface AppraisalServerOptions {
+  /**
+   * Optional quote creation rate limiter. Defaults to a bounded
+   * {@link InMemoryQuoteRateLimiter}; production deployments can inject a
+   * distributed adapter implementing {@link AppraisalQuoteRateLimiter}.
+   */
+  quoteRateLimiter?: AppraisalQuoteRateLimiter;
+  /** Optional clock override returning epoch milliseconds. */
+  nowMs?: () => number;
+}
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
 function makeAdapter(
@@ -92,8 +110,12 @@ function writeInstructions(res: http.ServerResponse, i: HTTPResponseInstructions
 /** Build (and initialize) the x402-gated appraisal HTTP server. */
 export async function buildAppraisalServer(
   config: AppraisalServerConfig,
+  options: AppraisalServerOptions = {},
 ): Promise<http.Server> {
   const rpcConfig = config.rpcUrl ? { url: config.rpcUrl } : undefined;
+  const quoteRateLimiter =
+    options.quoteRateLimiter ??
+    new InMemoryQuoteRateLimiter({ nowMs: options.nowMs });
 
   // In-process facilitator: verifies + settles on-chain (sponsors fees, submits).
   const facilitatorSigner = createEd25519Signer(config.facilitatorSecret, config.network);
@@ -157,6 +179,26 @@ export async function buildAppraisalServer(
         });
       }
 
+      const paymentHeader = req.headers["x-payment"];
+      const hasPaymentHeader =
+        typeof paymentHeader === "string"
+          ? paymentHeader.trim().length > 0
+          : Array.isArray(paymentHeader) && paymentHeader.some((v) => v.trim().length > 0);
+
+      let quoteLimitHeaders: Record<string, string> = {};
+      if (method === "POST" && url.pathname === "/appraise" && !hasPaymentHeader) {
+        const decision = await quoteRateLimiter.consume(
+          resolveQuoteRateLimitKey(req),
+          options.nowMs?.(),
+        );
+        quoteLimitHeaders = rateLimitHeaders(decision);
+        if (!decision.allowed) {
+          send(res, 429, quoteLimitHeaders, appraisalRateLimitedBody(decision));
+          res.on("finish", () => req.destroy());
+          return;
+        }
+      }
+
       const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);
       if ("status" in taken) {
         // Fail closed before JSON parsing and before any payment offer.
@@ -191,7 +233,10 @@ export async function buildAppraisalServer(
         return send(res, 404, {}, { error: "not found" });
       }
       if (result.type === "payment-error") {
-        return writeInstructions(res, result.response);
+        return writeInstructions(res, {
+          ...result.response,
+          headers: { ...quoteLimitHeaders, ...result.response.headers },
+        });
       }
 
       // result.type === "payment-verified": funds are authorized but not yet
