@@ -361,8 +361,11 @@ export function useRoundSession(active: UseCase) {
       return;
     }
     const id = active.id;
-    const displayed = active.formatValue(entryValue);
-    const workingId = toast.push("working", "Sealing your entry…", `${active.inputLabel}: ${displayed}`);
+    const workingId = toast.push(
+      "working",
+      "Sealing your entry…",
+      "Commitment hash only · bid value hidden until Drand R",
+    );
     setStatus("working");
     try {
       await guardNetwork("commit");
@@ -394,8 +397,8 @@ export function useRoundSession(active: UseCase) {
         auditorPublicKey: auditorPublicKey ?? roundAuditorPublicKey,
       });
       setStatus("ok");
-      const msg = `${formatDemoAmount(value)} escrow locked · ciphertext on-chain`;
-      push(`Sealed ${active.inputLabel}: ${displayed}.`, id);
+      const msg = "Escrow locked · ciphertext on-chain (value hidden until R)";
+      push("Sealed commitment recorded on-chain (value hidden until reveal).", id);
       toast.dismiss(workingId);
       toast.push("success", "Entry sealed on-chain", msg);
       await refresh(roundId, id);

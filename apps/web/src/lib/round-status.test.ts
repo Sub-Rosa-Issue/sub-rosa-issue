@@ -143,3 +143,6 @@ test("message is human-readable when in empty state", () => {
   });
   assert.ok(info.message.length > 0);
 });
+
+import "../components/TransactionStatusAnnouncer.test";
+
