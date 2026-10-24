@@ -1,4 +1,4 @@
-import { publicErrorMessage } from "@sub-rosa/logging/errors";
+import { normalizeError, publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useMemo, useState } from "react";
 import { SubRosaClient, validatePasskeySession } from "@sub-rosa/sdk";
@@ -131,8 +131,8 @@ export function PasskeyPanel({
       );
     } catch (e) {
       setStatus("error");
-      const err = e instanceof Error ? e : new Error(String(e));
-      setPanelError(err);
+      const normalized = normalizeError(e);
+      setPanelError(new Error(normalized.message));
       setMessage(publicErrorMessage(e));
     }
   }
@@ -173,8 +173,8 @@ export function PasskeyPanel({
       setMessage(`Smart wallet deployed on testnet: ${created.contractId}`);
     } catch (e) {
       setStatus("error");
-      const err = e instanceof Error ? e : new Error(String(e));
-      setPanelError(err);
+      const normalized = normalizeError(e);
+      setPanelError(new Error(normalized.message));
       const detail = publicErrorMessage(e);
       setMessage(
         `Deploy failed: ${detail}. Try again after refresh; if it persists, sponsor funding on testnet may be missing (Create passkey alone is enough for the demo).`,
@@ -233,10 +233,10 @@ export function PasskeyPanel({
       setMessage("Passkey commit submitted successfully.");
     } catch (e: unknown) {
       setStatus("error");
-      const err = e instanceof Error ? e : new Error(String(e));
-      setPanelError(err);
+      const normalized = normalizeError(e);
+      setPanelError(new Error(normalized.message));
       // Ensure fixture secret seed is kept strictly out of the error message
-      const scrubbed = err.message.replace(/\bS[A-Z2-7]{55}\b/g, "[REDACTED]");
+      const scrubbed = normalized.message.replace(/\bS[A-Z2-7]{55}\b/g, "[REDACTED]");
       setMessage(scrubbed);
     }
   }

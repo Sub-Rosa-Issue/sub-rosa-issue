@@ -39,7 +39,11 @@ jobs:
       - name: Install stellar CLI
         # 22.8.2 is the latest stable stellar-cli that still supports soroban-sdk 22.
         # CLI 23.0.0 and newer require soroban-sdk 23.
-        run: cargo install stellar-cli --version 22.8.2 --locked
+        # Compile with Rust 1.85.0 (stellar-cli 22.8.2 MSRV) because its locked
+        # ethnum 1.5.0 dependency fails with E0512 on newer stable rustc.
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal
+          RUSTUP_TOOLCHAIN=1.85.0 cargo install stellar-cli --version 22.8.2 --locked
 
       - name: Print Stellar CLI version
         run: stellar --version

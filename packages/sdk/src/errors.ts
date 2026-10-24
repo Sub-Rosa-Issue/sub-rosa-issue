@@ -3,6 +3,80 @@ import type {
   EscrowConservationPhase,
   EscrowConservationReport,
 } from "./conservation.js";
+import { Errors as RoundBindingsErrors } from "@sub-rosa/round-bindings";
+
+export interface RoundContractErrorSpec {
+  code: number;
+  name: string;
+  retryable: boolean;
+}
+
+const RETRYABLE_ERROR_NAMES = new Set([
+  "CommitNotClosed",
+  "RevealNotOpen",
+  "RevealStillOpen",
+  "NotCleared",
+  "NotVoidable",
+]);
+
+function buildRoundContractErrors(): RoundContractErrorSpec[] {
+  return Object.entries(RoundBindingsErrors)
+    .map(([codeStr, info]) => ({
+      code: Number(codeStr),
+      name: info.message,
+      retryable: RETRYABLE_ERROR_NAMES.has(info.message),
+    }))
+    .sort((a, b) => a.code - b.code);
+}
+
+export const ROUND_CONTRACT_ERRORS = buildRoundContractErrors();
+
+export const ROUND_CONTRACT_ERRORS_BY_NAME: Record<string, RoundContractErrorSpec> = Object.fromEntries(
+  ROUND_CONTRACT_ERRORS.map((e) => [e.name, e]),
+);
+
+export function getRoundContractError(key: string | number): RoundContractErrorSpec | undefined {
+  if (typeof key === "number") {
+    return ROUND_CONTRACT_ERRORS.find((e) => e.code === key);
+  }
+  return ROUND_CONTRACT_ERRORS_BY_NAME[key];
+}
+
+export function isRoundContractErrorRetryable(key: string | number | undefined | null): boolean {
+  if (key === undefined || key === null) {
+    return false;
+  }
+  const spec = getRoundContractError(key);
+  return spec?.retryable ?? false;
+}
+
+export function diffContractErrorMapping(
+  contractErrors: { code: number; name: string }[],
+): string[] {
+  const failures: string[] = [];
+  const sdkByCode = new Map(ROUND_CONTRACT_ERRORS.map((e) => [e.code, e]));
+  const sdkByName = ROUND_CONTRACT_ERRORS_BY_NAME;
+
+  for (const { code, name } of contractErrors) {
+    const sdk = sdkByCode.get(code);
+    if (!sdk) {
+      failures.push(`code ${code} (${name}) not mapped in SDK`);
+      continue;
+    }
+    if (sdk.name !== name) {
+      failures.push(`code ${code}: SDK has ${sdk.name}, contract has ${name}`);
+    }
+  }
+
+  for (const sdk of ROUND_CONTRACT_ERRORS) {
+    const found = contractErrors.some((e) => e.code === sdk.code);
+    if (!found) {
+      failures.push(`SDK error ${sdk.name} (#${sdk.code}) missing from contract errors list`);
+    }
+  }
+
+  return failures;
+}
 
 export class SubRosaClientConfigError extends Error {
   readonly name = "SubRosaClientConfigError";

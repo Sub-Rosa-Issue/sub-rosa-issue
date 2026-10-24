@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { DEMO_TRACE } from "../demo/trace";
 import { assertDemoTrace } from "../demo/trace-health-check";
 import { verifyMilestones } from "../demo/demo-trace.checksum";
+import { normalizeError } from "@sub-rosa/logging/errors";
 
 export type TraceHealthState =
   | { ok: true }
@@ -24,8 +25,8 @@ export function useTraceHealth(): TraceHealthState {
     try {
       assertDemoTrace(DEMO_TRACE);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      return { ok: false, errorCode: `TRACE_INVALID: ${message}` };
+      const normalized = normalizeError(e);
+      return { ok: false, errorCode: `TRACE_INVALID: ${normalized.message}` };
     }
 
     const phases = (DEMO_TRACE as { lifecycle: Array<{ phase: string }> }).lifecycle.map(
