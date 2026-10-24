@@ -83,3 +83,12 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Aggregate SDK checks
+
+Run the blocking test and typecheck suite for Aggregate SDK locally and in CI:
+
+```bash
+pnpm sdk:ci
+node --test scripts/sdk-ci.test.mjs
+```
