@@ -166,3 +166,12 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## Snapshot health check
+
+GitHub Actions workflow: `.github/workflows/snapshots.yml` (and `.github/workflows/contract.yml`)
+
+Runs `pnpm snapshot:test` (`node --test scripts/check-snapshots.test.mjs`) and `pnpm snapshot:check` (`node scripts/check-snapshots.mjs`) on pushes to `main` and on pull requests. The check fails when:
+
+1. Any required contract test snapshot category under `contracts/round/test_snapshots/test` is missing, or any committed `.json` snapshot fails Soroban payload validation (`generators`, `auth`, `ledger`, `events`).
+2. Committed dashboard demo evidence (`apps/web/src/demo/demo-trace.generated.ts` and `apps/web/src/demo/demo-trace.checksum.ts`) is missing, has a stale `LIFE_CYCLE_PHASES_CHECKSUM`, omits required lifecycle milestones or bidder/auditor evidence blobs, or contains a secret seed.

@@ -43,3 +43,9 @@ jobs:
 
       - name: Run error drift script tests
         run: node --test scripts/check-round-errors.test.mjs
+
+      - name: Check committed snapshot health
+        run: node scripts/check-snapshots.mjs
+
+      - name: Run snapshot health script tests
+        run: node --test scripts/check-snapshots.test.mjs
