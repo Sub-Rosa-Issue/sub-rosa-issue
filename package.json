@@ -87,6 +87,8 @@
     "errors:normalize:check": "node scripts/check-error-normalization.mjs",
     "errors:normalize:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-error-normalization.test.mjs",
     "line-lengths:check": "node scripts/check-line-lengths.mjs",
-    "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs"
+    "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs",
+    "markers:check": "node scripts/check-malware-markers.mjs",
+    "markers:test": "node --test scripts/check-malware-markers.test.mjs"
   }
 }

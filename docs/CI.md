@@ -83,3 +83,22 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Malware marker scan
+
+A dependency-free, text-only scanner looks for stable marker strings left by
+known repository malware families across tracked source and configuration
+files. It reads files as text and never evaluates what it matches, and CI
+reports only the marker name, path and line number — never the matched line.
+
+```bash
+pnpm markers:check   # scan the working tree
+pnpm markers:test    # positive and negative tests
+```
+
+GitHub Actions workflow: `.github/workflows/malware-markers.yml`. It runs on
+pushes to `main` and on pull requests, with no install step because the scanner
+has no external dependencies.
+
+See [MALWARE_MARKERS.md](./MALWARE_MARKERS.md) for the exclusions, the report
+format, and how to update the marker list.
