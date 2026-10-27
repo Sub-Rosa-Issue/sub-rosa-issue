@@ -58,7 +58,7 @@ export function DashboardPage({ goHome }: { goHome: () => void }) {
     : { duration: 0.5, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] };
 
   return (
-    <main className="dashboard-page">
+    <div className="dashboard-page">
       <motion.nav
         className="dashboard-nav"
         initial={{ opacity: 0, y: -16 }}
@@ -84,6 +84,7 @@ export function DashboardPage({ goHome }: { goHome: () => void }) {
         </div>
       </motion.nav>
 
+      <main id="main-content" tabIndex={-1}>
       <motion.header
         className="dashboard-header"
         initial={{ opacity: 0, y: 12 }}
@@ -119,6 +120,7 @@ export function DashboardPage({ goHome }: { goHome: () => void }) {
           </div>
         </motion.div>
       )}
-    </main>
+      </main>
+    </div>
   );
 }
