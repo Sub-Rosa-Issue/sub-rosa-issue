@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: MIT
+version: 2
+updates:
+  # JavaScript/TypeScript dependencies (npm + pnpm workspace)
+  - package-ecosystem: "npm"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "security"
+    groups:
+      npm-patch-and-minor:
+        update-types:
+          - "patch"
+          - "minor"
+
+  # Rust dependencies (Cargo workspace)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "security"
+    groups:
+      cargo-patch-and-minor:
+        update-types:
+          - "patch"
+          - "minor"
+
+  # GitHub Actions used by .github/workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "security"
+    groups:
+      github-actions-patch-and-minor:
+        update-types:
+          - "patch"
+          - "minor"
