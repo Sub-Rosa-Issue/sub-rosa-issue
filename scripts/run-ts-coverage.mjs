@@ -15,12 +15,15 @@ const diagnostics = createLogger("scripts.run-ts-coverage");
  */
 
 import {
+  appendFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -199,6 +202,94 @@ export function aggregateCoverage(rows) {
   return { covered, total, percent };
 }
 
+/**
+ * Build a compact JSON coverage summary payload.
+ * @param {WorkspaceCoverage[]} rows
+ * @param {LineTotals} aggregate
+ * @param {number} lineThresholdPercent
+ */
+export function formatCoverageSummaryJson(rows, aggregate, lineThresholdPercent) {
+  return {
+    passed: aggregate.percent >= lineThresholdPercent,
+    lineThresholdPercent,
+    aggregate: {
+      covered: aggregate.covered,
+      total: aggregate.total,
+      percent: Number(aggregate.percent.toFixed(2)),
+    },
+    workspaces: rows.map((row) => ({
+      workspace: row.workspace,
+      covered: row.covered,
+      total: row.total,
+      percent: Number(row.percent.toFixed(2)),
+    })),
+  };
+}
+
+/**
+ * Build a compact Markdown coverage summary table for CI artifacts and job summaries.
+ * @param {WorkspaceCoverage[]} rows
+ * @param {LineTotals} aggregate
+ * @param {number} lineThresholdPercent
+ * @returns {string}
+ */
+export function formatCoverageSummaryMarkdown(rows, aggregate, lineThresholdPercent) {
+  const status = aggregate.percent >= lineThresholdPercent ? "PASS" : "FAIL";
+  const lines = [
+    "## TypeScript Coverage Summary",
+    "",
+    `- **Status**: ${status}`,
+    `- **Weighted line coverage**: ${aggregate.percent.toFixed(2)}% (${aggregate.covered}/${aggregate.total})`,
+    `- **Minimum threshold**: ${lineThresholdPercent.toFixed(2)}%`,
+    "",
+    "| Workspace | Line % | Covered / Total |",
+    "| --- | ---: | ---: |",
+  ];
+  for (const row of rows) {
+    lines.push(
+      `| \`${row.workspace}\` | ${row.percent.toFixed(2)}% | ${row.covered}/${row.total} |`,
+    );
+  }
+  lines.push(
+    `| **Aggregate (weighted)** | **${aggregate.percent.toFixed(2)}%** | **${aggregate.covered}/${aggregate.total}** |`,
+    "",
+  );
+  return lines.join("\n");
+}
+
+/**
+ * Write compact coverage summary files (coverage-summary.md and coverage-summary.json)
+ * and append to GITHUB_STEP_SUMMARY when configured.
+ * @param {WorkspaceCoverage[]} rows
+ * @param {LineTotals} aggregate
+ * @param {number} lineThresholdPercent
+ * @param {{ outDir?: string, stepSummaryPath?: string }} [options]
+ */
+export function writeCoverageSummary(
+  rows,
+  aggregate,
+  lineThresholdPercent,
+  options = {},
+) {
+  const outDir = options.outDir ?? resolve(ROOT, process.env.COVERAGE_SUMMARY_DIR ?? "coverage");
+  const stepSummaryPath = options.stepSummaryPath ?? process.env.GITHUB_STEP_SUMMARY;
+  mkdirSync(outDir, { recursive: true });
+
+  const markdown = formatCoverageSummaryMarkdown(rows, aggregate, lineThresholdPercent);
+  const payload = formatCoverageSummaryJson(rows, aggregate, lineThresholdPercent);
+
+  const mdPath = join(outDir, "coverage-summary.md");
+  const jsonPath = join(outDir, "coverage-summary.json");
+  writeFileSync(mdPath, markdown, "utf8");
+  writeFileSync(jsonPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+
+  if (stepSummaryPath) {
+    appendFileSync(stepSummaryPath, `${markdown}\n`, "utf8");
+  }
+
+  return { mdPath, jsonPath, markdown, payload };
+}
+
 function sourceRootsForWorkspace(cwd) {
   const src = resolve(cwd, "src");
   if (existsSync(src) && statSync(src).isDirectory()) {
@@ -295,6 +386,9 @@ function main() {
   diagnostics.info("progress-4", "----------------");
   diagnostics.info("progress-5", `${"aggregate (weighted)".padEnd(32)} ${aggregate.percent.toFixed(2)}%  (${aggregate.covered}/${aggregate.total})`);
   diagnostics.info("threshold", `threshold                        ${lineThresholdPercent.toFixed(2)}%`);
+
+  const summary = writeCoverageSummary(rows, aggregate, lineThresholdPercent);
+  diagnostics.info("coverage-summary-artifact", `Wrote compact coverage summary to ${relative(ROOT, summary.mdPath)} and ${relative(ROOT, summary.jsonPath)}`);
 
   if (aggregate.percent < lineThresholdPercent) {
     diagnostics.error("weighted-line-coverage", `\n❌ Weighted line coverage ${aggregate.percent.toFixed(2)}% is below threshold ${lineThresholdPercent}%.`);
