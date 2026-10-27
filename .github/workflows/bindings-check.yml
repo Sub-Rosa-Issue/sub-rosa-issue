@@ -47,7 +47,7 @@ jobs:
       - name: Print Stellar CLI version
         run: stellar --version
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.13.1
 
