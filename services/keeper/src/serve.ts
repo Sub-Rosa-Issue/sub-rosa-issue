@@ -26,7 +26,7 @@ const diagnostics = createLogger("services.keeper.src.serve");
 //   KEEPER_LEASE_MS     round lease duration (default 120000)
 
 import { Keypair } from "@stellar/stellar-sdk";
-import { SubRosaClient } from "@sub-rosa/sdk";
+import { assertNoUrlCredentials, SubRosaClient } from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
 
 import { KeeperCheckpointStore } from "./checkpoint.js";
@@ -46,6 +46,7 @@ async function main() {
   const pollMs = Number(process.env.WATCH_POLL_MS ?? "15000");
   const contractId = reqEnv("ROUND_CONTRACT_ID");
   const rpcUrl = process.env.RPC_URL ?? "https://soroban-testnet.stellar.org";
+  assertNoUrlCredentials(rpcUrl, "RPC_URL");
   const networkPassphrase =
     process.env.NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015";
   const keeperSecret = reqEnv("KEEPER_SECRET");
