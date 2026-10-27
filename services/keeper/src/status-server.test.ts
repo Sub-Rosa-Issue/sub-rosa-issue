@@ -88,10 +88,11 @@ function makeSource(overrides: Partial<BuildStatusSource> = {}): BuildStatusSour
 async function invokeHandler(
   source: BuildStatusSource,
   path: string,
+  method = "GET",
 ): Promise<{ status: number; headers: Record<string, string>; body: unknown }> {
   const handler = createStatusHandler(source);
   const req = Object.assign(Readable.from([]), {
-    method: "GET",
+    method,
     url: path,
     headers: { host: "localhost" },
   });
@@ -322,5 +323,56 @@ test("GET /status/health returns health shape", async () => {
     const health = body.health as Record<string, unknown>;
     assert.ok(["ok", "degraded", "down"].includes(health.rpc as string));
     assert.ok(["ok", "degraded", "down"].includes(health.drand as string));
+  });
+});
+
+test("rejects non-GET methods with 405 and Allow: GET at the server boundary", async () => {
+  const source = makeSource({
+    reader: {
+      getRound: async () => {
+        throw new Error("reader should not be called on non-GET requests");
+      },
+      getBidState: async () => {
+        throw new Error("reader should not be called on non-GET requests");
+      },
+    },
+  });
+
+  for (const method of ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]) {
+    const direct = await invokeHandler(source, "/status", method);
+    assert.equal(direct.status, 405);
+    assert.equal(direct.headers["allow"], "GET");
+    assert.equal(direct.headers["cache-control"], "no-store");
+    const directBody = direct.body as Record<string, unknown>;
+    assert.equal(directBody.error, "method not allowed");
+    assert.equal(directBody.method, method);
+    assert.deepEqual(directBody.allow, ["GET"]);
+  }
+
+  await withServer(source, async (server) => {
+    const addr = server.address();
+    assert.ok(addr && typeof addr === "object");
+    const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+    for (const [method, path] of [
+      ["POST", "/status"],
+      ["PUT", "/status/rounds/1"],
+      ["DELETE", "/healthz"],
+      ["PATCH", "/status/health"],
+      ["POST", "/"],
+    ] as const) {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: method === "DELETE" ? undefined : JSON.stringify({ probe: true }),
+      });
+      assert.equal(res.status, 405, `expected 405 for ${method} ${path}`);
+      assert.equal(res.headers.get("allow"), "GET");
+      assert.equal(res.headers.get("cache-control"), "no-store");
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.equal(body.error, "method not allowed");
+      assert.equal(body.method, method);
+      assert.deepEqual(body.allow, ["GET"]);
+    }
   });
 });
