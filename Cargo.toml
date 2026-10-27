@@ -9,7 +9,7 @@ license = "MIT"
 authors = ["Sub Rosa"]
 
 [workspace.dependencies]
-soroban-sdk = "22"
+soroban-sdk = "29"
 
 # Soroban release profile (size-optimized wasm, overflow checks ON for safety).
 [profile.release]
