@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@sub-rosa/logging": "workspace:*",
-    "@openzeppelin/relayer-plugin-channels": "^0.20.0",
+    "@openzeppelin/relayer-plugin-channels": "^0.21.0",
     "@stellar/stellar-sdk": "^15.1.0",
     "@sub-rosa/round-bindings": "workspace:*",
     "@sub-rosa/time": "workspace:*",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "tsx": "^4.22.4",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   }
 }

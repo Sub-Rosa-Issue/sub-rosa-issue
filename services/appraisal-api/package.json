@@ -18,12 +18,12 @@
   "dependencies": {
     "@sub-rosa/logging": "workspace:*",
     "@stellar/stellar-sdk": "^15.1.0",
-    "@x402/core": "^2.14.0",
-    "@x402/stellar": "^2.11.0"
+    "@x402/core": "^2.28.0",
+    "@x402/stellar": "^2.28.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "tsx": "^4.22.4",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   }
 }
