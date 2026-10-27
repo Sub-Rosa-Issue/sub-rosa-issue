@@ -38,6 +38,8 @@ jobs:
 
       - name: Validate error normalization
         run: pnpm errors:normalize:test && pnpm errors:normalize:check
+      - name: Validate workflow pnpm version matches packageManager
+        run: pnpm ci:pnpm-version:test && pnpm ci:pnpm-version:check
 
       - name: Mainnet readiness matches the committed manifest (recorded fixture, no RPC, no secrets)
         run: |
