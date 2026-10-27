@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 60
     steps:
       # Read-only workflow: downstream steps do not push
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
