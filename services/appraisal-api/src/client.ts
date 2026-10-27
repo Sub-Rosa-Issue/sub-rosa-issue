@@ -467,8 +467,29 @@ export function assertPaymentQuoteAllowed(
     }
   }
 }
+function assertUrlHasNoCredentials(rawUrl: string, label: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl.trim());
+  } catch {
+    if (/^[a-z][a-z0-9+.-]*:\/\/[^/\s?#]*@/i.test(rawUrl.trim())) {
+      throw new Error(`${label}: must not contain credentials`);
+    }
+    throw new Error(`${label}: must be a valid HTTP or HTTPS URL`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${label}: must use http:// or https://`);
+  }
+  if (parsed.username !== "" || parsed.password !== "") {
+    throw new Error(`${label}: must not contain credentials`);
+  }
+}
+
 /** Build a paid-fetch function bound to a payer wallet. */
 export function createPaidFetch(config: PaidClientConfig) {
+  if (config.rpcUrl !== undefined) {
+    assertUrlHasNoCredentials(config.rpcUrl, "rpcUrl");
+  }
   const network = config.network ?? "stellar:testnet";
   const signer = createEd25519Signer(config.secret, network);
   const rpcConfig = config.rpcUrl ? { url: config.rpcUrl } : undefined;

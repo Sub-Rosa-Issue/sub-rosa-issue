@@ -25,6 +25,10 @@
     }
   },
   "scripts": {
+    "test": "node scripts/run-workspace-checks.mjs test",
+    "typecheck": "node scripts/run-workspace-checks.mjs typecheck",
+    "workspaces:check": "node scripts/run-workspace-checks.mjs --check",
+    "workspaces:test": "node --test scripts/run-workspace-checks.test.mjs",
     "env:check": "node scripts/check-env-examples.mjs",
     "env:test": "node --test scripts/check-env-examples.test.mjs",
     "logging:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-logging.test.mjs",
@@ -42,6 +46,9 @@
     "sdk:smoke": "bash packages/sdk/scripts/live-smoke.sh",
     "threat-model:check": "node scripts/check-threat-model-anchors.mjs docs/THREAT_MODEL.md",
     "threat-model:test": "node --test scripts/check-threat-model-anchors.test.mjs",
+    "dependabot:check": "node scripts/dependabot-security.mjs",
+    "dependabot:apply": "node scripts/dependabot-security.mjs --apply",
+    "dependabot:test": "node --test scripts/dependabot-security.test.mjs",
     "mainnet:deploy": "bash packages/sdk/scripts/mainnet-deploy.sh",
     "mainnet:settle": "bash services/keeper/scripts/mainnet-settle.sh",
     "mainnet:ready": "bash packages/sdk/scripts/mainnet-ready.sh",
@@ -76,19 +83,24 @@
     "snapshot:check": "node scripts/check-snapshots.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
     "docs:check-links": "node scripts/check-links.js",
-    "coverage:test": "node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
+    "coverage:test": "node --test scripts/check-rust-audit.test.mjs && node scripts/check-rust-audit.mjs && node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
+    "rust:audit:check": "node scripts/check-rust-audit.mjs",
+    "rust:audit:test": "node --test scripts/check-rust-audit.test.mjs",
     "drand:test": "pnpm --filter @sub-rosa/drand-tools test",
     "drand:typecheck": "pnpm --filter @sub-rosa/drand-tools typecheck",
     "receipt:test": "pnpm --filter @sub-rosa/receipt-cli test",
     "receipt:typecheck": "pnpm --filter @sub-rosa/receipt-cli typecheck",
     "time:test": "pnpm --filter @sub-rosa/time test",
+    "time:typecheck": "pnpm --filter @sub-rosa/time typecheck",
     "time:guard": "node scripts/check-direct-time-access.mjs",
     "time:guard:test": "node --test scripts/check-direct-time-access.test.mjs",
     "errors:normalize:check": "node scripts/check-error-normalization.mjs",
     "errors:normalize:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-error-normalization.test.mjs",
+    "ci:pnpm-version:check": "node scripts/check-pnpm-version.mjs",
+    "ci:pnpm-version:test": "node --test scripts/check-pnpm-version.test.mjs",
     "line-lengths:check": "node scripts/check-line-lengths.mjs",
     "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs",
-    "markers:check": "node scripts/check-malware-markers.mjs",
-    "markers:test": "node --test scripts/check-malware-markers.test.mjs"
+    "wf-creds:check": "node scripts/check-workflow-credentials.mjs",
+    "wf-creds:test": "node --test scripts/check-workflow-credentials.test.mjs"
   }
 }

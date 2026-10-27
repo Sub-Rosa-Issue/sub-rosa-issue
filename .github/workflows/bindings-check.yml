@@ -19,7 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      # Read-only workflow: downstream steps do not push
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Assert pinned Stellar CLI workflow
         run: node --test scripts/check-bindings-cli.test.mjs
@@ -58,3 +61,5 @@ jobs:
 
       - name: Check generated bindings are up to date
         run: pnpm bindings:check
+      - name: Fail if the worktree is dirty after the bindings check
+        run: git diff --exit-code
