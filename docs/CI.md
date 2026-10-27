@@ -134,3 +134,22 @@ print order are asserted by:
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
 ```
+
+## Rust dependency advisory audit
+
+Rust dependencies in the committed `Cargo.lock` are audited against the RustSec
+Advisory Database using pinned `cargo-audit` **0.21.2** and root `audit.toml`:
+
+```bash
+cargo install cargo-audit --version 0.21.2 --locked
+cargo audit --locked --deny warnings
+```
+
+`audit.toml` keeps `ignore = []` and `deny = ["warnings"]` so known vulnerable
+or yanked advisories block CI. To validate the lockfile checksums and audit
+policy locally:
+
+```bash
+pnpm rust:audit:test
+pnpm rust:audit:check
+```
