@@ -3,6 +3,18 @@
 This document describes automated checks for the web app and TypeScript
 workspaces (`apps/*`, `packages/*`, and `services/*`).
 
+## Root aggregate scripts
+
+Run all maintained workspace unit tests or TypeScript typechecks from the
+repository root in deterministic dependency order:
+
+```bash
+pnpm test              # runs test across all 12 JS/TS workspaces
+pnpm typecheck         # runs typecheck across all 11 TypeScript workspaces
+pnpm workspaces:check  # verifies every workspace is included in the root lists
+pnpm workspaces:test   # runs unit tests for the aggregate runner
+```
+
 ## Web checks
 
 The `Web checks` workflow (`.github/workflows/web.yml`) runs on pushes to
