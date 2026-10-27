@@ -62,7 +62,7 @@ export interface AppraisalRequest {
 }
 
 export interface Appraisal {
-  model: typeof APPRAISALMODEL;
+  model: typeof APPRAISAL_MODEL;
   itemRef: string;
   inputsHash: string;
   fairValue: number;
@@ -93,7 +93,7 @@ function canonical(value: unknown): string {
     const entries = Object.entries(value as Record<string, unknown>)
       .filter(([, v]) => v !== undefined)
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([k], v]) => `${JSON.stringify(k)}:${canonical(v)}`);
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`);
     return `{${entries.join(",")}}`;
   }
   return JSON.stringify(value ?? null);
@@ -275,7 +275,7 @@ export function appraise(req: AppraisalRequest): Appraisal {
   const suggestedMaxBid = round2(fairValue * (0.8 + 0.15 * confidence));
 
   const rationale = [
-    `base ${req.basePrice} USDC scaled by quality×${round2(qualityF)}, demand×ä{round2(demandF)}, scarcity×ä{round2(scarcityF)}, risk×ä{round2(riskF)}`,
+    `base ${req.basePrice} USDC scaled by quality×${round2(qualityF)}, demand×${round2(demandF)}, scarcity×${round2(scarcityF)}, risk×${round2(riskF)}`,
     `category '${req.category ?? "none"}' multiplier ×${categoryF}`,
     `${provided}/4 attributes supplied → confidence ${confidence}`,
     `suggested max bid is fair value × ${round2(0.8 + 0.15 * confidence)} to preserve margin`,
