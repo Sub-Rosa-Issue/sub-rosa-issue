@@ -167,6 +167,7 @@ pnpm install
 pnpm contract:test          # 14 Rust tests
 pnpm bindings:generate      # generate TS bindings from the contract
 pnpm bindings:check         # verify committed bindings match the contract
+pnpm snapshot:check         # verify committed contract snapshots & dashboard evidence
 pnpm web:dev                # jury UI — works without .env
 pnpm agents:e2e             # testnet full agent proof (needs stellar keys)
 pnpm mainnet:verify         # mainnet read-only proof
