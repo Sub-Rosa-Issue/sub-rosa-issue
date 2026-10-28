@@ -29,6 +29,8 @@
     "typecheck": "node scripts/run-workspace-checks.mjs typecheck",
     "workspaces:check": "node scripts/run-workspace-checks.mjs --check",
     "workspaces:test": "node --test scripts/run-workspace-checks.test.mjs",
+    "preinstall": "node scripts/check-lockfile-sources.mjs",
+    "install:check": "node scripts/check-lockfile-sources.mjs",
     "env:check": "node scripts/check-env-examples.mjs",
     "env:test": "node --test scripts/check-env-examples.test.mjs",
     "logging:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-logging.test.mjs",
@@ -101,6 +103,13 @@
     "line-lengths:check": "node scripts/check-line-lengths.mjs",
     "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs",
     "wf-creds:check": "node scripts/check-workflow-credentials.mjs",
-    "wf-creds:test": "node --test scripts/check-workflow-credentials.test.mjs"
+    "wf-creds:test": "node --test scripts/check-workflow-credentials.test.mjs",
+    "lockfile:check": "node scripts/check-lockfile-sources.mjs",
+    "lockfile:test": "node --test scripts/check-lockfile-sources.test.mjs",
+    "font:check": "node scripts/check-font-magic.mjs",
+    "font:test": "node --test scripts/check-font-magic.test.mjs"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
   }
 }
