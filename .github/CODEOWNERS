@@ -1,0 +1,11 @@
+# Execution-sensitive paths require maintainer review to prevent unauthorized changes
+# that could affect build integrity, runtime behavior, or asset delivery.
+
+.github/workflows/** @karagozemin
+.vscode/** @karagozemin
+package.json @karagozemin
+pnpm-lock.yaml @karagozemin
+Cargo.toml @karagozemin
+Cargo.lock @karagozemin
+scripts/** @karagozemin
+**/public/fonts/** @karagozemin
