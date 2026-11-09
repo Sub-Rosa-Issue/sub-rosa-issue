@@ -41,7 +41,7 @@ Do not invent newer requirements.
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Node.js | `>= 22` | pinned by `engines.node` |
+| Node.js | `>= 22` | pinned by `engines.node`, `.nvmrc`, and `.node-version` |
 | pnpm | `10.13.1` | pinned by `packageManager`; `corepack enable` picks it up |
 | Rust | stable + `wasm32v1-none` target | pinned by `rust-toolchain.toml` |
 | Stellar CLI | latest | `cargo install stellar-cli --locked` |

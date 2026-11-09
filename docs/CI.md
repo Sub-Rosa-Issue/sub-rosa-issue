@@ -89,6 +89,8 @@ version developers and the committed lockfile use.
 ```bash
 pnpm ci:pnpm-version:test   # unit tests for the checker itself
 pnpm ci:pnpm-version:check  # scans .github/workflows/*.yml
+pnpm ci:node-version:test   # unit tests for Node version alignment checker
+pnpm ci:node-version:check  # verifies .nvmrc, .node-version, engines.node, and workflows
 ```
 
 Checker source: `scripts/check-pnpm-version.mjs` (tests in
