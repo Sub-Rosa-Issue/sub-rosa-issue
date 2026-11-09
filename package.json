@@ -16,6 +16,9 @@
     "onlyBuiltDependencies": [
       "esbuild"
     ],
+    "auditConfig": {
+      "ignoreGhsas": []
+    },
     "packageExtensions": {
       "drand-client": {
         "dependencies": {
@@ -86,6 +89,9 @@
     "coverage:test": "node --test scripts/check-rust-audit.test.mjs && node scripts/check-rust-audit.mjs && node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
     "rust:audit:check": "node scripts/check-rust-audit.mjs",
     "rust:audit:test": "node --test scripts/check-rust-audit.test.mjs",
+    "js:audit": "pnpm audit --prod --audit-level=high",
+    "js:audit:check": "node scripts/check-js-audit.mjs",
+    "js:audit:test": "node --test scripts/check-js-audit.test.mjs",
     "drand:test": "pnpm --filter @sub-rosa/drand-tools test",
     "drand:typecheck": "pnpm --filter @sub-rosa/drand-tools typecheck",
     "receipt:test": "pnpm --filter @sub-rosa/receipt-cli test",

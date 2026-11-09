@@ -166,3 +166,32 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## JavaScript production dependency advisory audit
+
+Production JavaScript dependencies in the committed `pnpm-lock.yaml` are audited
+in CI (`coverage.yml`) with a `high` severity threshold:
+
+```bash
+pnpm audit --prod --audit-level=high
+```
+
+### Policy and exception process
+
+- **Severity threshold**: `high` and `critical` advisories affecting production
+  dependencies (`dependencies`, excluding `devDependencies`) block CI.
+- **Exception configuration**: `pnpm.auditConfig.ignoreGhsas` in the root
+  `package.json` must remain `[]` by default (`scripts/check-js-audit.mjs`
+  blocks unapproved GHSA entries).
+- **Remediation workflow**:
+  1. Upgrade the affected direct dependency or add a scoped override in
+     `package.json` (`pnpm.overrides`), then run `pnpm install` to refresh
+     `pnpm-lock.yaml`.
+  2. Re-run `pnpm js:audit` (`pnpm audit --prod --audit-level=high`) to confirm
+     the advisory is resolved.
+  3. Validate the lockfile and policy checks locally:
+
+```bash
+pnpm js:audit:test
+pnpm js:audit:check
+```
