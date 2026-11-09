@@ -8,6 +8,7 @@ import {
 } from "./errors.js";
 import { SubRosaClient } from "./client.js";
 import { KeeperStatusClient } from "./status-client.js";
+import { DEFAULT_RPC_TIMEOUT_MS, ExternalRpcTimeoutError } from "@sub-rosa/time";
 import {
   assertNoUrlCredentials,
   describeNetworkPassphraseMismatch,
@@ -307,4 +308,51 @@ describe("assertNoUrlCredentials", () => {
     }
   });
 });
+
+describe("SubRosaClient and KeeperStatusClient RPC timeout", () => {
+  it("defaults to DEFAULT_RPC_TIMEOUT_MS = 10_000 and allows override", () => {
+    const defaultClient = new SubRosaClient({
+      rpcUrl: RPC_URL,
+      networkPassphrase: TESTNET,
+      contractId: CONTRACT_ID,
+      _server: server(TESTNET) as never,
+    });
+    assert.equal(defaultClient.rpcTimeoutMs, DEFAULT_RPC_TIMEOUT_MS);
+
+    const customClient = new SubRosaClient({
+      rpcUrl: RPC_URL,
+      networkPassphrase: TESTNET,
+      contractId: CONTRACT_ID,
+      rpcTimeoutMs: 25,
+      _server: server(TESTNET) as never,
+    });
+    assert.equal(customClient.rpcTimeoutMs, 25);
+  });
+
+  it("aborts hung Soroban RPC calls at the configured shorter timeout without leaking URLs or credentials", async () => {
+    const hungServer = {
+      getNetwork: () => new Promise<never>(() => {}),
+      getLedgerEntries: () => new Promise<never>(() => {}),
+    };
+    const client = new SubRosaClient({
+      rpcUrl: "https://rpc.example.test/soroban?apiKey=secret-key-999",
+      networkPassphrase: TESTNET,
+      contractId: CONTRACT_ID,
+      rpcTimeoutMs: 25,
+      _server: hungServer as never,
+    });
+
+    await assert.rejects(
+      () => client.getRound(1n),
+      (err: unknown) => {
+        assert.ok(err instanceof ExternalRpcTimeoutError);
+        assert.equal(err.code, "RPC_REQUEST_TIMEOUT");
+        assert.equal(err.timeoutMs, 25);
+        assert.doesNotMatch(err.message, /secret-key-999|rpc\.example\.test/);
+        return true;
+      },
+    );
+  });
+});
+
 

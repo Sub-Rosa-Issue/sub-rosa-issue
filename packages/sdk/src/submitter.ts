@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: MIT
+import {
+  DEFAULT_RPC_TIMEOUT_MS,
+  withRpcTimeout,
+  type Scheduler,
+} from "@sub-rosa/time";
 import { SubRosaSubmitError } from "./errors.js";
 
 export interface SubmittedTransaction {
@@ -25,9 +30,11 @@ export interface OzChannelsSubmitterConfig {
   pluginId?: string;
   fundRelayerId?: string;
   timeoutMs?: number;
+  scheduler?: Scheduler;
 }
 
 export function createOzChannelsSubmitter(config: OzChannelsSubmitterConfig): TransactionSubmitter {
+  const timeoutMs = config.timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
   return {
     name: "oz-relayer-channels",
     async submitSignedTransaction({ signedTransactionXdr }) {
@@ -36,12 +43,20 @@ export function createOzChannelsSubmitter(config: OzChannelsSubmitterConfig): Tr
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
         ...(config.pluginId ? { pluginId: config.pluginId } : {}),
-        ...(config.timeoutMs ? { timeout: config.timeoutMs } : {}),
+        timeout: timeoutMs,
       });
-      const result = await client.submitTransaction({
-        xdr: signedTransactionXdr,
-        ...(config.fundRelayerId ? { fundRelayerId: config.fundRelayerId } : {}),
-      });
+      const result = await withRpcTimeout(
+        () =>
+          client.submitTransaction({
+            xdr: signedTransactionXdr,
+            ...(config.fundRelayerId ? { fundRelayerId: config.fundRelayerId } : {}),
+          }),
+        {
+          timeoutMs,
+          scheduler: config.scheduler,
+          operation: "oz-relayer-channels.submitTransaction",
+        },
+      );
       if (!result.hash) {
         throw new SubRosaSubmitError(
           `OZ Channels accepted the transaction but returned no hash (status=${result.status ?? "unknown"})`,

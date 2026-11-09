@@ -18,6 +18,8 @@ import {
   buildAppraisalServer,
   withNonCacheableHeaders,
 } from "./server.js";
+import { createPaidFetch } from "./client.js";
+import { ExternalRpcTimeoutError } from "@sub-rosa/time";
 import { validRequest } from "./fixtures/index.js";
 
 function listen(server: http.Server): Promise<number> {
@@ -151,5 +153,37 @@ describe("appraisal response non-cacheable headers", () => {
       server.closeAllConnections?.();
       server.close();
     }
+  });
+});
+
+describe("appraisal client RPC timeout", () => {
+  test("hung appraisal RPC endpoint times out at the configured shorter timeout without leaking URLs or credentials", async () => {
+    const secret = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 7)).secret();
+    const paidFetch = createPaidFetch({
+      secret,
+      timeoutMs: 25,
+      fetchImpl: (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(init.signal?.reason ?? new Error("aborted"));
+          });
+        }),
+    });
+
+    await assert.rejects(
+      () =>
+        paidFetch("https://example.com/appraise?apiKey=secret-appraisal-token", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(validRequest.value),
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof ExternalRpcTimeoutError);
+        assert.equal(err.code, "RPC_REQUEST_TIMEOUT");
+        assert.equal(err.timeoutMs, 25);
+        assert.doesNotMatch(err.message, /secret-appraisal-token|example\.com/);
+        return true;
+      },
+    );
   });
 });

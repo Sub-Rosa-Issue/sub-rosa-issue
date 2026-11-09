@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createFakeTime } from "@sub-rosa/time";
+import { ExternalRpcTimeoutError, createFakeTime } from "@sub-rosa/time";
 
 import { errorMatches, errorName, waitForRound } from "./index.js";
 
@@ -58,4 +58,31 @@ test("waitForRound returns true immediately for an already-published round", asy
     1,
   );
   assert.equal(ok, true);
+});
+
+test("waitForRound bounds hung Drand RPC requests with rpcTimeoutMs", async () => {
+  const hungDrand = {
+    chain: () => ({
+      info: () => new Promise<never>(() => {}),
+    }),
+  } as never;
+
+  await assert.rejects(
+    () =>
+      waitForRound(
+        {
+          sdk: {} as never,
+          drand: hungDrand,
+          maxWaitSeconds: 0,
+          rpcTimeoutMs: 25,
+        },
+        1,
+      ),
+    (err: unknown) => {
+      assert.ok(err instanceof ExternalRpcTimeoutError);
+      assert.equal(err.code, "RPC_REQUEST_TIMEOUT");
+      assert.equal(err.timeoutMs, 25);
+      return true;
+    },
+  );
 });

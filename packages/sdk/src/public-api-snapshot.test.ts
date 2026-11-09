@@ -6,6 +6,7 @@ import * as sdk from "./index.js";
 const EXPECTED_EXPORTS = [
   "ASSET_FIXTURES",
   "AssetConfigError",
+  "DEFAULT_RPC_TIMEOUT_MS",
   "DEPLOYMENT_CHECK_IDS",
   "DEPLOYMENT_FIELDS",
   "DEPLOYMENT_FIELD_LABELS",
@@ -13,6 +14,7 @@ const EXPECTED_EXPORTS = [
   "ERROR_ROUND_STATUSES",
   "ESCROW_PAGE_SIZE",
   "ESCROW_MAX_BIDDERS",
+  "ExternalRpcTimeoutError",
   "KeeperStatusClient",
   "KeeperStatusTimeoutError",
   "MAINNET_ARTIFACTS",
@@ -53,6 +55,7 @@ const EXPECTED_EXPORTS = [
   "assertNoUrlCredentials",
   "assertReadinessForExecute",
   "assertSealedBid",
+  "assertValidRpcTimeoutMs",
   "classifyRoundStatus",
   "contractErrorCode",
   "createOzChannelsSubmitter",
@@ -68,6 +71,7 @@ const EXPECTED_EXPORTS = [
   "expectedRoundEventSequence",
   "fetchContractWasmHash",
   "fetchKeeperStatus",
+  "fetchWithRpcTimeout",
   "fixtureDeployment",
   "fixtureReader",
   "formatReadinessReport",
@@ -117,6 +121,7 @@ const EXPECTED_EXPORTS = [
   "verifyReceipt",
   "verifyReceiptEvents",
   "verifySettledRoundProof",
+  "withRpcTimeout",
 ];
 
 describe("SDK public API snapshot", () => {

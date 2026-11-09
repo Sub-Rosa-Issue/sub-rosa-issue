@@ -67,8 +67,11 @@ import {
   type PasskeySessionBinding,
 } from "./network.js";
 import {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
   resolveTimeContext,
   systemTime,
+  withRpcTimeout,
   type Clock,
   type PartialTimeContext,
   type Scheduler,
@@ -106,6 +109,11 @@ export interface SubRosaClientConfig {
    * using an external submitter. Must be at least 100. Default: 1_500.
    */
   pollInterval?: number;
+  /**
+   * Per-request timeout (ms) bounding every external RPC or submitter call.
+   * Default: {@link DEFAULT_RPC_TIMEOUT_MS} (10_000).
+   */
+  rpcTimeoutMs?: number;
   /** Injectable wall clock and scheduler. Default: systemTime. */
   time?: PartialTimeContext;
   /**
@@ -204,6 +212,7 @@ export class SubRosaClient {
   readonly #submitter?: TransactionSubmitter;
   readonly #confirmTimeout: number;
   readonly #pollInterval: number;
+  readonly #rpcTimeoutMs: number;
   readonly #assetConfig?: import("./asset-config.js").AssetConfig;
   readonly #clock: Clock;
   readonly #scheduler: Scheduler;
@@ -235,6 +244,13 @@ export class SubRosaClient {
       );
     }
 
+    const rpcTimeoutMs = config.rpcTimeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
+    if (!Number.isFinite(rpcTimeoutMs) || rpcTimeoutMs <= 0) {
+      throw new SubRosaClientConfigError(
+        `rpcTimeoutMs must be a positive finite number of milliseconds, got ${rpcTimeoutMs}`,
+      );
+    }
+
     const keypair = config.secretKey
       ? Keypair.fromSecret(config.secretKey)
       : undefined;
@@ -251,6 +267,7 @@ export class SubRosaClient {
     this.#submitter = config.submitter;
     this.#confirmTimeout = confirmTimeout;
     this.#pollInterval = pollInterval;
+    this.#rpcTimeoutMs = rpcTimeoutMs;
     this.#assetConfig = config.assetConfig;
 
     const time = resolveTimeContext(systemTime, config.time);
@@ -286,6 +303,19 @@ export class SubRosaClient {
   /** The configured passkey session binding, if any. */
   get session(): PasskeySessionBinding | undefined {
     return this.#session;
+  }
+
+  /** The configured per-request external RPC timeout (ms). */
+  get rpcTimeoutMs(): number {
+    return this.#rpcTimeoutMs;
+  }
+
+  #withRpcTimeout<T>(operation: string, work: () => Promise<T>): Promise<T> {
+    return withRpcTimeout(() => work(), {
+      timeoutMs: this.#rpcTimeoutMs,
+      scheduler: this.#scheduler,
+      operation,
+    });
   }
 
   #requireSource(role: string): string {
@@ -353,41 +383,47 @@ export class SubRosaClient {
 
   async #validatedContractCall<T>(build: () => Promise<T>): Promise<T> {
     if (!this.#networkValidation) {
-      this.#networkValidation = validateContractNetwork(this.#server, {
-        networkPassphrase: this.networkPassphrase,
-        contractId: this.contractId,
-        rpcUrl: this.#rpcUrl,
-      }).catch((error: unknown) => {
+      this.#networkValidation = this.#withRpcTimeout("validateContractNetwork", () =>
+        validateContractNetwork(this.#server, {
+          networkPassphrase: this.networkPassphrase,
+          contractId: this.contractId,
+          rpcUrl: this.#rpcUrl,
+        }),
+      ).catch((error: unknown) => {
         this.#networkValidation = undefined;
         throw error;
       });
     }
     await this.#networkValidation;
-    return build();
-
+    return this.#withRpcTimeout("contractCall", build);
   }
 
   async #sendUnwrap<T>(tx: AssembledTransaction<Result<T>>): Promise<T> {
     if (!this.#submitter) {
       try {
-        const sent = await tx.signAndSend();
+        const sent = await this.#withRpcTimeout("signAndSend", () => tx.signAndSend());
         return sent.result.unwrap();
       } catch (e) {
+        if (e instanceof ExternalRpcTimeoutError) throw e;
         throw new SubRosaSubmitError("direct RPC submission failed", { cause: e });
       }
     }
 
     await tx.sign();
     if (!tx.signed) throw new SubRosaSubmitError("transaction was not signed");
+    const signedXdr = tx.signed.toXDR();
     let submitted;
     try {
-      submitted = await this.#submitter.submitSignedTransaction({
-        signedTransactionXdr: tx.signed.toXDR(),
-        contractId: this.contractId,
-        networkPassphrase: this.networkPassphrase,
-        rpcUrl: this.#rpcUrl,
-      });
+      submitted = await this.#withRpcTimeout("submitSignedTransaction", () =>
+        this.#submitter!.submitSignedTransaction({
+          signedTransactionXdr: signedXdr,
+          contractId: this.contractId,
+          networkPassphrase: this.networkPassphrase,
+          rpcUrl: this.#rpcUrl,
+        }),
+      );
     } catch (e) {
+      if (e instanceof ExternalRpcTimeoutError) throw e;
       throw new SubRosaSubmitError(
         `${this.#submitter.name} failed to submit transaction`,
         { cause: e },
@@ -399,8 +435,11 @@ export class SubRosaClient {
     while (this.#clock.nowMs() < deadline) {
       let res;
       try {
-        res = await server.getTransaction(submitted.hash);
+        res = await this.#withRpcTimeout("getTransaction", () =>
+          server.getTransaction(submitted.hash),
+        );
       } catch (e) {
+        if (e instanceof ExternalRpcTimeoutError) throw e;
         throw new SubRosaSubmitError(
           `RPC getTransaction failed for ${submitted.hash}`,
           { cause: e },

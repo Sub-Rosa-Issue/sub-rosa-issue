@@ -35,12 +35,19 @@ export {
   assertPaymentQuoteAllowed,
   quoteAmountToStroops,
   paymentRequiredAmountToStroops,
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  fetchWithRpcTimeout,
+  withRpcTimeout,
   AppraisalResponseParseError,
   AppraisalQuoteRefusalError,
   X402PaymentError,
   type PaidClientConfig,
+  type PaidFetchOptions,
   type PaidResult,
   type AppraisalQuoteRefusalCode,
+  type FetchRpcTimeoutOptions,
+  type RpcTimeoutOptions,
 } from "./client.js";
 
 export type { SettleResponse } from "@x402/core/types";

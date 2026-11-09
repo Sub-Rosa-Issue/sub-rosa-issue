@@ -10,7 +10,31 @@ import {
 
 import { drandSignatureToSoroban, verifyDrandSignature } from "./bls.js";
 import { assertBeacon, assertChainInfo } from "./validate.js";
-import { systemClock, type Clock } from "@sub-rosa/time";
+import {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  systemClock,
+  withRpcTimeout,
+  type Clock,
+  type RpcTimeoutOptions,
+  type Scheduler,
+} from "@sub-rosa/time";
+
+export {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  withRpcTimeout,
+  type RpcTimeoutOptions,
+};
+
+export interface DrandRequestOptions {
+  /** Per-request timeout (ms). Defaults to {@link DEFAULT_RPC_TIMEOUT_MS}. */
+  timeoutMs?: number;
+  /** Injectable scheduler (defaults to systemScheduler). */
+  scheduler?: Scheduler;
+  /** Optional caller abort signal. */
+  signal?: AbortSignal;
+}
 
 export const QUICKNET_HASH =
   "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
@@ -53,8 +77,19 @@ export function quicknet(): DrandClient {
   return quicknetClient();
 }
 
-export async function chainInfo(client: DrandClient) {
-  const info = await client.chain().info();
+export async function chainInfo(
+  client: DrandClient,
+  options?: DrandRequestOptions,
+) {
+  const info = await withRpcTimeout(
+    () => client.chain().info(),
+    {
+      timeoutMs: options?.timeoutMs,
+      scheduler: options?.scheduler,
+      signal: options?.signal,
+      operation: "drand.chain.info",
+    },
+  );
   assertChainInfo(info);
   return info;
 }
@@ -63,8 +98,9 @@ export async function chainInfo(client: DrandClient) {
 export async function currentRound(
   client: DrandClient,
   unixMillis: number = systemClock.nowMs(),
+  options?: DrandRequestOptions,
 ): Promise<number> {
-  const info = await chainInfo(client);
+  const info = await chainInfo(client, options);
   return drandRoundAt(unixMillis, info);
 }
 
@@ -74,16 +110,29 @@ export async function roundInSeconds(
   client: DrandClient,
   seconds: number,
   clock: Clock = systemClock,
+  options?: DrandRequestOptions,
 ): Promise<number> {
-  const info = await chainInfo(client);
+  const info = await chainInfo(client, options);
   return drandRoundAt(clock.nowMs() + seconds * 1000, info);
 }
 
 /// The raw beacon (round, randomness, signature hex) for a specific round.
 /// Rejects if round R has not yet been published, is for the wrong round,
 /// or fails local BLS cryptographic verification.
-export async function fetchRoundBeacon(client: DrandClient, round: number) {
-  const beacon = await fetchBeacon(client, round);
+export async function fetchRoundBeacon(
+  client: DrandClient,
+  round: number,
+  options?: DrandRequestOptions,
+) {
+  const beacon = await withRpcTimeout(
+    () => fetchBeacon(client, round),
+    {
+      timeoutMs: options?.timeoutMs,
+      scheduler: options?.scheduler,
+      signal: options?.signal,
+      operation: "drand.fetchBeacon",
+    },
+  );
   assertBeacon(beacon);
 
   // 1. Structural binding: Ensure the network didn't return a different round
@@ -92,7 +141,7 @@ export async function fetchRoundBeacon(client: DrandClient, round: number) {
   }
 
   // 2. Cryptographic binding: Verify the signature locally before trusting it
-  const info = await chainInfo(client);
+  const info = await chainInfo(client, options);
   const isValid = verifyDrandSignature(beacon.signature, round, info.public_key);
   
   if (!isValid) {
@@ -108,7 +157,8 @@ export async function fetchRoundBeacon(client: DrandClient, round: number) {
 export async function fetchRoundSignature(
   client: DrandClient,
   round: number,
+  options?: DrandRequestOptions,
 ): Promise<Uint8Array> {
-  const beacon = await fetchRoundBeacon(client, round);
+  const beacon = await fetchRoundBeacon(client, round, options);
   return drandSignatureToSoroban(beacon.signature);
 }

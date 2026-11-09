@@ -30,11 +30,20 @@ import {
   type SettlementSkipEvent,
 } from "./settlement-guard.js";
 import {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
   resolveTimeContext,
   systemTime,
+  withRpcTimeout,
   type PartialTimeContext,
   type TimeContext,
 } from "@sub-rosa/time";
+
+export {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  withRpcTimeout,
+};
 
 import type { SettlementGuard } from "./settlement-guard.js";
 
@@ -49,6 +58,8 @@ export interface KeeperDeps {
   maxWaitSeconds?: number;
   /** Poll cadence while waiting for R (ms). Default 3000. */
   pollMs?: number;
+  /** Per-request timeout (ms) for external RPC/Drand calls. Default: DEFAULT_RPC_TIMEOUT_MS. */
+  rpcTimeoutMs?: number;
   /** Injectable wall clock and scheduler. Default: systemTime. */
   time?: PartialTimeContext;
   /**
@@ -135,7 +146,11 @@ export async function waitForRound(
 ): Promise<boolean> {
   const { drand, log = () => {}, maxWaitSeconds = 0, pollMs = 3000 } = deps;
   const { clock, scheduler } = keeperTime(deps);
-  const info = await drand.chain().info();
+  const info = await withRpcTimeout(() => drand.chain().info(), {
+    timeoutMs: deps.rpcTimeoutMs ?? DEFAULT_RPC_TIMEOUT_MS,
+    scheduler,
+    operation: "drand.chain.info",
+  });
   const publishAtMs = (info.genesis_time + info.period * round) * 1000;
   const giveUpAtMs = clock.nowMs() + maxWaitSeconds * 1000;
 
@@ -179,11 +194,15 @@ export async function keepRound(
     // R's wall-clock time has arrived, but an API replica may lag a beat before
     // it serves the beacon — retry briefly rather than bailing.
     const pollMs = deps.pollMs ?? 3000;
+    const rpcTimeoutMs = deps.rpcTimeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
     let signature: Uint8Array | undefined;
     const { scheduler } = keeperTime(deps);
     for (let attempt = 0; attempt < 5 && !signature; attempt++) {
       try {
-        signature = await fetchRoundSignature(drand, R);
+        signature = await fetchRoundSignature(drand, R, {
+          timeoutMs: rpcTimeoutMs,
+          scheduler,
+        });
       } catch (e) {
         log(`Drand round ${R} not servable yet (try ${attempt + 1}/5): ${errorName(e)}`);
         await scheduler.sleep(pollMs);
@@ -246,7 +265,15 @@ export async function keepRound(
 
         let opened;
         try {
-          opened = await openBid(new Uint8Array(seal.ciphertext), drand);
+          const { scheduler } = keeperTime(deps);
+          opened = await withRpcTimeout(
+            () => openBid(new Uint8Array(seal!.ciphertext), drand),
+            {
+              timeoutMs: deps.rpcTimeoutMs ?? DEFAULT_RPC_TIMEOUT_MS,
+              scheduler,
+              operation: "drand.openBid",
+            },
+          );
         } catch (e) {
           result.skipped.push({ bidder, reason: `decrypt failed: ${errorName(e)}` });
           continue;

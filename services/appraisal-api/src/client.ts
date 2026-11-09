@@ -17,6 +17,23 @@ import {
   MAX_APPRAISAL_BODY_BYTES,
 } from "./appraisal.js";
 import { normalizeError } from "@sub-rosa/logging/errors";
+import {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  fetchWithRpcTimeout,
+  withRpcTimeout,
+  type FetchRpcTimeoutOptions,
+  type RpcTimeoutOptions,
+} from "../../../packages/time/src/rpc-timeout.js";
+
+export {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  fetchWithRpcTimeout,
+  withRpcTimeout,
+  type FetchRpcTimeoutOptions,
+  type RpcTimeoutOptions,
+};
 
 export interface PaidClientConfig {
   /** Payer secret key (S...). Needs a USDC trustline + balance. */
@@ -25,6 +42,10 @@ export interface PaidClientConfig {
   network?: Network;
   /** Optional custom Soroban RPC URL. */
   rpcUrl?: string;
+  /** Per-request timeout (ms) for external HTTP/RPC calls. Default: DEFAULT_RPC_TIMEOUT_MS. */
+  timeoutMs?: number;
+  /** Optional custom fetch implementation. */
+  fetchImpl?: typeof fetch;
   /**
    * Expected payment quote. When set, the 402 offer is validated before any
    * signed payment is built: asset/destination must match, amount must be
@@ -156,6 +177,12 @@ export interface PaidFetchOptions {
   expectedQuote?: ExpectedQuote;
   /** Override the clock used for expiry checks (tests). */
   nowSeconds?: () => number;
+  /** Per-request timeout (ms) override. Defaults to PaidClientConfig.timeoutMs or DEFAULT_RPC_TIMEOUT_MS. */
+  timeoutMs?: number;
+  /** Optional caller abort signal. */
+  signal?: AbortSignal;
+  /** Optional custom fetch implementation override. */
+  fetchImpl?: typeof fetch;
 }
 
 export { MAX_APPRAISAL_BODY_BYTES };
@@ -508,7 +535,16 @@ export function createPaidFetch(config: PaidClientConfig) {
     // oversized / credential-like bodies still fail here with no payment.
     assertPaidRequestBodyAllowed(init, { requireBody: false });
 
-    const first = await fetch(url, init);
+    const timeoutMs = options.timeoutMs ?? config.timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
+    const fetchImpl = options.fetchImpl ?? config.fetchImpl;
+    const callerSignal = options.signal ?? (init.signal ?? undefined);
+
+    const first = await fetchWithRpcTimeout(url, init, {
+      timeoutMs,
+      fetchImpl,
+      signal: callerSignal,
+      operation: "appraisal.probe",
+    });
     if (first.status !== 402) {
       return { status: first.status, body: await parseJsonResponse<T>(first) };
     }
@@ -558,13 +594,29 @@ export function createPaidFetch(config: PaidClientConfig) {
       assertPaidRequestBodyAllowed(init, { requireBody: false });
     }
 
-    const payload = await http.createPaymentPayload(paymentRequired);
+    const payload = await withRpcTimeout(
+      () => http.createPaymentPayload(paymentRequired),
+      {
+        timeoutMs,
+        signal: callerSignal,
+        operation: "appraisal.createPaymentPayload",
+      },
+    );
     const payHeaders = http.encodePaymentSignatureHeader(payload);
 
-    const paid = await fetch(url, {
-      ...init,
-      headers: { ...(init.headers ?? {}), ...payHeaders },
-    });
+    const paid = await fetchWithRpcTimeout(
+      url,
+      {
+        ...init,
+        headers: { ...(init.headers ?? {}), ...payHeaders },
+      },
+      {
+        timeoutMs,
+        fetchImpl,
+        signal: callerSignal,
+        operation: "appraisal.paidFetch",
+      },
+    );
     const body = await parseJsonResponse<T>(paid);
 
     if (paid.status !== 200) {

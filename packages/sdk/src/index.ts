@@ -7,6 +7,15 @@ export {
   type RevealParams,
   type ClearingRuleTag,
 } from "./client.js";
+export {
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  assertValidRpcTimeoutMs,
+  withRpcTimeout,
+  fetchWithRpcTimeout,
+  type RpcTimeoutOptions,
+  type FetchRpcTimeoutOptions,
+} from "@sub-rosa/time";
 export { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 export {
   type PreflightOperation,

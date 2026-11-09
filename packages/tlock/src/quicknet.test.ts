@@ -2,8 +2,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { QUICKNET_HASH, assertQuicknetFixture } from "./quicknet.js";
+import {
+  QUICKNET_HASH,
+  assertQuicknetFixture,
+  chainInfo,
+  fetchRoundBeacon,
+} from "./quicknet.js";
 import { classifyDrandRound } from "./freshness.js";
+import { ExternalRpcTimeoutError } from "@sub-rosa/time";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -91,4 +97,33 @@ test("freshness helper uses fixture fields to compute round timing", () => {
 test("a mutated period fails the fixture comparison", () => {
   const mutated = { ...QUICKNET_FIXTURE, period: 4 };
   assert.throws(() => assertQuicknetFixture(mutated), /period mismatch/);
+});
+
+test("chainInfo and fetchRoundBeacon bound hung Drand endpoints with timeoutMs", async () => {
+  const hungClient = {
+    chain: () => ({
+      info: () => new Promise<never>(() => {}),
+    }),
+    get: () => new Promise<never>(() => {}),
+  } as never;
+
+  await assert.rejects(
+    () => chainInfo(hungClient, { timeoutMs: 25 }),
+    (err: unknown) => {
+      assert.ok(err instanceof ExternalRpcTimeoutError);
+      assert.equal(err.code, "RPC_REQUEST_TIMEOUT");
+      assert.equal(err.timeoutMs, 25);
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () => fetchRoundBeacon(hungClient, 1, { timeoutMs: 25 }),
+    (err: unknown) => {
+      assert.ok(err instanceof ExternalRpcTimeoutError);
+      assert.equal(err.code, "RPC_REQUEST_TIMEOUT");
+      assert.equal(err.timeoutMs, 25);
+      return true;
+    },
+  );
 });

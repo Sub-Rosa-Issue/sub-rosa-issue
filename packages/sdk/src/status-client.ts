@@ -5,7 +5,11 @@
 // and return stable typed JSON (see ../status.ts).
 
 import { normalizeError } from "@sub-rosa/logging/errors";
-import { systemScheduler, type Scheduler } from "@sub-rosa/time";
+import {
+  DEFAULT_RPC_TIMEOUT_MS,
+  systemScheduler,
+  type Scheduler,
+} from "@sub-rosa/time";
 import { assertNoUrlCredentials } from "./network.js";
 import type {
   KeeperHealthResponse,
@@ -120,7 +124,7 @@ export class KeeperStatusClient {
     this.baseURL = opts.baseURL;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
     this.headers = opts.headers ?? {};
-    this.timeoutMs = opts.timeoutMs ?? 10_000;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
     this.scheduler = opts.scheduler ?? systemScheduler;
     this.contractId = opts.contractId;
     this.roundId = opts.roundId === undefined ? undefined : String(opts.roundId);

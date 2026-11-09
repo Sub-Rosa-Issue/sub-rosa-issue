@@ -53,12 +53,17 @@ export {
   roundInSeconds,
   fetchRoundBeacon,
   fetchRoundSignature,
+  DEFAULT_RPC_TIMEOUT_MS,
+  ExternalRpcTimeoutError,
+  withRpcTimeout,
   QUICKNET_HASH,
   QUICKNET_GENESIS,
   QUICKNET_PERIOD,
   QUICKNET_FIXTURE,
   assertQuicknetFixture,
   type DrandClient,
+  type DrandRequestOptions,
+  type RpcTimeoutOptions,
 } from "./quicknet.js";
 
 export { drandSignatureToSoroban, encodeG1Soroban } from "./bls.js";
