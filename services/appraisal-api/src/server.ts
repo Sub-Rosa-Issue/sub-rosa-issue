@@ -40,6 +40,14 @@ import { ExactStellarScheme as ServerStellarScheme } from "@x402/stellar/exact/s
 import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_BYTES, parseAppraisalRequest } from "./appraisal.js";
 import { takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
+import {
+  APPRAISAL_RATE_LIMIT_EXCEEDED,
+  createInMemoryQuoteRateLimiter,
+  resolveQuoteClientKey,
+  toRateLimitHeaders,
+  type InMemoryQuoteRateLimiterOptions,
+  type QuoteRateLimiter,
+} from "./rate-limit.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
 
@@ -74,6 +82,15 @@ export interface AppraisalServerOptions {
   facilitatorClient?: FacilitatorClient;
   /** Optional wall-clock override returning Unix seconds. */
   nowSeconds?: () => number;
+  /**
+   * Optional quote rate limiter adapter (production adapter boundary).
+   * Defaults to a bounded in-memory limiter configured via `rateLimit`.
+   */
+  rateLimiter?: QuoteRateLimiter;
+  /** Optional configuration for the default bounded in-memory quote rate limiter. */
+  rateLimit?: InMemoryQuoteRateLimiterOptions;
+  /** Optional client-key resolver override for rate limiting. */
+  resolveClientKey?: (req: http.IncomingMessage) => string;
 }
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
@@ -113,14 +130,18 @@ function send(
   res.end(payload);
 }
 
-function writeInstructions(res: http.ServerResponse, i: HTTPResponseInstructions) {
+function writeInstructions(
+  res: http.ServerResponse,
+  i: HTTPResponseInstructions,
+  extraHeaders: Record<string, string> = {},
+) {
   const body =
     i.isHtml || typeof i.body === "string"
       ? (i.body as string)
       : JSON.stringify(i.body ?? {}, null, 2);
   res.writeHead(i.status, {
     "content-type": i.isHtml ? "text/html" : "application/json",
-    ...withNonCacheableHeaders(i.headers),
+    ...withNonCacheableHeaders({ ...extraHeaders, ...i.headers }),
   });
   res.end(body ?? "");
 }
@@ -180,6 +201,16 @@ export async function buildAppraisalServer(
   const httpServer = new x402HTTPResourceServer(resourceServer, routes);
   await httpServer.initialize();
 
+  const quoteRateLimiter: QuoteRateLimiter =
+    options.rateLimiter ??
+    createInMemoryQuoteRateLimiter({
+      ...options.rateLimit,
+      nowMs:
+        options.rateLimit?.nowMs ??
+        (options.nowSeconds ? () => options.nowSeconds!() * 1000 : undefined),
+    });
+  const resolveClientKey = options.resolveClientKey ?? resolveQuoteClientKey;
+
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
@@ -219,11 +250,29 @@ export async function buildAppraisalServer(
       }
 
       const adapter = makeAdapter(req, url, parsedBody);
+      const paymentHeader = adapter.getHeader("X-PAYMENT");
+
+      let rateLimitHeaders: Record<string, string> = {};
+      if (method === "POST" && url.pathname === "/appraise" && !paymentHeader) {
+        const decision = await quoteRateLimiter.check(resolveClientKey(req));
+        rateLimitHeaders = toRateLimitHeaders(decision);
+        if (!decision.allowed) {
+          return send(res, 429, rateLimitHeaders, {
+            error: APPRAISAL_RATE_LIMIT_EXCEEDED,
+            message:
+              "Too many appraisal quote requests; retry after the rate-limit window resets.",
+            limit: decision.limit,
+            remaining: decision.remaining,
+            retryAfterSeconds: decision.retryAfterSeconds,
+          });
+        }
+      }
+
       const ctx: HTTPRequestContext = {
         adapter,
         path: url.pathname,
         method,
-        paymentHeader: adapter.getHeader("X-PAYMENT"),
+        paymentHeader,
       };
 
       const result = await httpServer.processHTTPRequest(ctx);
@@ -232,7 +281,7 @@ export async function buildAppraisalServer(
         return send(res, 404, {}, { error: "not found" });
       }
       if (result.type === "payment-error") {
-        return writeInstructions(res, result.response);
+        return writeInstructions(res, result.response, rateLimitHeaders);
       }
 
       // result.type === "payment-verified": funds are authorized but not yet

@@ -76,6 +76,21 @@ error responses include `Cache-Control: no-store`, `Pragma: no-cache`,
 `Expires: 0`, and `X-Content-Type-Options: nosniff` so intermediary caches
 never store or replay time-bound payment quotes or paid valuations.
 
+### Quote rate limiting & production adapter boundary
+
+Unpaid `POST /appraise` quote creation requests are protected by a bounded
+in-memory rate limiter (`createInMemoryQuoteRateLimiter`, default `30` quote
+requests per `60_000 ms` window per client IP, capped at `1_024` tracked client
+keys with LRU/expired-key eviction). When a client exceeds the window allowance,
+the server replies **HTTP 429** (`{ "error": "rate_limit_exceeded", ... }`) with
+`Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
+`X-RateLimit-Reset` headers before issuing another 402 quote challenge.
+
+For multi-instance production deployments, `buildAppraisalServer(config, { rateLimiter })`
+accepts any custom `QuoteRateLimiter` implementation (`check(key, nowMs?)`),
+providing a clean adapter boundary for Redis, Upstash, or edge rate-limit stores
+without changing the HTTP contract.
+
 ## Schema fixtures
 
 The canonical request/response shapes and the per-failure-mode payloads live as

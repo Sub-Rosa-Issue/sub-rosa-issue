@@ -25,6 +25,18 @@ export {
   type AppraisalServerOptions,
 } from "./server.js";
 export {
+  APPRAISAL_RATE_LIMIT_EXCEEDED,
+  DEFAULT_QUOTE_RATE_LIMIT_MAX,
+  DEFAULT_QUOTE_RATE_LIMIT_MAX_KEYS,
+  DEFAULT_QUOTE_RATE_LIMIT_WINDOW_MS,
+  createInMemoryQuoteRateLimiter,
+  resolveQuoteClientKey,
+  toRateLimitHeaders,
+  type InMemoryQuoteRateLimiterOptions,
+  type QuoteRateLimitDecision,
+  type QuoteRateLimiter,
+} from "./rate-limit.js";
+export {
   AppraisalConfigError,
   configFromEnv,
   type AppraisalServerConfig,
