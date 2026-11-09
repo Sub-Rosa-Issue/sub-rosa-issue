@@ -1,0 +1,63 @@
+name: Threat model anchor check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/THREAT_MODEL.md'
+      - 'docs/SECURITY.md'
+      - 'SECURITY.md'
+      - 'contracts/**'
+      - 'packages/**'
+      - 'services/**'
+      - 'scripts/check-threat-model-anchors.mjs'
+      - 'scripts/check-threat-model-anchors.test.mjs'
+      - 'package.json'
+      - '.github/workflows/threat-model.yml'
+  pull_request:
+    paths:
+      - 'docs/THREAT_MODEL.md'
+      - 'docs/SECURITY.md'
+      - 'SECURITY.md'
+      - 'contracts/**'
+      - 'packages/**'
+      - 'services/**'
+      - 'scripts/check-threat-model-anchors.mjs'
+      - 'scripts/check-threat-model-anchors.test.mjs'
+      - 'package.json'
+      - '.github/workflows/threat-model.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  threat-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Read-only workflow: downstream steps do not push
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run threat-model anchor script tests
+        run: pnpm threat-model:test
+
+      - name: Validate threat-model anchors
+        run: pnpm threat-model:check

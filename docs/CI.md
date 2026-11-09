@@ -166,3 +166,18 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## Threat model anchor check
+
+CI enforces that `docs/THREAT_MODEL.md` retains coverage of all required
+sealed-round security anchors (`commit-privacy`, `drand-reveal-timing`,
+`escrow-settlement`, `keeper-permissionlessness`, and `receipt-verification`) via
+`.github/workflows/threat-model.yml` and `.github/workflows/coverage.yml`:
+
+```bash
+pnpm threat-model:test
+pnpm threat-model:check
+```
+
+Checker source: `scripts/check-threat-model-anchors.mjs` (tests in
+`scripts/check-threat-model-anchors.test.mjs`).
