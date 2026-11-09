@@ -41,6 +41,8 @@ jobs:
 
       - name: Validate error normalization
         run: pnpm errors:normalize:test && pnpm errors:normalize:check
+      - name: Enforce direct-time-access guard
+        run: pnpm time:guard:test && pnpm time:guard
       - name: Validate workflow pnpm version matches packageManager
         run: pnpm ci:pnpm-version:test && pnpm ci:pnpm-version:check
 

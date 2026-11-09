@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { findViolations, scanTree } from "./check-direct-time-access.mjs";
 
@@ -47,5 +48,21 @@ describe("scanTree", () => {
       0,
       violations.map((v) => `${v.relPath}:${v.line}`).join("\n"),
     );
+  });
+
+  it("wires time:guard:test and time:guard as blocking CI steps in coverage.yml", () => {
+    const pkg = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    );
+    const workflow = readFileSync(
+      new URL("../.github/workflows/coverage.yml", import.meta.url),
+      "utf8",
+    );
+    assert.equal(pkg.scripts?.["time:guard"], "node scripts/check-direct-time-access.mjs");
+    assert.equal(
+      pkg.scripts?.["time:guard:test"],
+      "node --test scripts/check-direct-time-access.test.mjs",
+    );
+    assert.match(workflow, /pnpm time:guard:test\s*&&\s*pnpm time:guard/);
   });
 });

@@ -166,3 +166,18 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## Direct time-access guard
+
+Application code under `packages/`, `services/`, and `apps/` must route clock
+and timer calls through `@sub-rosa/time` instead of calling bare `Date.now()`,
+`new Date()`, `setTimeout()`, or `setInterval()`. CI enforces this guard in
+`.github/workflows/coverage.yml`:
+
+```bash
+pnpm time:guard:test
+pnpm time:guard
+```
+
+Checker source: `scripts/check-direct-time-access.mjs` (tests in
+`scripts/check-direct-time-access.test.mjs`).
