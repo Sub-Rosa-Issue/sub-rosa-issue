@@ -24,6 +24,14 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+## Tlock checks
+
+The `Tlock checks` workflow (`.github/workflows/tlock.yml`) runs on pushes to
+`main` and on every pull request. Its blocking `tlock` job installs locked JS
+dependencies with `--frozen-lockfile --ignore-scripts` and runs `pnpm tlock:test`
+and `pnpm tlock:typecheck` in order (`node --test scripts/tlock-ci.test.mjs`
+verifies the workflow configuration).
+
 Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
 [GITHUB_ACTIONS_SECURITY.md](./GITHUB_ACTIONS_SECURITY.md).
