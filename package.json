@@ -29,6 +29,8 @@
     "typecheck": "node scripts/run-workspace-checks.mjs typecheck",
     "workspaces:check": "node scripts/run-workspace-checks.mjs --check",
     "workspaces:test": "node --test scripts/run-workspace-checks.test.mjs",
+    "tests:discovery:check": "node scripts/check-test-discovery.mjs",
+    "tests:discovery:test": "node --test scripts/check-test-discovery.test.mjs",
     "env:check": "node scripts/check-env-examples.mjs",
     "env:test": "node --test scripts/check-env-examples.test.mjs",
     "logging:test": "pnpm --filter @sub-rosa/logging test && node --test scripts/check-logging.test.mjs",

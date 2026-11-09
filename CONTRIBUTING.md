@@ -100,7 +100,13 @@ pnpm time:guard               # no direct time/timezone access
 pnpm threat-model:check       # THREAT_MODEL.md anchors
 pnpm docs:check-links         # markdown links (docs listed in script)
 pnpm coverage:test            # aggregate TS line coverage (see docs/CI.md)
+pnpm tests:discovery:check    # fail when a *.test.* file is excluded from package.json
 ```
+
+When adding a new `*.test.ts` (or `.test.tsx` / `.test.mjs` / `.test.cjs`) file
+inside `packages/`, `services/`, or `apps/`, include its path in that
+workspace's `package.json` `"test"` script (or document an intentional
+integration/DOM exclusion in `scripts/check-test-discovery.mjs`).
 
 ## 5. Opening a pull request
 
