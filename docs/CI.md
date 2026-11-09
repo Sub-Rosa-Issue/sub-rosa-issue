@@ -24,6 +24,14 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+## Keeper checks
+
+The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
+`main` and on every pull request. Its blocking `keeper` job installs locked JS
+dependencies with `--frozen-lockfile --ignore-scripts` and runs
+`pnpm keeper:test` and `pnpm keeper:typecheck` in order
+(`node --test scripts/keeper-ci.test.mjs` verifies the workflow configuration).
+
 Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
 [GITHUB_ACTIONS_SECURITY.md](./GITHUB_ACTIONS_SECURITY.md).
