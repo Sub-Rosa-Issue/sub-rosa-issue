@@ -2,17 +2,21 @@ name: Docs link check
 
 on:
   push:
+    branches: [main]
     paths:
       - '**.md'
+      - '.env.example'
+      - 'apps/web/.env.example'
+      - 'package.json'
+      - 'packages/*/package.json'
+      - 'services/*/package.json'
+      - 'apps/*/package.json'
       - 'scripts/check-links.js'
+      - 'scripts/check-deploy-docs.mjs'
+      - 'scripts/check-deploy-docs.test.mjs'
       - 'scripts/docs-links-ci.test.mjs'
       - '.github/workflows/docs-links.yml'
   pull_request:
-    paths:
-      - '**.md'
-      - 'scripts/check-links.js'
-      - 'scripts/docs-links-ci.test.mjs'
-      - '.github/workflows/docs-links.yml'
 
 permissions:
   # Los cuatro workflows solo leen el repo: clonan, instalan y corren
@@ -40,3 +44,7 @@ jobs:
         run: node --test scripts/docs-links-ci.test.mjs
       - name: Check local markdown links
         run: node scripts/check-links.js
+      - name: Run deployment documentation check tests
+        run: node --test scripts/check-deploy-docs.test.mjs
+      - name: Validate deployment documentation (docs:check)
+        run: npm run docs:check

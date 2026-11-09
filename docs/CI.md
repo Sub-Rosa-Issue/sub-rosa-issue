@@ -166,3 +166,21 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## Documentation link and deployment check
+
+The `Docs link check` workflow (`.github/workflows/docs-links.yml`) runs on every
+pull request and validates both local Markdown links (`docs:check-links`) and
+deployment guide consistency (`docs:check`):
+
+```bash
+node --test scripts/docs-links-ci.test.mjs
+node scripts/check-links.js
+node --test scripts/check-deploy-docs.test.mjs
+pnpm docs:check
+```
+
+`docs:check` (`scripts/check-deploy-docs.mjs`) verifies that every environment
+variable referenced in `docs/DEPLOY.md` is documented in `.env.example` or
+`apps/web/.env.example`, and every `pnpm` script referenced in `docs/DEPLOY.md`
+is defined in `package.json`.
