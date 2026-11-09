@@ -49,6 +49,56 @@ export function assertQuicknetFixture(info: {
 
 export type DrandClient = ReturnType<typeof quicknetClient>;
 
+export const DEFAULT_DRAND_URL = "https://api.drand.sh";
+
+const LOCAL_DRAND_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+export interface DrandEndpointUrlOptions {
+  /** Allow `http://localhost` or `http://127.0.0.1` for local test harnesses. Default: false. */
+  allowLocalHttp?: boolean;
+}
+
+/**
+ * Validate a Drand endpoint URL. Mainnet/production Drand endpoints must always
+ * use `https://` without embedded credentials; `http://localhost` / `127.0.0.1`
+ * is accepted only when `allowLocalHttp` is explicitly enabled.
+ */
+export function assertDrandEndpointUrl(
+  rawUrl: string,
+  options: DrandEndpointUrlOptions = {},
+): string {
+  const trimmed = typeof rawUrl === "string" ? rawUrl.trim() : "";
+  if (!trimmed) {
+    throw new Error("drandUrl: must be a non-empty https:// URL");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("drandUrl: must be a valid https:// URL");
+  }
+  if (parsed.username !== "" || parsed.password !== "") {
+    throw new Error("drandUrl: must not contain credentials");
+  }
+  if (parsed.protocol === "https:") {
+    return parsed.toString().replace(/\/+$/, "");
+  }
+  if (parsed.protocol !== "http:") {
+    throw new Error("drandUrl: must use https://");
+  }
+  if (!options.allowLocalHttp) {
+    throw new Error(
+      "drandUrl: must use https:// unless allowLocalHttp is explicitly enabled for localhost/127.0.0.1",
+    );
+  }
+  if (!LOCAL_DRAND_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error(
+      "drandUrl: http:// is only allowed for localhost or 127.0.0.1 in local/test modes",
+    );
+  }
+  return parsed.toString().replace(/\/+$/, "");
+}
+
 export function quicknet(): DrandClient {
   return quicknetClient();
 }

@@ -5,7 +5,32 @@
 export const QUICKNET_HASH =
   "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 
-const API = process.env.DRAND_API_URL ?? "https://api.drand.sh";
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+export function resolveDrandApiUrl(
+  rawUrl = process.env.DRAND_API_URL ?? "https://api.drand.sh",
+  allowLocalHttp = process.env.DRAND_ALLOW_LOCAL_HTTP === "true",
+): string {
+  const parsed = new URL(rawUrl.trim());
+  if (parsed.username !== "" || parsed.password !== "") {
+    throw new Error("DRAND_API_URL must not contain credentials");
+  }
+  if (parsed.protocol === "https:") {
+    return parsed.toString().replace(/\/+$/, "");
+  }
+  if (
+    parsed.protocol === "http:" &&
+    allowLocalHttp &&
+    LOCAL_HOSTS.has(parsed.hostname.toLowerCase())
+  ) {
+    return parsed.toString().replace(/\/+$/, "");
+  }
+  throw new Error(
+    "DRAND_API_URL must use https:// (or http://localhost / 127.0.0.1 with DRAND_ALLOW_LOCAL_HTTP=true)",
+  );
+}
+
+const API = resolveDrandApiUrl();
 
 export interface ChainInfo {
   public_key: string; // compressed G2, hex (96 bytes)

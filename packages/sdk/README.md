@@ -40,6 +40,12 @@ simulation, signing, or submission, with the conflicting values and a suggested
 fix. Contract IDs do not encode a Stellar network, so copying a `C...` address
 between Testnet and Mainnet requires updating all three configuration values.
 
+RPC and Drand endpoints must use `https://` without embedded credentials. For
+local/testnet development, `http://localhost` and `http://127.0.0.1` are
+permitted only when `allowHttp: true` (or `allowLocalHttp: true` for Drand) is
+explicitly passed; mainnet (`Public Global Stellar Network ; September 2015`)
+always requires `https://`.
+
 ## Mainnet readiness (manifest-pinned)
 
 `packages/sdk/mainnet-artifacts.json` is the artifact manifest the repo commits.

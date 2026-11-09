@@ -9,9 +9,11 @@ import {
 import { SubRosaClient } from "./client.js";
 import { KeeperStatusClient } from "./status-client.js";
 import {
+  assertEndpointUrlScheme,
   assertNoUrlCredentials,
   describeNetworkPassphraseMismatch,
   hasUrlCredentials,
+  isLocalHttpHost,
   networkDisplayName,
   networkPassphrasesMatch,
   SubRosaNetworkPassphraseMismatchError,
@@ -305,6 +307,56 @@ describe("assertNoUrlCredentials", () => {
         },
       );
     }
+  });
+
+  it("requires https on Public/mainnet and restricts http to localhost/127.0.0.1 in local/test modes", () => {
+    assert.equal(isLocalHttpHost("localhost"), true);
+    assert.equal(isLocalHttpHost("127.0.0.1"), true);
+    assert.equal(isLocalHttpHost("rpc.example.test"), false);
+
+    // Mainnet always requires https://, even with allowHttp=true on localhost.
+    assert.throws(
+      () =>
+        assertEndpointUrlScheme("http://localhost:8000", {
+          networkPassphrase: PUBLIC,
+          allowHttp: true,
+        }),
+      /must use https:\/\/ on Public\/mainnet/,
+    );
+    assert.throws(
+      () =>
+        new SubRosaClient({
+          rpcUrl: "http://localhost:8000",
+          networkPassphrase: PUBLIC,
+          contractId: CONTRACT_ID,
+          allowHttp: true,
+        }),
+      /must use https:\/\/ on Public\/mainnet/,
+    );
+
+    // Testnet rejects non-local http:// even when allowHttp=true.
+    assert.throws(
+      () =>
+        assertEndpointUrlScheme("http://rpc.example.test", {
+          networkPassphrase: TESTNET,
+          allowHttp: true,
+        }),
+      /only use http:\/\/ for localhost or 127\.0\.0\.1/,
+    );
+
+    // Testnet accepts http://localhost and http://127.0.0.1 when allowHttp=true.
+    assert.doesNotThrow(() =>
+      assertEndpointUrlScheme("http://localhost:8000", {
+        networkPassphrase: TESTNET,
+        allowHttp: true,
+      }),
+    );
+    assert.doesNotThrow(() =>
+      assertEndpointUrlScheme("http://127.0.0.1:8000", {
+        networkPassphrase: TESTNET,
+        allowHttp: true,
+      }),
+    );
   });
 });
 

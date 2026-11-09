@@ -198,6 +198,32 @@ test("VITE_RPC_URL with http (not https) passes validation", () => {
   assert.equal(urlIssues.length, 0);
 });
 
+test("VITE_RPC_URL rejects http on Public/mainnet even for localhost", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "http://localhost:8000",
+    VITE_NETWORK_PASSPHRASE: "Public Global Stellar Network ; September 2015",
+    VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+  });
+  assert.ok(
+    issues.some(
+      (i) => i.key === "VITE_RPC_URL" && i.message.includes("must use https:// on Public/mainnet"),
+    ),
+  );
+});
+
+test("VITE_RPC_URL rejects non-local http endpoints on testnet/custom networks", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "http://custom-soroban.example.com",
+    VITE_NETWORK_PASSPHRASE: "Custom Network",
+    VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+  });
+  assert.ok(
+    issues.some(
+      (i) => i.key === "VITE_RPC_URL" && i.message.includes("only allowed for localhost or 127.0.0.1"),
+    ),
+  );
+});
+
 test("invalid VITE_RPC_URL error message is actionable", () => {
   const issues = validatePublicConfig({
     VITE_RPC_URL: "garbage",

@@ -53,12 +53,15 @@ export {
   roundInSeconds,
   fetchRoundBeacon,
   fetchRoundSignature,
+  DEFAULT_DRAND_URL,
   QUICKNET_HASH,
   QUICKNET_GENESIS,
   QUICKNET_PERIOD,
   QUICKNET_FIXTURE,
+  assertDrandEndpointUrl,
   assertQuicknetFixture,
   type DrandClient,
+  type DrandEndpointUrlOptions,
 } from "./quicknet.js";
 
 export { drandSignatureToSoroban, encodeG1Soroban } from "./bls.js";

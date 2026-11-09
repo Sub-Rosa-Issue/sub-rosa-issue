@@ -2,7 +2,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { QUICKNET_HASH, assertQuicknetFixture } from "./quicknet.js";
+import {
+  DEFAULT_DRAND_URL,
+  QUICKNET_HASH,
+  assertDrandEndpointUrl,
+  assertQuicknetFixture,
+} from "./quicknet.js";
 import { classifyDrandRound } from "./freshness.js";
 
 import fs from "node:fs";
@@ -91,4 +96,48 @@ test("freshness helper uses fixture fields to compute round timing", () => {
 test("a mutated period fails the fixture comparison", () => {
   const mutated = { ...QUICKNET_FIXTURE, period: 4 };
   assert.throws(() => assertQuicknetFixture(mutated), /period mismatch/);
+});
+
+test("assertDrandEndpointUrl requires https and only allows localhost http when explicit", () => {
+  assert.equal(assertDrandEndpointUrl(DEFAULT_DRAND_URL), "https://api.drand.sh");
+  assert.equal(
+    assertDrandEndpointUrl("https://api.drand.sh/"),
+    "https://api.drand.sh",
+  );
+
+  // Rejects http by default, even on localhost.
+  assert.throws(
+    () => assertDrandEndpointUrl("http://localhost:8080"),
+    /must use https:\/\//,
+  );
+  assert.throws(
+    () => assertDrandEndpointUrl("http://api.drand.sh"),
+    /must use https:\/\//,
+  );
+
+  // Allows localhost / 127.0.0.1 only when allowLocalHttp is explicitly true.
+  assert.equal(
+    assertDrandEndpointUrl("http://localhost:8080/", { allowLocalHttp: true }),
+    "http://localhost:8080",
+  );
+  assert.equal(
+    assertDrandEndpointUrl("http://127.0.0.1:8080", { allowLocalHttp: true }),
+    "http://127.0.0.1:8080",
+  );
+
+  // Rejects non-local http even when allowLocalHttp is true.
+  assert.throws(
+    () => assertDrandEndpointUrl("http://api.drand.sh", { allowLocalHttp: true }),
+    /only allowed for localhost or 127\.0\.0\.1/,
+  );
+
+  // Rejects credentials and non-http schemes.
+  assert.throws(
+    () => assertDrandEndpointUrl("https://user:secret@api.drand.sh"),
+    /must not contain credentials/,
+  );
+  assert.throws(
+    () => assertDrandEndpointUrl("ftp://api.drand.sh"),
+    /must use https:\/\//,
+  );
 });

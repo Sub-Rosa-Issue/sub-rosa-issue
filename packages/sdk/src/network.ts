@@ -52,6 +52,61 @@ export function assertNoUrlCredentials(
   return parsed;
 }
 
+const LOCAL_HTTP_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+/**
+ * Return true when `hostname` refers to a loopback/local development host
+ * (`localhost`, `127.0.0.1`, or `::1`).
+ */
+export function isLocalHttpHost(hostname: string): boolean {
+  return LOCAL_HTTP_HOSTS.has(hostname.trim().toLowerCase());
+}
+
+export interface EndpointUrlSchemeOptions {
+  label?: string;
+  networkPassphrase?: string;
+  allowHttp?: boolean;
+}
+
+/**
+ * Validate that an RPC or Drand endpoint URL uses `https://`, allowing
+ * `http://localhost` / `http://127.0.0.1` only when `allowHttp` is explicitly
+ * enabled on a non-mainnet network. Mainnet (`Public`) always requires `https://`.
+ */
+export function assertEndpointUrlScheme(
+  rawUrl: string,
+  options: EndpointUrlSchemeOptions = {},
+): URL {
+  const label = options.label ?? "rpcUrl";
+  const parsed = assertNoUrlCredentials(rawUrl, label);
+  if (parsed.protocol === "https:") {
+    return parsed;
+  }
+
+  const isMainnet =
+    options.networkPassphrase !== undefined &&
+    networkDisplayName(options.networkPassphrase) === "Public";
+  if (isMainnet) {
+    throw new SubRosaClientConfigError(
+      `${label} must use https:// on Public/mainnet`,
+    );
+  }
+
+  if (!options.allowHttp) {
+    throw new SubRosaClientConfigError(
+      `${label} must use https unless allowHttp is explicitly enabled`,
+    );
+  }
+
+  if (!isLocalHttpHost(parsed.hostname)) {
+    throw new SubRosaClientConfigError(
+      `${label} may only use http:// for localhost or 127.0.0.1`,
+    );
+  }
+
+  return parsed;
+}
+
 /**
  * Human-readable label for a Stellar network passphrase. Unknown/custom
  * networks fall back to the passphrase itself so the caller still sees which

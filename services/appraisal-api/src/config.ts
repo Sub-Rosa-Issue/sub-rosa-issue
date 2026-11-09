@@ -137,6 +137,27 @@ function parseRpcUrl(
     );
   }
 
+  if (url.protocol === "http:") {
+    if (network === STELLAR_PUBNET_CAIP2) {
+      throw new AppraisalConfigError(
+        "RPC_URL",
+        "must use https:// when X402_NETWORK=stellar:pubnet",
+      );
+    }
+    const hostname = url.hostname.toLowerCase();
+    if (
+      hostname !== "localhost" &&
+      hostname !== "127.0.0.1" &&
+      hostname !== "[::1]" &&
+      hostname !== "::1"
+    ) {
+      throw new AppraisalConfigError(
+        "RPC_URL",
+        "http:// is only allowed for localhost or 127.0.0.1",
+      );
+    }
+  }
+
   return url.toString().replace(/\/$/, "");
 }
 

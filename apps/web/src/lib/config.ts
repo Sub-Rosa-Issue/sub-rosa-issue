@@ -108,6 +108,27 @@ export function validatePublicConfig(
               "VITE_RPC_URL must not contain credentials (username or password).",
           });
         }
+        if (parsed.protocol === "http:") {
+          const isMainnet = (env.VITE_NETWORK_PASSPHRASE ?? "").includes("Public");
+          const hostname = parsed.hostname.toLowerCase();
+          const isLocal =
+            hostname === "localhost" ||
+            hostname === "127.0.0.1" ||
+            hostname === "[::1]" ||
+            hostname === "::1";
+          if (isMainnet) {
+            issues.push({
+              key: "VITE_RPC_URL",
+              message: "VITE_RPC_URL must use https:// on Public/mainnet.",
+            });
+          } else if (!isLocal) {
+            issues.push({
+              key: "VITE_RPC_URL",
+              message:
+                "VITE_RPC_URL must use https:// for non-local endpoints; http:// is only allowed for localhost or 127.0.0.1.",
+            });
+          }
+        }
       } catch {
         if (/^https?:\/\/[^/\s?#]*@/i.test(normalized)) {
           issues.push({

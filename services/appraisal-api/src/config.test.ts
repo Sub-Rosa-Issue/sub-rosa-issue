@@ -146,6 +146,27 @@ describe("configFromEnv failure modes", () => {
     );
   });
 
+  test("rejects http RPC URLs on pubnet and non-local http RPC URLs on testnet", () => {
+    assertConfigError(
+      {
+        ...MINIMAL_ENV,
+        X402_NETWORK: STELLAR_PUBNET_CAIP2,
+        NETWORK_PASSPHRASE: Networks.PUBLIC,
+        RPC_URL: "http://localhost:8000",
+      },
+      "RPC_URL",
+      /must use https:\/\/ when X402_NETWORK=stellar:pubnet/,
+    );
+    assertConfigError(
+      {
+        ...MINIMAL_ENV,
+        RPC_URL: "http://rpc.example.com",
+      },
+      "RPC_URL",
+      /only allowed for localhost or 127\.0\.0\.1/,
+    );
+  });
+
   test("rejects malformed Stellar keys and addresses", () => {
     assertConfigError(
       { ...MINIMAL_ENV, FACILITATOR_SECRET: "not-a-secret" },
