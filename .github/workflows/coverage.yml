@@ -44,6 +44,9 @@ jobs:
       - name: Validate workflow pnpm version matches packageManager
         run: pnpm ci:pnpm-version:test && pnpm ci:pnpm-version:check
 
+      - name: Enforce committed snapshot health
+        run: pnpm snapshot:test && pnpm snapshot:check
+
       - name: Mainnet readiness matches the committed manifest (recorded fixture, no RPC, no secrets)
         run: |
           pnpm --filter @sub-rosa/sdk exec tsx scripts/mainnet-ready.ts --strict --fixture

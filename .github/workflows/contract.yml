@@ -43,3 +43,6 @@ jobs:
 
       - name: Run error drift script tests
         run: node --test scripts/check-round-errors.test.mjs
+
+      - name: Enforce committed contract snapshot health
+        run: node --test scripts/check-snapshots.test.mjs && node scripts/check-snapshots.mjs

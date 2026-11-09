@@ -166,3 +166,18 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## Committed snapshot health gate
+
+Contract test snapshots under `contracts/round/test_snapshots/test/` and
+recorded dashboard/mainnet readiness fixtures are checked in CI
+(`.github/workflows/coverage.yml` and `.github/workflows/contract.yml`) so stale
+or missing evidence blocks the build:
+
+```bash
+pnpm snapshot:test
+pnpm snapshot:check
+```
+
+Checker source: `scripts/check-snapshots.mjs` (tests in
+`scripts/check-snapshots.test.mjs`).

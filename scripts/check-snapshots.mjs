@@ -24,10 +24,12 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SNAPSHOT_DIR = resolve(
-  __dirname,
-  "../contracts/round/test_snapshots/test",
-);
+const SNAPSHOT_DIR = process.env.SNAPSHOT_DIR_OVERRIDE
+  ? resolve(process.env.SNAPSHOT_DIR_OVERRIDE)
+  : resolve(
+      __dirname,
+      "../contracts/round/test_snapshots/test",
+    );
 
 // ---------------------------------------------------------------------------
 // Required snapshot categories.
