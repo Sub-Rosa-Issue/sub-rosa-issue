@@ -15,7 +15,9 @@ import {
 } from "./body-limit.js";
 import {
   APPRAISAL_RESPONSE_SECURITY_HEADERS,
+  APPRAISAL_UNSUPPORTED_MEDIA_TYPE,
   buildAppraisalServer,
+  isJsonContentType,
   withNonCacheableHeaders,
 } from "./server.js";
 import { validRequest } from "./fixtures/index.js";
@@ -153,3 +155,124 @@ describe("appraisal response non-cacheable headers", () => {
     }
   });
 });
+
+describe("appraisal request JSON content-type enforcement", () => {
+  test("isJsonContentType accepts application/json with optional UTF-8 charset and rejects non-JSON", () => {
+    assert.equal(isJsonContentType("application/json"), true);
+    assert.equal(isJsonContentType("APPLICATION/JSON"), true);
+    assert.equal(isJsonContentType("application/json; charset=utf-8"), true);
+    assert.equal(isJsonContentType("application/json; charset=UTF-8"), true);
+    assert.equal(isJsonContentType('application/json; charset="utf-8"'), true);
+    assert.equal(isJsonContentType(["application/json; charset=utf-8"]), true);
+
+    assert.equal(isJsonContentType(undefined), false);
+    assert.equal(isJsonContentType(""), false);
+    assert.equal(isJsonContentType("text/plain"), false);
+    assert.equal(isJsonContentType("application/x-www-form-urlencoded"), false);
+    assert.equal(isJsonContentType("multipart/form-data; boundary=abc"), false);
+    assert.equal(isJsonContentType("application/json; charset=iso-8859-1"), false);
+    assert.equal(isJsonContentType("application/json; boundary=abc"), false);
+    assert.equal(isJsonContentType(["application/json", "text/plain"]), false);
+  });
+
+  test("POST /appraise rejects missing or non-JSON content types with 415 and accepts application/json (+ charset=utf-8)", async () => {
+    const facilitator = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 5));
+    const payee = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 6));
+    const server = await buildAppraisalServer(
+      {
+        facilitatorSecret: facilitator.secret(),
+        payTo: payee.publicKey(),
+        asset: USDC_TESTNET_ADDRESS,
+        price: 0.1,
+        network: STELLAR_TESTNET_CAIP2,
+        networkPassphrase: Networks.TESTNET,
+        rpcUrl: "https://soroban-testnet.stellar.org",
+        port: 0,
+      },
+      { nowSeconds: () => 1_700_000_000 },
+    );
+    const port = await listen(server);
+    try {
+      const missingHeader = await httpPostWithoutContentType(
+        port,
+        "/appraise",
+        JSON.stringify(validRequest.value),
+      );
+      assert.equal(missingHeader.status, 415);
+      assert.deepEqual(missingHeader.body, {
+        error: APPRAISAL_UNSUPPORTED_MEDIA_TYPE,
+        message: "Content-Type must be application/json",
+      });
+
+      const wrongContentType = await fetch(`http://127.0.0.1:${port}/appraise`, {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body: JSON.stringify(validRequest.value),
+      });
+      assert.equal(wrongContentType.status, 415);
+      assert.equal(wrongContentType.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await wrongContentType.json(), {
+        error: APPRAISAL_UNSUPPORTED_MEDIA_TYPE,
+        message: "Content-Type must be application/json",
+      });
+
+      const formEncoded = await fetch(`http://127.0.0.1:${port}/appraise`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "itemRef=sub-rosa%3A%2F%2Fgrant%2F42&basePrice=100",
+      });
+      assert.equal(formEncoded.status, 415);
+
+      const validPlainJson = await fetch(`http://127.0.0.1:${port}/appraise`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(validRequest.value),
+      });
+      assert.equal(validPlainJson.status, 402);
+
+      const validCharsetJson = await fetch(`http://127.0.0.1:${port}/appraise`, {
+        method: "POST",
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: JSON.stringify(validRequest.value),
+      });
+      assert.equal(validCharsetJson.status, 402);
+    } finally {
+      server.closeAllConnections?.();
+      server.close();
+    }
+  });
+});
+
+function httpPostWithoutContentType(
+  port: number,
+  path: string,
+  payload: string,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port,
+        path,
+        method: "POST",
+        headers: {
+          "content-length": String(Buffer.byteLength(payload, "utf8")),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          const raw = Buffer.concat(chunks).toString("utf8");
+          try {
+            resolve({ status: res.statusCode ?? 0, body: JSON.parse(raw) });
+          } catch (err) {
+            reject(err);
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end(payload);
+  });
+}

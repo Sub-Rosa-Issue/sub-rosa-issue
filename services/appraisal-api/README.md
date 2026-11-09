@@ -67,6 +67,12 @@ The other endpoints are free (used for healthchecks / discovery):
 | GET    | `/`        | Discovery: price, asset, network |
 | GET    | `/healthz` | Health check                     |
 
+A `POST /appraise` request must declare `Content-Type: application/json` (or
+`application/json; charset=utf-8`). Requests with a missing or non-JSON
+`Content-Type` header are rejected with **HTTP 415**
+`{ "error": "unsupported_media_type", "message": "Content-Type must be application/json" }`
+before the body is parsed or any x402 payment offer is issued.
+
 A `POST /appraise` body larger than 8192 bytes is rejected with **HTTP 413**
 `{ "error": "payload_too_large", "limitBytes": 8192 }` before the bytes are
 parsed as JSON, so the request never receives a 402 payment quote.

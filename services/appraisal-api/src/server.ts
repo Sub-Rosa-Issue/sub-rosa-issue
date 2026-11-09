@@ -43,6 +43,45 @@ import type { AppraisalServerConfig } from "./config.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
 
+/** Stable error code when `POST /appraise` is called without `Content-Type: application/json`. */
+export const APPRAISAL_UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type";
+
+/**
+ * Return true when a `Content-Type` header specifies `application/json`
+ * with optional UTF-8 `charset` parameter (e.g. `application/json; charset=utf-8`).
+ */
+export function isJsonContentType(
+  contentType: string | string[] | undefined,
+): boolean {
+  if (contentType === undefined) return false;
+  if (Array.isArray(contentType)) {
+    if (contentType.length !== 1) return false;
+    return isJsonContentType(contentType[0]);
+  }
+  const trimmed = contentType.trim();
+  if (!trimmed) return false;
+  const parts = trimmed.split(";");
+  const mediaType = parts[0]?.trim().toLowerCase();
+  if (mediaType !== "application/json") return false;
+  for (const rawParam of parts.slice(1)) {
+    const param = rawParam.trim();
+    if (!param) return false;
+    const eqIdx = param.indexOf("=");
+    if (eqIdx <= 0) return false;
+    const name = param.slice(0, eqIdx).trim().toLowerCase();
+    let value = param.slice(eqIdx + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+      value = value.slice(1, -1).trim();
+    }
+    if (name !== "charset" || !value) return false;
+    const normalizedCharset = value.toLowerCase();
+    if (normalizedCharset !== "utf-8" && normalizedCharset !== "utf8") {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Non-cacheable security headers applied to appraisal quotes and paid responses. */
 export const APPRAISAL_RESPONSE_SECURITY_HEADERS: Readonly<Record<string, string>> =
   Object.freeze({
@@ -196,6 +235,16 @@ export async function buildAppraisalServer(
           price: config.price,
           network: config.network,
         });
+      }
+
+      if (method === "POST" && url.pathname === "/appraise") {
+        if (!isJsonContentType(req.headers["content-type"])) {
+          req.resume();
+          return send(res, 415, {}, {
+            error: APPRAISAL_UNSUPPORTED_MEDIA_TYPE,
+            message: "Content-Type must be application/json",
+          });
+        }
       }
 
       const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);

@@ -20,7 +20,9 @@ export {
 
 export {
   APPRAISAL_RESPONSE_SECURITY_HEADERS,
+  APPRAISAL_UNSUPPORTED_MEDIA_TYPE,
   buildAppraisalServer,
+  isJsonContentType,
   withNonCacheableHeaders,
   type AppraisalServerOptions,
 } from "./server.js";
