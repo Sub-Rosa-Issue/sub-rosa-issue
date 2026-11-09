@@ -84,6 +84,8 @@ export {
   createStatusServer,
   createStatusHandler,
   withGracefulShutdown,
+  withSafeStatusHeaders,
+  KEEPER_STATUS_RESPONSE_HEADERS,
   bigintReplacer as statusBigintReplacer,
   type StatusServerConfig,
   type StatusServerHandle,

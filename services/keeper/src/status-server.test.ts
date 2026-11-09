@@ -6,7 +6,12 @@ import { createFakeTime } from "@sub-rosa/time";
 import http from "node:http";
 import { Readable } from "node:stream";
 
-import { createStatusHandler, createStatusServer } from "./status-server.js";
+import {
+  createStatusHandler,
+  createStatusServer,
+  KEEPER_STATUS_RESPONSE_HEADERS,
+  withSafeStatusHeaders,
+} from "./status-server.js";
 import type { BuildStatusSource } from "./status.js";
 import type { WatchedRound } from "./store.js";
 
@@ -375,4 +380,56 @@ test("rejects non-GET methods with 405 and Allow: GET at the server boundary", a
       assert.deepEqual(body.allow, ["GET"]);
     }
   });
+});
+
+test("sets safe response headers on all keeper status endpoints and errors", async () => {
+  const source = makeSource();
+
+  for (const [method, path, expectedStatus] of [
+    ["GET", "/", 200],
+    ["GET", "/status", 200],
+    ["GET", "/status/rounds/1", 200],
+    ["GET", "/status/rounds/999", 404],
+    ["GET", "/status/health", 200],
+    ["GET", "/healthz", 200],
+    ["GET", "/unknown", 404],
+    ["POST", "/status", 405],
+  ] as const) {
+    const res = await invokeHandler(source, path, method);
+    assert.equal(res.status, expectedStatus, `expected ${expectedStatus} for ${method} ${path}`);
+    assert.equal(res.headers["content-type"], "application/json; charset=utf-8");
+    assert.equal(res.headers["cache-control"], "no-store");
+    assert.equal(res.headers["x-content-type-options"], "nosniff");
+    assert.equal(res.headers["x-frame-options"], "DENY");
+  }
+
+  await withServer(source, async (server) => {
+    const addr = server.address();
+    assert.ok(addr && typeof addr === "object");
+    const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+    for (const path of ["/", "/status", "/status/rounds/1", "/status/health", "/healthz", "/missing"]) {
+      const res = await fetch(`${baseUrl}${path}`);
+      assert.equal(res.headers.get("content-type"), "application/json; charset=utf-8");
+      assert.equal(res.headers.get("cache-control"), "no-store");
+      assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(res.headers.get("x-frame-options"), "DENY");
+    }
+  });
+
+  const merged = withSafeStatusHeaders({
+    Allow: "GET",
+    "Cache-Control": "public, max-age=3600",
+    "Content-Type": "text/html",
+    "X-Content-Type-Options": "none",
+    "X-Frame-Options": "ALLOWALL",
+  });
+  assert.equal(merged.allow, "GET");
+  assert.equal(merged["content-type"], KEEPER_STATUS_RESPONSE_HEADERS["content-type"]);
+  assert.equal(merged["cache-control"], KEEPER_STATUS_RESPONSE_HEADERS["cache-control"]);
+  assert.equal(
+    merged["x-content-type-options"],
+    KEEPER_STATUS_RESPONSE_HEADERS["x-content-type-options"],
+  );
+  assert.equal(merged["x-frame-options"], KEEPER_STATUS_RESPONSE_HEADERS["x-frame-options"]);
 });

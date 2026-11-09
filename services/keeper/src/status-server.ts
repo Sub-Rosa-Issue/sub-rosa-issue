@@ -34,10 +34,34 @@ interface Route {
   ) => Promise<{ status: number; body: unknown }>;
 }
 
-const JSON_CONTENT = {
-  "content-type": "application/json",
-  "cache-control": "no-store",
-};
+/** Safe HTTP response headers applied to all keeper status responses. */
+export const KEEPER_STATUS_RESPONSE_HEADERS: Readonly<Record<string, string>> =
+  Object.freeze({
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+  });
+
+/**
+ * Merge optional extra headers with mandatory keeper status security headers.
+ * Case-insensitively prevents extra headers from overriding the safe defaults.
+ */
+export function withSafeStatusHeaders(
+  extraHeaders?: Record<string, string>,
+): Record<string, string> {
+  if (!extraHeaders) {
+    return { ...KEEPER_STATUS_RESPONSE_HEADERS };
+  }
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(extraHeaders)) {
+    normalized[key.toLowerCase()] = value;
+  }
+  return {
+    ...normalized,
+    ...KEEPER_STATUS_RESPONSE_HEADERS,
+  };
+}
 
 function send(
   res: http.ServerResponse,
@@ -46,10 +70,7 @@ function send(
   extraHeaders?: Record<string, string>,
 ): void {
   const payload = JSON.stringify(body, bigintReplacer, 2);
-  res.writeHead(
-    status,
-    extraHeaders ? { ...JSON_CONTENT, ...extraHeaders } : JSON_CONTENT,
-  );
+  res.writeHead(status, withSafeStatusHeaders(extraHeaders));
   res.end(payload);
 }
 

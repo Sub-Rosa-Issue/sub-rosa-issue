@@ -39,6 +39,12 @@ The status API is served by `npm run serve` (or any process that calls `createSt
 
 All endpoints only accept `GET` requests. Any non-`GET` method (`POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, etc.) is rejected at the server boundary with HTTP `405 Method Not Allowed`, an `Allow: GET` response header, and a JSON `{ "error": "method not allowed", "method": "<VERB>", "allow": ["GET"], "available": [...] }` body without invoking RPC or Drand readers.
 
+Every status API response includes explicit safe HTTP headers:
+- `Content-Type: application/json; charset=utf-8`
+- `Cache-Control: no-store`
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+
 ### Configuration
 
 | Env var | Default | Description |
