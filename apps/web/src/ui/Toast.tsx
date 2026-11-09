@@ -6,12 +6,36 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTime } from "../lib/time";
 
 export type ToastTone = "info" | "working" | "success" | "error";
+
+export interface FocusableTarget {
+  focus: () => void;
+  isConnected?: boolean;
+  disabled?: boolean;
+  getAttribute?: (name: string) => string | null;
+}
+
+export interface ToastPushOptions {
+  /**
+   * Optional element to return keyboard focus to when the toast is dismissed
+   * interactively. Defaults to `document.activeElement` at the time `push` runs.
+   */
+  returnFocusTo?: FocusableTarget | null;
+}
+
+export interface ToastDismissOptions {
+  /**
+   * When true, returns keyboard focus to the opener element captured when the
+   * toast was pushed (if still connected and enabled).
+   */
+  restoreFocus?: boolean;
+}
 
 export interface ToastItem {
   id: string;
@@ -21,11 +45,41 @@ export interface ToastItem {
 }
 
 interface ToastContextValue {
-  push: (tone: ToastTone, title: string, detail?: string) => string;
-  dismiss: (id: string) => void;
+  push: (
+    tone: ToastTone,
+    title: string,
+    detail?: string,
+    options?: ToastPushOptions,
+  ) => string;
+  dismiss: (id: string, options?: ToastDismissOptions) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
+
+export function resolveActiveFocusable(): FocusableTarget | null {
+  if (typeof document === "undefined") return null;
+  const active = document.activeElement as unknown as
+    | (FocusableTarget & Element)
+    | null;
+  if (!active || typeof active.focus !== "function") return null;
+  if (
+    active === (document.body as unknown) ||
+    active === (document.documentElement as unknown)
+  ) {
+    return null;
+  }
+  return active;
+}
+
+export function canRestoreFocus(
+  target: FocusableTarget | null | undefined,
+): target is FocusableTarget {
+  if (!target || typeof target.focus !== "function") return false;
+  if (target.isConnected === false) return false;
+  if (target.disabled === true) return false;
+  if (target.getAttribute?.("aria-disabled") === "true") return false;
+  return true;
+}
 
 const TONE_ICON: Record<ToastTone, ReactNode> = {
   info: "i",
@@ -55,24 +109,59 @@ const TONE_DURATION: Record<ToastTone, number> = {
   error: 8000,
 };
 
+/**
+ * Toast notification provider. Captures the focused trigger element when a
+ * toast is pushed and restores keyboard focus to that element when the toast is
+ * dismissed interactively via its close button or the `Escape` key. Background
+ * auto-dismissal timers never steal focus from the user's active control.
+ */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const { scheduler } = useTime();
   const [items, setItems] = useState<ToastItem[]>([]);
   const seq = useRef(0);
+  const openerMap = useRef<Map<string, FocusableTarget | null>>(new Map());
 
-  const dismiss = useCallback((id: string) => {
+  const dismiss = useCallback((id: string, options?: ToastDismissOptions) => {
+    const opener = openerMap.current.get(id);
+    openerMap.current.delete(id);
     setItems((prev) => prev.filter((item) => item.id !== id));
+    if (options?.restoreFocus && canRestoreFocus(opener)) {
+      opener.focus();
+    }
   }, []);
 
   const push = useCallback(
-    (tone: ToastTone, title: string, detail?: string) => {
+    (
+      tone: ToastTone,
+      title: string,
+      detail?: string,
+      options?: ToastPushOptions,
+    ) => {
       const id = `toast-${++seq.current}`;
+      const opener =
+        options?.returnFocusTo !== undefined
+          ? options.returnFocusTo
+          : resolveActiveFocusable();
+      openerMap.current.set(id, opener ?? null);
       setItems((prev) => [{ id, tone, title, detail }, ...prev].slice(0, 4));
       const ttl = TONE_DURATION[tone];
-      if (ttl > 0) scheduler.setTimeout(() => dismiss(id), ttl);
+      if (ttl > 0) {
+        scheduler.setTimeout(() => dismiss(id, { restoreFocus: false }), ttl);
+      }
       return id;
     },
     [dismiss, scheduler],
+  );
+
+  const handleToastKeyDown = useCallback(
+    (id: string, event: KeyboardEvent<HTMLElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        dismiss(id, { restoreFocus: true });
+      }
+    },
+    [dismiss],
   );
 
   const value = useMemo(() => ({ push, dismiss }), [push, dismiss]);
@@ -91,6 +180,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               exit={{ opacity: 0, y: 12, scale: 0.95, transition: { duration: 0.18 } }}
               transition={{ type: "spring", stiffness: 420, damping: 32 }}
               className={`toast toast-${item.tone}`}
+              onKeyDown={(e) => handleToastKeyDown(item.id, e)}
             >
               <span className="toast-icon" aria-hidden="true">
                 {TONE_ICON[item.tone]}
@@ -103,7 +193,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 className="toast-close"
                 aria-label={`Dismiss: ${item.title}`}
-                onClick={() => dismiss(item.id)}
+                onClick={() => dismiss(item.id, { restoreFocus: true })}
               >
                 ×
               </button>
