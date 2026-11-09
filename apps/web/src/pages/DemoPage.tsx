@@ -31,6 +31,7 @@ import { getRoundStatusInfo } from "../lib/round-status";
 import { useRevealPhase } from "../lib/use-reveal-phase";
 import { shortAddr } from "../lib/format";
 import { RoundStatusBadge } from "../components/RoundStatusBadge";
+import { TransactionStatusLiveRegion } from "../components/TransactionStatusLiveRegion";
 import { LOGO_SRC } from "../lib/chain";
 import { ConfettiBurst } from "../ui/Confetti";
 import { CountUp } from "../ui/CountUp";
@@ -447,11 +448,19 @@ function FeedbackPanel({
   latest,
   roundId,
   commitValue,
+  revealed,
+  roundStatus,
+  revealProgress,
+  entryValue,
 }: {
   status: ActionStatus;
   latest: string | null;
   roundId: bigint | null;
   commitValue: bigint | null;
+  revealed: boolean;
+  roundStatus: string | null;
+  revealProgress: { current: number; total: number } | null;
+  entryValue: number;
 }) {
   const headline =
     status === "working"
@@ -462,14 +471,32 @@ function FeedbackPanel({
           ? "Check wallet / retry"
           : "Ready";
 
-  const escrowLabel = commitValue == null ? "—" : formatDemoAmount(commitValue);
+  const escrowLabel =
+    commitValue == null
+      ? "—"
+      : revealed
+        ? formatDemoAmount(commitValue)
+        : "Sealed until reveal";
 
   return (
     <motion.section
       className={`feedback-panel ${status}`}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       layout
       transition={{ type: "spring", stiffness: 220, damping: 28 }}
     >
+      <TransactionStatusLiveRegion
+        status={status}
+        roundId={roundId}
+        roundStatus={roundStatus}
+        committed={commitValue != null}
+        revealedCount={revealed ? 1 : 0}
+        revealProgress={revealProgress}
+        latestMessage={latest}
+        sealedValue={entryValue}
+      />
       <span>Status</span>
       <AnimatePresence mode="wait">
         <motion.strong
@@ -665,6 +692,10 @@ function LivePanel({
           latest={log[0] ?? null}
           roundId={roundId}
           commitValue={commitValue}
+          revealed={revealedCount > 0}
+          roundStatus={live?.round.status.tag ?? null}
+          revealProgress={revealProgress}
+          entryValue={entryValue}
         />
       </div>
 

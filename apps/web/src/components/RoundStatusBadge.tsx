@@ -27,7 +27,9 @@ export function RoundStatusBadge({
   return (
     <span
       className={`round-status-badge ${state}`}
-      role={state === "error" ? "alert" : "status"}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       aria-busy={state === "loading"}
       title={error ?? message ?? undefined}
     >

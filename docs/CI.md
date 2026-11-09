@@ -28,6 +28,16 @@ Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
 [GITHUB_ACTIONS_SECURITY.md](./GITHUB_ACTIONS_SECURITY.md).
 
+### Accessible async transaction status announcements
+
+Commit, reveal, settle, and retry state transitions in `apps/web` are announced
+through polite atomic live regions (`role="status"`, `aria-live="polite"`,
+`aria-atomic="true"`) via `TransactionStatusLiveRegion` and `RoundStatusBadge`.
+Pre-reveal commit announcements and logs redact sealed bid amounts so screen
+readers never announce confidential values before Drand round `R` opens. Run
+`node --import tsx --test src/components/TransactionStatusLiveRegion.test.tsx`
+from `apps/web` to verify this invariant.
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for
