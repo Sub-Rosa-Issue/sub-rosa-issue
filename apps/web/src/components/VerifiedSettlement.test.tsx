@@ -22,14 +22,23 @@ function bid(value: string | null, settled: boolean, escrow = "1000000000") {
 }
 
 function receipt(overrides: Partial<RoundReceipt> = {}): RoundReceipt {
+  const roundId = overrides.roundId ?? "7";
   return {
     version: 1, network: NETWORK, networkFingerprint: networkFingerprint(NETWORK),
     contractId: `C${"A".repeat(55)}`, exportedAt: "2026-01-01T00:00:00.000Z",
-    roundId: "7", itemRef: "00".repeat(32), revealRound: 1, clearingRule: "HighestBid",
+    roundId, itemRef: "00".repeat(32), revealRound: 1, clearingRule: "HighestBid",
     commitDeadline: "1", revealDeadline: "2", operator: `G${"O".repeat(55)}`, auditorPubkey: "00",
     bidders: [W, L],
     bids: { [W]: bid("750000000", true), [L]: bid("500000000", true, "900000000") },
     winner: W, winningValue: "750000000", status: "Settled",
+    events: [
+      { name: "created", topics: ["symbol_short", "u64"], roundId, ledger: 1, phase: "round-created" },
+      { name: "commit", topics: ["symbol_short", "u64"], roundId, ledger: 2, phase: "bid-commit" },
+      { name: "revealing", topics: ["symbol_short", "u64"], roundId, ledger: 3, phase: "reveal-opened" },
+      { name: "reveal", topics: ["symbol_short", "u64"], roundId, ledger: 4, phase: "bid-reveal" },
+      { name: "cleared", topics: ["symbol_short", "u64"], roundId, ledger: 5, phase: "round-cleared" },
+      { name: "settled", topics: ["symbol_short", "u64"], roundId, ledger: 6, phase: "round-finalized" },
+    ],
     ...overrides,
   };
 }

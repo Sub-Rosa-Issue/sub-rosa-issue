@@ -62,7 +62,11 @@ test("fixture snapshot: both cards would show the same phase and round id", () =
 
 test("an older snapshot does not partially update the card — same object is used", () => {
   const oldSnapshot = buildDashboardSnapshot(
-    { ...DASHBOARD_FIXTURE, meta: { ...DASHBOARD_FIXTURE.meta, roundId: 1 } },
+    {
+      ...DASHBOARD_FIXTURE,
+      meta: { ...DASHBOARD_FIXTURE.meta, roundId: 1 },
+      round: { ...DASHBOARD_FIXTURE.round, status: "Open" },
+    },
     false,
     true,
   );

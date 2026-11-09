@@ -15,6 +15,7 @@ import { configuredNetworkPassphrase, publicEnv } from "./config";
 
 const env = publicEnv();
 
+export const PUBLIC_ENV = env;
 export const LOGO_SRC = "/sub-rosa-logo.png";
 export const RPC_URL = env.VITE_RPC_URL ?? "https://soroban-testnet.stellar.org";
 export const NETWORK = configuredNetworkPassphrase(env);

@@ -73,8 +73,8 @@ export function RoundStatusCard({
   // Use the shared snapshot phase so both cards always agree.
   const phase = snapshot.phase;
   const drandDetail = drand.published
-    ? `R ${data.round.revealRound.toLocaleString()} has already published`
-    : `${formatCountdown(drand.secondsRemaining)} until R ${data.round.revealRound.toLocaleString()}`;
+    ? `R ${data.round.revealRound.toLocaleString("en-US")} has already published`
+    : `${formatCountdown(drand.secondsRemaining)} until R ${data.round.revealRound.toLocaleString("en-US")}`;
 
   return (
     <section className="dashboard-card round-status-card">
@@ -117,7 +117,7 @@ export function RoundStatusCard({
         <div className="dashboard-kv-row">
           <span className="dashboard-kv-label">Drand Round</span>
           <span className="dashboard-kv-value">
-            R = {data.round.revealRound.toLocaleString()}
+            R = {data.round.revealRound.toLocaleString("en-US")}
             {drand.published ? (
               <em className="dashboard-drand-status published"> (published)</em>
             ) : drand.loading ? (
