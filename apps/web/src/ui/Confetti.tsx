@@ -41,11 +41,20 @@ function makeBurst(id: number, count: number): Burst {
  * Fires a celebratory confetti burst from the screen center whenever `fire`
  * increments. Render once near the app root.
  */
-export function ConfettiBurst({ fire, count = 80 }: { fire: number; count?: number }) {
+export function ConfettiBurst({
+  fire,
+  count = 80,
+  reducedMotion,
+}: {
+  fire: number;
+  count?: number;
+  reducedMotion?: boolean;
+}) {
   const { scheduler } = useTime();
   const [bursts, setBursts] = useState<Burst[]>([]);
   const seq = useRef(0);
-  const reduce = useReducedMotion();
+  const systemReduced = useReducedMotion();
+  const reduce = reducedMotion ?? Boolean(systemReduced);
 
   useEffect(() => {
     if (fire <= 0 || reduce) return;

@@ -186,3 +186,10 @@
   height: 9px;
   border-radius: 50%;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-spinner,
+  .toast-bar-indeterminate {
+    animation: none;
+  }
+}

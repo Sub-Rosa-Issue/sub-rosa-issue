@@ -9,6 +9,7 @@ interface CountUpProps {
   prefix?: string;
   suffix?: string;
   className?: string;
+  reducedMotion?: boolean;
 }
 
 /** Animated number that springs from its previous value to the next on change. */
@@ -19,10 +20,12 @@ export function CountUp({
   prefix = "",
   suffix = "",
   className,
+  reducedMotion,
 }: CountUpProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const fromRef = useRef(0);
-  const reduce = useReducedMotion();
+  const systemReduced = useReducedMotion();
+  const reduce = reducedMotion ?? Boolean(systemReduced);
 
   useEffect(() => {
     const node = ref.current;
