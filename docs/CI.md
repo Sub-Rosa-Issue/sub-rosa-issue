@@ -166,3 +166,40 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## Repository hygiene gates
+
+`.github/workflows/coverage.yml` also runs two checks over the repository itself
+rather than over its TypeScript sources.
+
+### Single root lockfile
+
+`scripts/check-root-lockfile.mjs` fails when the repository root tracks more than
+one lockfile, tracks none, or tracks a lockfile that does not belong to the package
+manager declared in `package.json`. This workspace is installed with
+**pnpm 10.13.1**, so `pnpm-lock.yaml` is the only permitted tracked root lockfile;
+`package-lock.json`, `yarn.lock`, `bun.lock` and `bun.lockb` are gitignored at the
+root. Lockfiles inside a workspace folder are not part of this rule.
+
+```bash
+pnpm lockfile:test     # unit tests plus CLI fixtures
+pnpm lockfile:check    # the CI step
+```
+
+### VS Code tasks that run on folder open
+
+`scripts/check-vscode-tasks.mjs` fails when a tracked `.vscode/tasks.json` declares
+`"runOn": "folderOpen"`. That trigger executes a task as soon as the folder is
+opened, before anyone reads what it does. The guard audits tracked manifests only,
+prints the offending path and line without the file contents, and never parses or
+runs a task command.
+
+No `.vscode/` manifest is tracked today, so the check passes on `main` by having
+found nothing to reject; `.gitignore` excludes `.vscode/*`, which means such a file
+can only enter history through an explicit `git add -f`. The gate exists for that
+commit, not for the current tree.
+
+```bash
+pnpm vscode-tasks:test    # unit tests plus CLI fixtures
+pnpm vscode-tasks:check   # the CI step
+```

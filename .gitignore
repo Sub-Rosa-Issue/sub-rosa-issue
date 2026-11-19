@@ -11,6 +11,14 @@ dist
 *.tsbuildinfo
 .pnpm-store
 
+# pnpm is the only installer for this workspace. A second root lockfile
+# resolves a different dependency graph, so npm/yarn/bun lockfiles are never
+# committed at the root (scripts/check-root-lockfile.mjs enforces the tracked set).
+/package-lock.json
+/yarn.lock
+/bun.lock
+/bun.lockb
+
 # Env / secrets (NEVER commit live keys)
 .env
 .env.*
