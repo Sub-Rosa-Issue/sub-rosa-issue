@@ -162,7 +162,14 @@ docs/                   Design, threat model, track answers, deploy, limitations
 
 ## Quick start
 
+Install with **pnpm 10.13.1**: it is the version `packageManager` pins in
+`package.json`, and CI installs exactly that version through `pnpm/action-setup`.
+`pnpm-lock.yaml` is the only tracked lockfile at the repository root —
+`package-lock.json`, `yarn.lock` and the Bun lockfiles are ignored there and a CI
+check rejects them if one is ever tracked.
+
 ```bash
+corepack enable pnpm      # provides pnpm@10.13.1 declared in package.json
 pnpm install
 pnpm contract:test          # 14 Rust tests
 pnpm bindings:generate      # generate TS bindings from the contract
