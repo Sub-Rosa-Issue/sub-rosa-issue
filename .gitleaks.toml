@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Sub Rosa contributors
+#
+# Configuracion de gitleaks para el gate de escaneo de secretos.
+#
+# Se mantienen las reglas por defecto de gitleaks (proveedores + patrones
+# genericos) y solo se permite una lista blanca minima para los valores que
+# NO son credenciales:
+#
+#   - IDs de contrato Stellar (C...), IDs de cuenta (G...) y hashes SHA-256
+#     que aparecen en fixtures, artefactos de mainnet y trazas de demo.
+#
+# La lista blanca combina `paths` (los ficheros concretos) con `regexes` (las
+# formas de valor). Un credencial real en esos mismos ficheros no encaja en
+# ninguna de esas formas, asi que sigue saltando la alerta.
+
+title = "Sub Rosa secret scanning configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public Stellar identifiers and hashes used by fixtures, artifacts and demo traces (not credentials)"
+paths = [
+  '''^apps/web/\.env\.example$''',
+  '''^apps/web/src/demo/demo-trace\.generated\.ts$''',
+  '''^apps/web/src/lib/config\.test\.ts$''',
+  '''^packages/sdk/fixtures/mainnet-readiness\.json$''',
+  '''^packages/sdk/mainnet-artifacts\.json$''',
+  '''^packages/sdk/src/mainnet-readiness\.test\.ts$''',
+]
+regexes = [
+  '''\bC[A-Z2-7]{55}\b''',
+  '''\bG[A-Z2-7]{55}\b''',
+  '''\b[0-9a-f]{64}\b''',
+]
