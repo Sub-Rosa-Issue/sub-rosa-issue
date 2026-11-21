@@ -61,6 +61,7 @@ import {
 } from "./errors.js";
 import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 import {
+  assertNoUrlCredentials,
   validateContractNetwork,
   validatePasskeySession,
   type PasskeySessionBinding,
@@ -212,6 +213,7 @@ export class SubRosaClient {
 
 
   constructor(config: SubRosaClientConfig) {
+    assertNoUrlCredentials(config.rpcUrl, "rpcUrl");
     const allowHttp = config.allowHttp ?? false;
     if (/^http:\/\//i.test(config.rpcUrl) && !allowHttp) {
       throw new SubRosaClientConfigError(

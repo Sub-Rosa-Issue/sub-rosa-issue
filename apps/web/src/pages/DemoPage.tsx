@@ -851,16 +851,16 @@ export function DemoPage({
         : { mode: "idle" as const, targetRound: null };
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <ConfettiBurst fire={confettiTick} />
       <section className="app-shell">
-        <aside className="case-nav">
+        <aside className="case-nav" aria-label="Demo navigation">
           <button type="button" className="brand-link" onClick={goHome}>
             <img src={LOGO_SRC} alt="" />
             <span>Sub Rosa</span>
           </button>
 
-          <div className="mode-switch" role="tablist">
+          <div className="mode-switch" role="tablist" aria-label="Demo mode">
             <button
               type="button"
               role="tab"
@@ -905,28 +905,30 @@ export function DemoPage({
           <DrandCountdownChip mode={sidebarDrand.mode} targetRound={sidebarDrand.targetRound} />
         </aside>
 
-        <AnimatePresence mode="wait">
-          <motion.section
-            key={`${mode}-${active.id}`}
-            className="case-workspace"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {mode === "live" ? (
-              <LivePanel
-                active={active}
-                session={session}
-                onCelebrate={() => setConfettiTick((t) => t + 1)}
-                traceHealthy={traceHealth.ok}
-              />
-            ) : (
-              <EvidencePanel errorCode={traceHealth.ok ? undefined : traceHealth.errorCode} />
-            )}
-          </motion.section>
-        </AnimatePresence>
+        <main id="main-content" className="case-main" tabIndex={-1}>
+          <AnimatePresence mode="wait">
+            <motion.section
+              key={`${mode}-${active.id}`}
+              className="case-workspace"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {mode === "live" ? (
+                <LivePanel
+                  active={active}
+                  session={session}
+                  onCelebrate={() => setConfettiTick((t) => t + 1)}
+                  traceHealthy={traceHealth.ok}
+                />
+              ) : (
+                <EvidencePanel errorCode={traceHealth.ok ? undefined : traceHealth.errorCode} />
+              )}
+            </motion.section>
+          </AnimatePresence>
+        </main>
       </section>
-    </main>
+    </div>
   );
 }

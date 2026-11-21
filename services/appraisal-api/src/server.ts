@@ -38,17 +38,42 @@ import { ExactStellarScheme as FacilitatorStellarScheme } from "@x402/stellar/ex
 import { ExactStellarScheme as ServerStellarScheme } from "@x402/stellar/exact/server";
 
 import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_BYTES, parseAppraisalRequest } from "./appraisal.js";
+import { takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
 
-function readBody(req: http.IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c as Buffer));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+/** Non-cacheable security headers applied to appraisal quotes and paid responses. */
+export const APPRAISAL_RESPONSE_SECURITY_HEADERS: Readonly<Record<string, string>> =
+  Object.freeze({
+    "cache-control": "no-store",
+    pragma: "no-cache",
+    expires: "0",
+    "x-content-type-options": "nosniff",
   });
+
+/**
+ * Merge response headers with mandatory non-cacheable security headers.
+ * Case-insensitively prevents upstream headers from re-enabling response caching.
+ */
+export function withNonCacheableHeaders(
+  headers: Record<string, string> = {},
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    normalized[key.toLowerCase()] = value;
+  }
+  return {
+    ...normalized,
+    ...APPRAISAL_RESPONSE_SECURITY_HEADERS,
+  };
+}
+
+export interface AppraisalServerOptions {
+  /** Optional custom facilitator client (used by deterministic unit tests). */
+  facilitatorClient?: FacilitatorClient;
+  /** Optional wall-clock override returning Unix seconds. */
+  nowSeconds?: () => number;
 }
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
@@ -81,7 +106,10 @@ function send(
 ) {
   const payload =
     typeof body === "string" ? body : JSON.stringify(body ?? {}, null, 2);
-  res.writeHead(status, { "content-type": "application/json", ...headers });
+  res.writeHead(status, {
+    "content-type": "application/json",
+    ...withNonCacheableHeaders(headers),
+  });
   res.end(payload);
 }
 
@@ -92,7 +120,7 @@ function writeInstructions(res: http.ServerResponse, i: HTTPResponseInstructions
       : JSON.stringify(i.body ?? {}, null, 2);
   res.writeHead(i.status, {
     "content-type": i.isHtml ? "text/html" : "application/json",
-    ...i.headers,
+    ...withNonCacheableHeaders(i.headers),
   });
   res.end(body ?? "");
 }
@@ -100,24 +128,29 @@ function writeInstructions(res: http.ServerResponse, i: HTTPResponseInstructions
 /** Build (and initialize) the x402-gated appraisal HTTP server. */
 export async function buildAppraisalServer(
   config: AppraisalServerConfig,
+  options: AppraisalServerOptions = {},
 ): Promise<http.Server> {
   const rpcConfig = config.rpcUrl ? { url: config.rpcUrl } : undefined;
 
-  // In-process facilitator: verifies + settles on-chain (sponsors fees, submits).
-  const facilitatorSigner = createEd25519Signer(config.facilitatorSecret, config.network);
-  const facilitator = new x402Facilitator().register(
-    config.network,
-    new FacilitatorStellarScheme([facilitatorSigner], { rpcConfig }),
-  );
-  // x402Facilitator already exposes verify/settle/getSupported; adapt the
-  // synchronous getSupported() to the async FacilitatorClient contract so we can
-  // wire it straight into the resource server with no HTTP hop.
-  const facilitatorClient: FacilitatorClient = {
-    verify: (payload, requirements) => facilitator.verify(payload, requirements),
-    settle: (payload, requirements) => facilitator.settle(payload, requirements),
-    getSupported: async (): Promise<SupportedResponse> =>
-      facilitator.getSupported() as unknown as SupportedResponse,
-  };
+  const facilitatorClient: FacilitatorClient =
+    options.facilitatorClient ??
+    (() => {
+      // In-process facilitator: verifies + settles on-chain (sponsors fees, submits).
+      const facilitatorSigner = createEd25519Signer(config.facilitatorSecret, config.network);
+      const facilitator = new x402Facilitator().register(
+        config.network,
+        new FacilitatorStellarScheme([facilitatorSigner], { rpcConfig }),
+      );
+      // x402Facilitator already exposes verify/settle/getSupported; adapt the
+      // synchronous getSupported() to the async FacilitatorClient contract so we can
+      // wire it straight into the resource server with no HTTP hop.
+      return {
+        verify: (payload, requirements) => facilitator.verify(payload, requirements),
+        settle: (payload, requirements) => facilitator.settle(payload, requirements),
+        getSupported: async (): Promise<SupportedResponse> =>
+          facilitator.getSupported() as unknown as SupportedResponse,
+      };
+    })();
 
   // Resource server: builds payment requirements and orchestrates verify/settle.
   const serverScheme = new ServerStellarScheme().registerMoneyParser(async (amount) => ({
@@ -165,14 +198,16 @@ export async function buildAppraisalServer(
         });
       }
 
-      const rawBody = await readBody(req);
+      const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);
+      if ("status" in taken) {
+        // Fail closed before JSON parsing and before any payment offer.
+        send(res, taken.status, {}, taken.body);
+        res.on("finish", () => req.destroy());
+        return;
+      }
+      const rawBody = taken.raw;
       let parsedBody: unknown = undefined;
       if (rawBody.length > 0) {
-        // Fail closed before any payment offer: oversized bodies never get a
-        // 402 quote and paid retries with unsafe bodies never settle.
-        if (rawBody.length > MAX_APPRAISAL_BODY_BYTES) {
-          return send(res, 400, {}, { error: "Invalid appraisal request" });
-        }
         try {
           parsedBody = JSON.parse(rawBody.toString("utf8"));
         } catch {
@@ -205,13 +240,16 @@ export async function buildAppraisalServer(
       // malformed body never costs the caller.
       let body: unknown;
       try {
+        const nowSeconds = options.nowSeconds
+          ? options.nowSeconds()
+          : Math.floor(globalThis.Date.now() / 1000);
         body = {
           appraisal: appraise(parseAppraisalRequest(parsedBody)),
           quote: buildAppraisalQuote({
             asset: config.asset,
             price: config.price,
             destination: config.payTo,
-            nowSeconds: Math.floor(Date.now() / 1000),
+            nowSeconds,
           }),
         };
       } catch (e) {
@@ -226,7 +264,7 @@ export async function buildAppraisalServer(
         result.paymentPayload as PaymentPayload,
         result.paymentRequirements as PaymentRequirements,
         result.declaredExtensions,
-        { request: ctx, responseBody, responseHeaders: {} },
+        { request: ctx, responseBody, responseHeaders: withNonCacheableHeaders() },
       );
 
       if (!settle.success) {

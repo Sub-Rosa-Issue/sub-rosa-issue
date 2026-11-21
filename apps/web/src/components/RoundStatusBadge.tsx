@@ -25,7 +25,12 @@ export function RoundStatusBadge({
   onRetry,
 }: RoundStatusBadgeProps) {
   return (
-    <span className={`round-status-badge ${state}`} title={error ?? message ?? undefined}>
+    <span
+      className={`round-status-badge ${state}`}
+      role={state === "error" ? "alert" : "status"}
+      aria-busy={state === "loading"}
+      title={error ?? message ?? undefined}
+    >
       {state === "loading" ? (
         <span className="round-status-spinner" aria-hidden="true" />
       ) : null}

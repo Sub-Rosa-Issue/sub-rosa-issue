@@ -1,13 +1,14 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, copyFileSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 
-const SCRIPT_PATH = new URL("check-deploy-docs.mjs", import.meta.url).pathname;
-const CWD = new URL("..", import.meta.url).pathname;
+const SCRIPT_PATH = fileURLToPath(new URL("check-deploy-docs.mjs", import.meta.url));
+const CWD = fileURLToPath(new URL("..", import.meta.url));
 
 function runCheck(env = {}) {
   return execFileSync("node", [SCRIPT_PATH], {
@@ -138,6 +139,48 @@ describe("check-deploy-docs", () => {
       assert.match(output, /missing in root package\.json `scripts`/);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("documents safe support-log redaction across keeper, appraisal, SDK, and browser logs", () => {
+    const deployDoc = readFileSync(join(CWD, "docs", "DEPLOY.md"), "utf8");
+    const sectionIdx = deployDoc.indexOf("## Support log redaction & troubleshooting");
+    assert.ok(
+      sectionIdx !== -1,
+      "docs/DEPLOY.md must include '## Support log redaction & troubleshooting'",
+    );
+
+    const section = deployDoc.slice(sectionIdx);
+    for (const surface of [
+      "Keeper logs (`services/keeper`)",
+      "Appraisal API logs (`services/appraisal-api`)",
+      "SDK & relayer logs (`packages/sdk`)",
+      "Browser & DevTools logs (`apps/web`)",
+    ]) {
+      assert.ok(
+        section.includes(surface),
+        `support-log redaction section must cover ${surface}`,
+      );
+    }
+
+    for (const field of [
+      "KEEPER_SECRET",
+      "OPERATOR_SECRET",
+      "BIDDER_SECRET",
+      "FACILITATOR_SECRET",
+      "STELLAR_SECRET_KEY",
+      "OZ_CHANNELS_API_KEY",
+      "Authorization",
+      "Cookie",
+      "localStorage",
+      "sessionStorage",
+      "nonce",
+      "[REDACTED]",
+    ]) {
+      assert.ok(
+        section.includes(field),
+        `support-log redaction section must list ${field}`,
+      );
     }
   });
 });

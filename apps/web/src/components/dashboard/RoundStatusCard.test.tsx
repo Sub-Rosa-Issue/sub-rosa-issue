@@ -83,3 +83,6 @@ test("round status card shows the snapshot round id", () => {
   const html = renderCard(data);
   assert.match(html, /42/);
 });
+
+import "../../skip-link-landmarks.test";
+

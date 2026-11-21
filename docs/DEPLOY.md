@@ -3,6 +3,11 @@
 
 Sub Rosa **does not require a committed `.env` file**. Secrets stay out of git; you inject them where each layer runs.
 
+CI runs `node scripts/check-env-examples.mjs` on the root and web `.env.example`
+files. It rejects duplicate active names within either file and populated
+secret-shaped values; keep credential fields empty or use clear placeholders.
+Run `node --test scripts/check-env-examples.test.mjs` for the focused tests.
+
 ## Three layers
 
 | Layer | Needs env? | When vars are read |
@@ -238,3 +243,33 @@ Neither command needs a secret key. Balance checks take public keys:
 - **Never** commit `.env` with secrets (already in `.gitignore`).
 - **Never** put `S…` secret keys in `VITE_*` — they end up in public JS.
 - Rotate any key that was pasted in chat or logs.
+
+## Support log redaction & troubleshooting
+
+Before attaching terminal transcripts, container logs, or browser exports to an
+issue, pull request, or support channel, strip every credential, bearer token,
+and pre-reveal secret listed below. Structured logger output from
+`@sub-rosa/logging` automatically scrubs common secret keys (`secret`, `token`,
+`password`, `privateKey`, `credential`, `cookie`, `authorization`, `apiKey`,
+`mnemonic`, `seedPhrase`), `S…` Stellar secret seeds, PEM blocks, `Bearer` /
+`Basic` headers, and URL credentials to `[REDACTED]`, but raw shell command
+lines, unhandled crash dumps, and DevTools HAR files can still include them:
+
+- **Keeper logs (`services/keeper`):** Remove `KEEPER_SECRET`, `OPERATOR_SECRET`,
+  and `BIDDER_SECRET` (`S…` Stellar secret seeds), provider-authenticated
+  `RPC_URL` or `STELLAR_RPC_URL` strings (basic-auth userinfo
+  `https://user:pass@…` or query parameters such as `?api_key=…` / `?token=…`),
+  and any unrevealed bid `value` or `nonce` prior to Drand round `R`.
+- **Appraisal API logs (`services/appraisal-api`):** Remove
+  `FACILITATOR_SECRET`, `Authorization` (`Bearer` / `Basic`) headers, x402
+  payment headers (`X-Payment` / signed XDR payloads), and provider-keyed
+  `RPC_URL` endpoints.
+- **SDK & relayer logs (`packages/sdk`):** Remove `STELLAR_SECRET_KEY`,
+  `OZ_CHANNELS_API_KEY`, session Ed25519 private keys, round auditor secret
+  keys, and unrevealed bid plaintext (`value`, `nonce`) before `open_reveal`
+  succeeds on-chain.
+- **Browser & DevTools logs (`apps/web`):** Remove passkey/session key material
+  in `localStorage` or `sessionStorage`, `Cookie` and `Authorization` headers in
+  Network HAR exports, wallet seed phrases or `S…` secret keys, and local
+  unrevealed bid values/nonces before the round enters `Revealing`.
+

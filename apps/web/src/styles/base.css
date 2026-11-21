@@ -99,6 +99,43 @@ code {
   border-radius: 4px;
 }
 
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border: 2px solid var(--green);
+  border-radius: 999px;
+  background: var(--bg-0, #050605);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md, 0 12px 32px rgba(0, 0, 0, 0.55));
+  transform: translateY(-200%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+main#main-content:focus {
+  outline: none;
+}
+
+.case-main {
+  min-width: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

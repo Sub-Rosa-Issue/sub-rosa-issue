@@ -43,9 +43,13 @@ function send(
   res: http.ServerResponse,
   status: number,
   body: unknown,
+  extraHeaders?: Record<string, string>,
 ): void {
   const payload = JSON.stringify(body, bigintReplacer, 2);
-  res.writeHead(status, JSON_CONTENT);
+  res.writeHead(
+    status,
+    extraHeaders ? { ...JSON_CONTENT, ...extraHeaders } : JSON_CONTENT,
+  );
   res.end(payload);
 }
 
@@ -188,7 +192,28 @@ export function createStatusHandler(config: StatusServerConfig): http.RequestLis
       const baseHost = req.headers.host ?? `${host}:${port}`;
       const url = new URL(req.url ?? "/", `http://${baseHost}`);
 
-      if (req.method === "GET" && url.pathname === "/healthz") {
+      if (req.method !== "GET") {
+        req.resume?.();
+        send(
+          res,
+          405,
+          {
+            error: "method not allowed",
+            method: req.method ?? "UNKNOWN",
+            allow: ["GET"],
+            available: [
+              "GET /status",
+              "GET /status/rounds/:id",
+              "GET /healthz",
+              "GET /status/health",
+            ],
+          },
+          { allow: "GET" },
+        );
+        return;
+      }
+
+      if (url.pathname === "/healthz") {
         void fastHealth(url).then((r) => send(res, r.status, r.body));
         return;
       }

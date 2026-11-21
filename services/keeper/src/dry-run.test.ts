@@ -99,6 +99,29 @@ describe("parseKeeperRunConfig", () => {
       /MAX_WAIT_SECONDS must be a non-negative finite number/,
     );
   });
+
+  test("rejects credential-bearing RPC_URL values without echoing credentials", () => {
+    for (const rpcUrl of [
+      "https://keeper-user:keeper-pass@rpc.example.com",
+      "https://keeper-user@rpc.example.com",
+      "https://:keeper-pass@rpc.example.com",
+    ]) {
+      assert.throws(
+        () =>
+          parseKeeperRunConfig({
+            ROUND_CONTRACT_ID: CONTRACT_ID,
+            KEEPER_DRY_RUN: "true",
+            RPC_URL: rpcUrl,
+          }),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.match(err.message, /RPC_URL: must not contain credentials/);
+          assert.doesNotMatch(err.message, /keeper-user|keeper-pass/);
+          return true;
+        },
+      );
+    }
+  });
 });
 
 describe("decideKeeperDryRunAction", () => {

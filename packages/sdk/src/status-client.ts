@@ -6,6 +6,7 @@
 
 import { normalizeError } from "@sub-rosa/logging/errors";
 import { systemScheduler, type Scheduler } from "@sub-rosa/time";
+import { assertNoUrlCredentials } from "./network.js";
 import type {
   KeeperHealthResponse,
   KeeperStatusResponse,
@@ -115,6 +116,7 @@ export class KeeperStatusClient {
   #lastSnapshot: KeeperStatusResponse | null = null;
 
   constructor(opts: StatusClientOptions) {
+    assertNoUrlCredentials(opts.baseURL, "baseURL");
     this.baseURL = opts.baseURL;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
     this.headers = opts.headers ?? {};

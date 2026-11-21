@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,8 +8,11 @@ import {
   aggregateCoverage,
   aggregateWorkspaceLines,
   countSourceLines,
+  formatCoverageSummaryJson,
+  formatCoverageSummaryMarkdown,
   listSourceFiles,
   parseLcov,
+  writeCoverageSummary,
 } from "./run-ts-coverage.mjs";
 
 describe("parseLcov", () => {
@@ -102,5 +105,49 @@ describe("node version support", () => {
   it("runs on the repository's supported Node major (>=22)", () => {
     const major = Number(process.versions.node.split(".")[0]);
     assert.ok(major >= 22, `expected Node >=22, got ${process.version}`);
+  });
+});
+
+describe("compact coverage summary artifact", () => {
+  const sampleRows = [
+    { workspace: "packages/sdk", covered: 80, total: 100, percent: 80 },
+    { workspace: "services/keeper", covered: 70, total: 100, percent: 70 },
+  ];
+  const sampleAggregate = aggregateCoverage(sampleRows);
+
+  it("formats compact Markdown and JSON summaries with weighted totals", () => {
+    const md = formatCoverageSummaryMarkdown(sampleRows, sampleAggregate, 70);
+    assert.match(md, /## TypeScript Coverage Summary/);
+    assert.match(md, /- \*\*Status\*\*: PASS/);
+    assert.match(md, /\| `packages\/sdk` \| 80\.00% \| 80\/100 \|/);
+    assert.match(md, /\| \*\*Aggregate \(weighted\)\*\* \| \*\*75\.00%\*\* \| \*\*150\/200\*\* \|/);
+
+    const json = formatCoverageSummaryJson(sampleRows, sampleAggregate, 70);
+    assert.equal(json.passed, true);
+    assert.equal(json.lineThresholdPercent, 70);
+    assert.deepEqual(json.aggregate, { covered: 150, total: 200, percent: 75 });
+    assert.equal(json.workspaces.length, 2);
+  });
+
+  it("writes coverage-summary.md, coverage-summary.json, and GITHUB_STEP_SUMMARY", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "cov-summary-"));
+    try {
+      const outDir = join(tmp, "coverage");
+      const stepSummaryPath = join(tmp, "step-summary.md");
+      const result = writeCoverageSummary(sampleRows, sampleAggregate, 70, {
+        outDir,
+        stepSummaryPath,
+      });
+
+      const diskMd = readFileSync(result.mdPath, "utf8");
+      const diskJson = JSON.parse(readFileSync(result.jsonPath, "utf8"));
+      const stepMd = readFileSync(stepSummaryPath, "utf8");
+
+      assert.match(diskMd, /TypeScript Coverage Summary/);
+      assert.match(stepMd, /TypeScript Coverage Summary/);
+      assert.equal(diskJson.aggregate.percent, 75);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });

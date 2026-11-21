@@ -37,6 +37,8 @@ The status API is served by `npm run serve` (or any process that calls `createSt
 | `GET` | `/healthz` | Liveness probe — cheap, suitable for load balancers |
 | `GET` | `/` | Service info + endpoint list |
 
+All endpoints only accept `GET` requests. Any non-`GET` method (`POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, etc.) is rejected at the server boundary with HTTP `405 Method Not Allowed`, an `Allow: GET` response header, and a JSON `{ "error": "method not allowed", "method": "<VERB>", "allow": ["GET"], "available": [...] }` body without invoking RPC or Drand readers.
+
 ### Configuration
 
 | Env var | Default | Description |
