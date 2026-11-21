@@ -93,8 +93,11 @@ requests, and:
 - runs with `--redact`, so no secret value is ever written to the job log or
   to the SARIF report that gets uploaded to code scanning — reviewers see the
   rule, the file and the line, never the value;
-- uploads the SARIF results to code scanning, so the findings show up in the
-  repository's **Security** tab like native secret scanning alerts.
+- uploads the SARIF results to code scanning, so the findings show up in
+  the repository's **Security** tab like native secret scanning alerts. For a
+  pull request from a fork the token is read-only, so the upload is skipped
+  there (the scan itself still runs and still fails on a finding); this keeps
+  a clean fork PR from failing on a permission error.
 
 `.gitleaks.toml` keeps the default rules and allowlists only the values in
 this repository that look like credentials but are not: Stellar contract IDs
@@ -116,9 +119,9 @@ match it and still fails the job.
 
 ## Result of the initial scan
 
-The initial scan of the complete history reachable from `main` (402 commits)
-with the rules used by the CI gate found no credential. The only matches were
-`generic-api-key` hits on public, non-secret values — Stellar contract IDs,
+The initial scan of the complete history reachable from `main` at the time of
+writing (403 commits) with the rules used by the CI gate found no credential.
+The only matches were `generic-api-key` hits on public, non-secret values — Stellar contract IDs,
 Stellar account IDs and SHA-256 hashes — in fixtures, mainnet artifacts and
 demo traces. Those are exactly the values allowlisted in `.gitleaks.toml`, so
 no rotation and no history rewrite are needed.
