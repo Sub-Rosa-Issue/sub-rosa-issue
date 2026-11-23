@@ -38,6 +38,11 @@ jobs:
       - name: Run round contract unit tests
         run: cargo test -p sub-rosa-round
 
+      - name: Fail if generated contract snapshots differ from committed evidence
+        run: |
+          git diff --exit-code -- contracts/round/test_snapshots/test
+          test -z "$(git ls-files --others --exclude-standard -- contracts/round/test_snapshots/test)"
+
       - name: Check ERRORS.md stays in sync with enum Error
         run: node scripts/check-round-errors.mjs
 
