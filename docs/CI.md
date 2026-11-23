@@ -166,3 +166,18 @@ policy locally:
 pnpm rust:audit:test
 pnpm rust:audit:check
 ```
+
+## Pinned Rust toolchain check
+
+`rust-toolchain.toml` pins an explicit Rust version (`1.85.0` with target
+`wasm32v1-none`), and both contract workflows (`.github/workflows/contract.yml`
+and `.github/workflows/bindings-check.yml`) must use that exact version instead
+of a moving `stable` reference:
+
+```bash
+pnpm ci:rust-toolchain:test
+pnpm ci:rust-toolchain:check
+```
+
+Checker source: `scripts/check-rust-toolchain.mjs` (tests in
+`scripts/check-rust-toolchain.test.mjs`).
