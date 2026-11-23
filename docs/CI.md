@@ -134,15 +134,12 @@ supports this repo's `soroban-sdk` 22 (`Cargo.lock` resolves 22.0.11).
 `stellar-cli` 23.0.0 and newer depend on `soroban-sdk` 23, so they are not
 used for this contract.
 
-CI installs that release with:
+CI installs the [official Linux x86_64 release archive](https://github.com/stellar/stellar-cli/releases/download/v22.8.2/stellar-cli-22.8.2-x86_64-unknown-linux-gnu.tar.gz)
+and verifies its SHA-256 checksum before extraction. This avoids building the
+older CLI dependencies with the Rust compiler used to build the contract.
 
-```bash
-cargo install stellar-cli --version 22.8.2 --locked
-stellar --version
-```
-
-`stellar --version` runs before `pnpm bindings:check`. The pin, `--locked`, and
-print order are asserted by:
+`stellar --version` runs before `pnpm bindings:check`. The release pin, checksum,
+and command order are checked by:
 
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
