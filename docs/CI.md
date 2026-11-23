@@ -24,6 +24,15 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+## Agent checks
+
+The `Agent checks` workflow (`.github/workflows/agent.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm agent:test` and
+`pnpm agent:typecheck` in order. Run the same two commands locally to check
+`services/agent`; `node --test scripts/agent-ci.test.mjs` verifies the CI job
+configuration.
+
 Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
 [GITHUB_ACTIONS_SECURITY.md](./GITHUB_ACTIONS_SECURITY.md).
