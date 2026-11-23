@@ -1,7 +1,7 @@
 import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useRef, useState } from "react";
-import type { Round, BidState } from "@sub-rosa/sdk";
+import { SubRosaClient, type Round, type BidState } from "@sub-rosa/sdk";
 import { useTime } from "../lib/time";
 import { classifyRoundPhase, roundStatusFromTag, type RoundPhase } from "../lib/round-phase";
 
@@ -117,7 +117,6 @@ export function useLiveRound(
 
     async function readSnapshot() {
       try {
-        const { SubRosaClient } = await import("@sub-rosa/sdk");
         const reader = new SubRosaClient({
           rpcUrl: RPC,
           networkPassphrase: NETWORK,
