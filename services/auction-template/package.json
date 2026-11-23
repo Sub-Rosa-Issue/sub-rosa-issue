@@ -1,0 +1,31 @@
+{
+  "name": "@sub-rosa/auction-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable sealed-auction integration template for Sub Rosa on Stellar testnet.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sub-Rosa-Issue/sub-rosa-issue.git",
+    "directory": "services/auction-template"
+  },
+  "scripts": {
+    "fixture": "FIXTURE=1 node --import tsx sealed-auction.ts",
+    "testnet": "node --import tsx sealed-auction.ts",
+    "test": "node --import tsx --test sealed-auction.smoke.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sub-rosa/logging": "workspace:*",
+    "@sub-rosa/keeper": "workspace:*",
+    "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
+    "@sub-rosa/tlock": "workspace:*"
+  },
+  "devDependencies": {
+    "@stellar/stellar-sdk": "^15.1.0",
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}

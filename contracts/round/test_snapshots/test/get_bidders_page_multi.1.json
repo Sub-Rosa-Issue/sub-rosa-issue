@@ -57,6 +57,50 @@
                 },
                 {
                   "bytes": "61756469746f722d7075626b6579"
+                },
+                {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "asset_type"
+                      },
+                      "val": {
+                        "string": "sac"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "code"
+                      },
+                      "val": {
+                        "string": "USDC"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "contract_id"
+                      },
+                      "val": {
+                        "string": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "decimals"
+                      },
+                      "val": {
+                        "u32": 7
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "issuer"
+                      },
+                      "val": {
+                        "string": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+                      }
+                    }
+                  ]
                 }
               ]
             }
@@ -119,6 +163,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -205,6 +252,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -291,6 +341,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -377,6 +430,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -463,6 +519,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -549,6 +608,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -635,6 +697,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -721,6 +786,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -807,6 +875,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -893,6 +964,9 @@
                 },
                 {
                   "bytes": "6964"
+                },
+                {
+                  "u64": 2000
                 }
               ]
             }
@@ -1337,6 +1411,96 @@
             "key": {
               "vec": [
                 {
+                  "symbol": "Escrow"
+                },
+                {
+                  "u64": 1
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "Escrow"
+                    },
+                    {
+                      "u64": 1
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "committed"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 1000
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "locked"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 1000
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "payout"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 0
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "refunds"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 0
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          1036800
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
+            "key": {
+              "vec": [
+                {
                   "symbol": "Round"
                 },
                 {
@@ -1367,6 +1531,55 @@
                 "durability": "persistent",
                 "val": {
                   "map": [
+                    {
+                      "key": {
+                        "symbol": "asset_config"
+                      },
+                      "val": {
+                        "map": [
+                          {
+                            "key": {
+                              "symbol": "asset_type"
+                            },
+                            "val": {
+                              "string": "sac"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "code"
+                            },
+                            "val": {
+                              "string": "USDC"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "contract_id"
+                            },
+                            "val": {
+                              "string": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4"
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "decimals"
+                            },
+                            "val": {
+                              "u32": 7
+                            }
+                          },
+                          {
+                            "key": {
+                              "symbol": "issuer"
+                            },
+                            "val": {
+                              "string": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+                            }
+                          }
+                        ]
+                      }
+                    },
                     {
                       "key": {
                         "symbol": "auditor_pubkey"
@@ -2248,6 +2461,12 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": "void"
@@ -2338,6 +2557,12 @@
                           "lo": 100
                         }
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {
@@ -2434,6 +2659,12 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": "void"
@@ -2524,6 +2755,12 @@
                           "lo": 100
                         }
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {
@@ -2620,6 +2857,12 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": "void"
@@ -2710,6 +2953,12 @@
                           "lo": 100
                         }
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {
@@ -2806,6 +3055,12 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": "void"
@@ -2896,6 +3151,12 @@
                           "lo": 100
                         }
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {
@@ -2992,6 +3253,12 @@
                     },
                     {
                       "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
+                    },
+                    {
+                      "key": {
                         "symbol": "revealed_value"
                       },
                       "val": "void"
@@ -3082,6 +3349,12 @@
                           "lo": 100
                         }
                       }
+                    },
+                    {
+                      "key": {
+                        "symbol": "revealed_nonce"
+                      },
+                      "val": "void"
                     },
                     {
                       "key": {

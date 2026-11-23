@@ -1,6 +1,21 @@
-import type { BidState, Round, SubRosaClient } from "@sub-rosa/sdk";
+// Copyright (c) 2026 Sub Rosa contributors
+import {
+  assertNoUrlCredentials,
+  type BidState,
+  type Round,
+  type SubRosaClient,
+} from "@sub-rosa/sdk";
+import { systemClock } from "@sub-rosa/time";
 
-import { VOID_GRACE_SECONDS } from "./keeper.js";
+import { VOID_GRACE_SECONDS } from "./settlement-guard.js";
+import {
+  CHECKPOINT_VERSION,
+  DEFAULT_CHECKPOINT_PATH,
+  checkpointBindingMismatch,
+  planCheckpointStep,
+  type KeeperCheckpointFile,
+  type KeeperStep,
+} from "./checkpoint.js";
 
 const DEFAULT_RPC_URL = "https://soroban-testnet.stellar.org";
 const DEFAULT_NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
@@ -24,6 +39,17 @@ export type KeeperDryRunPhase =
   | "ready-to-settle"
   | "complete";
 
+/** Cursor step each dry-run phase would record on the next live pass. */
+export const DRY_RUN_PHASE_STEP: Record<KeeperDryRunPhase, KeeperStep | null> = {
+  "awaiting-drand": "open-reveal",
+  "stale-open": "void",
+  revealing: "reveal",
+  "awaiting-clear": null,
+  "ready-to-clear": "clear",
+  "ready-to-settle": "settle",
+  complete: null,
+};
+
 export interface KeeperDryRunDecision {
   currentPhase: KeeperDryRunPhase;
   nextAction: string;
@@ -37,12 +63,43 @@ export interface KeeperDryRunSummary extends KeeperDryRunDecision {
   bidderCount: number;
   revealedCount: number | null;
   transactionsSubmitted: 0;
+  /** Checkpoint preview — never written to disk by a dry run. */
+  checkpoint: KeeperDryRunCheckpoint;
 }
 
 export type KeeperDryRunReader = Pick<
   SubRosaClient,
   "getRound" | "getBidState"
 >;
+
+/**
+ * The checkpoint a live run *would* write for the next step, plus the binding
+ * conflict that would stop it. Nothing here is persisted: dry-run neither
+ * submits a transaction nor touches the checkpoint file.
+ */
+export interface KeeperDryRunCheckpoint {
+  path: string;
+  network: string;
+  contractId: string;
+  /** Step the next live pass would record, or null when nothing is pending. */
+  proposedStep: KeeperStep | null;
+  /** Field whose stored value conflicts with the process config, if any. */
+  mismatch: "network" | "contractId" | null;
+  /** Exact file content a live run would write. */
+  proposedFile: KeeperCheckpointFile;
+  /** Always 0 — dry-run writes nothing. */
+  filesWritten: 0;
+}
+
+export interface KeeperDryRunOptions {
+  checkpointPath?: string;
+  network?: string;
+  contractId?: string;
+  /** Current on-disk checkpoint, read-only, so the preview includes history. */
+  currentCheckpoint?: KeeperCheckpointFile;
+  /** ISO timestamp recorded in the preview. Defaults to the system clock. */
+  nowIso?: string;
+}
 
 function requiredEnv(
   env: Record<string, string | undefined>,
@@ -96,10 +153,13 @@ export function parseKeeperRunConfig(
     );
   }
 
+  const rpcUrl = env.RPC_URL?.trim() || DEFAULT_RPC_URL;
+  assertNoUrlCredentials(rpcUrl, "RPC_URL");
+
   return {
     contractId: requiredEnv(env, "ROUND_CONTRACT_ID"),
     roundId: parseRoundId(env.ROUND_ID),
-    rpcUrl: env.RPC_URL?.trim() || DEFAULT_RPC_URL,
+    rpcUrl,
     networkPassphrase:
       env.NETWORK_PASSPHRASE?.trim() || DEFAULT_NETWORK_PASSPHRASE,
     dryRun,
@@ -112,7 +172,7 @@ export function decideKeeperDryRunAction(
   round: Pick<Round, "status" | "reveal_deadline">,
   bidderCount: number,
   revealedCount: number | null,
-  nowSeconds = Math.floor(Date.now() / 1000),
+  nowSeconds = systemClock.nowSeconds(),
 ): KeeperDryRunDecision {
   switch (round.status.tag) {
     case "Open": {
@@ -171,10 +231,56 @@ async function countRevealedBids(
   }
 }
 
+/**
+ * Build the checkpoint a live run would write, without writing it.
+ *
+ * Pure: the returned file object is produced by the same planner the keeper
+ * store uses, so a dry run shows byte-for-byte what a live pass would persist.
+ */
+export function planDryRunCheckpoint(
+  roundId: bigint | number,
+  step: KeeperStep | null,
+  options: KeeperDryRunOptions = {},
+): KeeperDryRunCheckpoint {
+  const path = options.checkpointPath ?? DEFAULT_CHECKPOINT_PATH;
+  const network = options.network ?? "";
+  const contractId = options.contractId ?? "";
+  const current = options.currentCheckpoint;
+  const bound = network !== "" && contractId !== "";
+  const mismatch =
+    current && bound
+      ? checkpointBindingMismatch(current, { network, contractId })
+      : null;
+
+  const base: KeeperCheckpointFile = current
+    ? {
+        version: current.version || CHECKPOINT_VERSION,
+        network: current.network,
+        contractId: current.contractId,
+        rounds: { ...current.rounds },
+      }
+    : { version: CHECKPOINT_VERSION, network, contractId, rounds: {} };
+
+  const proposedFile = step
+    ? planCheckpointStep(base, roundId, step, { at: options.nowIso })
+    : base;
+
+  return {
+    path,
+    network,
+    contractId,
+    proposedStep: step,
+    mismatch,
+    proposedFile,
+    filesWritten: 0,
+  };
+}
+
 export async function buildKeeperDryRunSummary(
   reader: KeeperDryRunReader,
   roundId: bigint | number,
-  nowSeconds = Math.floor(Date.now() / 1000),
+  nowSeconds = systemClock.nowSeconds(),
+  options: KeeperDryRunOptions = {},
 ): Promise<KeeperDryRunSummary> {
   const rid = BigInt(roundId);
   const round = await reader.getRound(rid);
@@ -200,5 +306,9 @@ export async function buildKeeperDryRunSummary(
     revealedCount,
     ...decision,
     transactionsSubmitted: 0,
+    checkpoint: planDryRunCheckpoint(rid, DRY_RUN_PHASE_STEP[decision.currentPhase], {
+      ...options,
+      nowIso: options.nowIso ?? systemClock.toISOString(),
+    }),
   };
 }

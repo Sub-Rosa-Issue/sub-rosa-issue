@@ -1,0 +1,16 @@
+# RustSec advisory audit configuration for Sub Rosa workspace (Issue #533).
+# Pinned tool version: cargo-audit 0.21.2
+# Command: cargo audit --locked --deny warnings
+
+[advisories]
+ignore = []
+informational_warnings = ["unmaintained", "unsound", "notice"]
+severity_threshold = "low"
+
+[yanked]
+enabled = true
+update_index = false
+
+[output]
+deny = ["warnings"]
+quiet = false

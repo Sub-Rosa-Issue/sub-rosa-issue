@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
@@ -81,6 +82,15 @@ describe("configFromEnv valid configurations", () => {
     assert.equal(config.networkPassphrase, Networks.PUBLIC);
     assert.equal(config.asset, USDC_PUBNET_ADDRESS);
   });
+
+  test("accepts valid HTTP RPC URL control case", () => {
+    const config = configFromEnv({
+      ...MINIMAL_ENV,
+      RPC_URL: "http://localhost:8000/rpc",
+    });
+
+    assert.equal(config.rpcUrl, "http://localhost:8000/rpc");
+  });
 });
 
 describe("configFromEnv failure modes", () => {
@@ -158,4 +168,63 @@ describe("configFromEnv failure modes", () => {
       "RPC_URL",
     );
   });
+
+  test("rejects RPC URLs containing credentials without echoing them", () => {
+    const cases = [
+      {
+        url: "https://alice:secret123@rpc.example.com",
+        credentials: ["alice", "secret123"],
+      },
+      {
+        url: "https://alice@rpc.example.com",
+        credentials: ["alice"],
+      },
+      {
+        url: "https://:secret123@rpc.example.com",
+        credentials: ["secret123"],
+      },
+      {
+        url: "http://admin:pass@localhost:8000",
+        credentials: ["admin", "pass"],
+      },
+    ];
+
+    for (const { url, credentials } of cases) {
+      assert.throws(
+        () => configFromEnv({ ...MINIMAL_ENV, RPC_URL: url }),
+        (error: unknown) => {
+          assert.ok(error instanceof AppraisalConfigError);
+          assert.equal(error.variable, "RPC_URL");
+          assert.match(error.message, /must not contain credentials/);
+          for (const secret of credentials) {
+            assert.ok(
+              !error.message.includes(secret),
+              `Error message should not echo credential: ${secret}`,
+            );
+          }
+          return true;
+        },
+      );
+    }
+  });
+});
+
+describe("RPC URL embedded credentials", () => {
+  for (const credentials of ["private-user@", ":private-password@", "private-user:private-password@", "private%2Duser:private%2Dpassword@"]) {
+    test(`rejects credential form ${credentials.indexOf(":") >= 0 ? "password" : "username"}`, () => {
+      assert.throws(() => configFromEnv({ ...MINIMAL_ENV, RPC_URL: `https://${credentials}rpc.example/` }), (error: unknown) => {
+        assert.ok(error instanceof AppraisalConfigError);
+        assert.equal(error.variable, "RPC_URL");
+        assert.match(error.message, /must not contain credentials/);
+        assert.doesNotMatch(error.stack ?? error.message, /private-user|private-password|private%2D/);
+        assert.equal(error.cause, undefined);
+        return true;
+      });
+    });
+  }
+  for (const RPC_URL of ["http://localhost:8000", "https://rpc.example/path"]) {
+    test(`accepts credential-free ${RPC_URL}`, () => {
+      assert.equal(configFromEnv({ ...MINIMAL_ENV, RPC_URL }).rpcUrl, RPC_URL);
+    });
+  }
 });

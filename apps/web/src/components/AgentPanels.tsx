@@ -1,7 +1,26 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DemoTrace } from "../demo/trace";
 import { shortAddr, shortHash, usdc } from "../lib/format";
+import { agentCommitRowView, type AgentCommitStatusMap } from "../lib/agent-commit-status";
 
-export function AgentActivity({ trace }: { trace: DemoTrace }) {
+/** Replayed trace: an agent row is committed only when the trace recorded its commit tx. */
+function traceCommitOutcomes(trace: DemoTrace): AgentCommitStatusMap {
+  const rows: Record<string, AgentCommitStatusMap[string]> = {};
+  for (const a of trace.agents) {
+    if (a.commitTx) rows[a.sessionKey] = { status: "committed", bidder: a.sessionKey };
+  }
+  return rows;
+}
+
+export function AgentActivity({
+  trace,
+  commitOutcomes,
+}: {
+  trace: DemoTrace;
+  /** SDK commit outcomes keyed by session key; defaults to the trace's recorded commits. */
+  commitOutcomes?: AgentCommitStatusMap;
+}) {
+  const outcomes = commitOutcomes ?? traceCommitOutcomes(trace);
   return (
     <section className="panel">
       <header className="panel-head">
@@ -12,7 +31,9 @@ export function AgentActivity({ trace }: { trace: DemoTrace }) {
         </p>
       </header>
       <div className="agent-cards">
-        {trace.agents.map((a) => (
+        {trace.agents.map((a) => {
+          const commit = agentCommitRowView(outcomes[a.sessionKey]);
+          return (
           <article key={a.name} className="agent-card">
             <h3>{a.name}</h3>
             <dl className="kv">
@@ -27,18 +48,26 @@ export function AgentActivity({ trace }: { trace: DemoTrace }) {
               <dt>Suggested max bid</dt>
               <dd>{usdc(a.appraisal.suggestedMaxBid)}</dd>
               <dt>Committed bid</dt>
-              <dd className="accent">
-                {usdc(
-                  trace.bidders.find((b) => b.label === a.name)?.bidUsdc ?? 0,
-                )}{" "}
-                USDC
-                {a.mandate.cappedAtMaxBid && (
-                  <span className="tag warn">capped at mandate maxBid</span>
-                )}
-              </dd>
+              {commit.committed ? (
+                <dd className="accent" data-commit-status="committed">
+                  {usdc(
+                    trace.bidders.find((b) => b.label === a.name)?.bidUsdc ?? 0,
+                  )}{" "}
+                  USDC
+                  {a.mandate.cappedAtMaxBid && (
+                    <span className="tag warn">capped at mandate maxBid</span>
+                  )}
+                </dd>
+              ) : (
+                <dd data-commit-status={commit.errorCode ? "failed" : "uncommitted"}>
+                  {commit.label}
+                  {commit.errorCode && <code className="tag warn">{commit.errorCode}</code>}
+                </dd>
+              )}
             </dl>
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

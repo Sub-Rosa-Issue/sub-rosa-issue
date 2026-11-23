@@ -1,6 +1,66 @@
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk::{xdr::ToXdr, Address, Bytes, Env, Vec};
 
-use crate::types::{BidState, DataKey, Error, GlobalConfig, Round, Seal};
+use crate::types::{BidState, BiddersPage, DataKey, Error, EscrowLedger, GlobalConfig, Round, Seal};
+
+// v1: version (1 byte), next offset (4-byte BE), snapshot count (4-byte BE),
+// SHA-256 checksum (32 bytes) scoped to the contract address and round ID.
+fn bidder_cursor(env: &Env, round_id: u64, offset: u32, total: u32) -> Bytes {
+    let mut header = [0u8; 9];
+    header[0] = 1;
+    header[1..5].copy_from_slice(&offset.to_be_bytes());
+    header[5..9].copy_from_slice(&total.to_be_bytes());
+    let mut cursor = Bytes::from_array(env, &header);
+    let preimage = (env.current_contract_address(), round_id, cursor.clone()).to_xdr(env);
+    cursor.append(&Bytes::from(env.crypto().sha256(&preimage).to_bytes()));
+    cursor
+}
+
+pub fn bidders_page(
+    env: &Env,
+    round_id: u64,
+    cursor: Option<Bytes>,
+    limit: u32,
+) -> Result<BiddersPage, Error> {
+    let bidders = get_round(env, round_id)?.bidders;
+    let (start, total) = match cursor {
+        None => (0, bidders.len()),
+        Some(cursor) => {
+            if cursor.len() != 41 || cursor.get(0) != Some(1) {
+                return Err(Error::InvalidCursor);
+            }
+            let mut offset = [0u8; 4];
+            let mut count = [0u8; 4];
+            cursor.slice(1..5).copy_into_slice(&mut offset);
+            cursor.slice(5..9).copy_into_slice(&mut count);
+            let start = u32::from_be_bytes(offset);
+            let total = u32::from_be_bytes(count);
+            if start == 0
+                || start > total
+                || total > bidders.len()
+                || cursor != bidder_cursor(env, round_id, start, total)
+            {
+                return Err(Error::InvalidCursor);
+            }
+            (start, total)
+        }
+    };
+    let end = (start + limit).min(total);
+    let mut data = Vec::new(env);
+    for i in start..end {
+        data.push_back(bidders.get(i).unwrap());
+    }
+    let has_more = end < total;
+    Ok(BiddersPage {
+        data,
+        next_cursor: if has_more {
+            Some(bidder_cursor(env, round_id, end, total))
+        } else {
+            None
+        },
+        has_more,
+        total,
+    })
+}
 
 // TTL policy. Ledger close time on Stellar is ~5s, so these are generous for a
 // hackathon-scale round while keeping ephemeral seal data short-lived.
@@ -130,4 +190,16 @@ pub fn extend_round_seals(env: &Env, round_id: u64, bidders: &Vec<Address>, reve
             extend_seal_ttl(env, &key, reveal_deadline);
         }
     }
+}
+
+pub fn try_get_ledger(env: &Env, round_id: u64) -> Option<EscrowLedger> {
+    env.storage().persistent().get(&DataKey::Escrow(round_id))
+}
+
+pub fn set_ledger(env: &Env, round_id: u64, ledger: &EscrowLedger) {
+    let key = DataKey::Escrow(round_id);
+    env.storage().persistent().set(&key, ledger);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
 }

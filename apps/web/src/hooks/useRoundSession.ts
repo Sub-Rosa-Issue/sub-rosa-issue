@@ -1,5 +1,8 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
 import { Buffer } from "buffer";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { gateDemoActions } from "../lib/config";
 import {
   getNetworkDetails,
   isConnected,
@@ -24,17 +27,28 @@ import {
   LIVE_REVEAL_IN_SECONDS,
   LIVE_REVEAL_WINDOW_AFTER_REVEAL_SECONDS,
   NETWORK,
+  PUBLIC_ENV,
+  detectChainNetworkPassphrase,
   displayError,
   formatDemoAmount,
   freighterError,
   resolveFreighterAddress,
+  sdkClientNetworkPassphrase,
   sha256Bytes,
   toDemoEscrowAmount,
   useWalletContract,
 } from "../lib/chain";
+import {
+  assertDemoNetworkMatch,
+  demoNetworkMismatch,
+  DemoNetworkMismatchError,
+  type DemoActionName,
+} from "../lib/network-guard";
 import { DEMO_TRACE } from "../demo/trace";
 import { formatCountdown, useDrandCountdown } from "./useDrandCountdown";
 import { useToast } from "../ui/Toast";
+import { useTime } from "../lib/time";
+import { shortAddr } from "../lib/format";
 
 export type ActionStatus = "idle" | "working" | "ok" | "error";
 
@@ -70,15 +84,13 @@ function emptySession(roundId: bigint | null = null): CaseSession {
 
 function initialSessions(): Record<UseCaseId, CaseSession> {
   return {
-    dao: emptySession(),
-    grants: emptySession(),
-    bounty: emptySession(),
-    allocation: emptySession(),
+    auction: emptySession(),
   };
 }
 
 export function useRoundSession(active: UseCase) {
   const toast = useToast();
+  const { clock } = useTime();
   const [address, setAddress] = useState<string | null>(null);
   const [walletStatus, setWalletStatus] = useState("Connect a funded Stellar testnet wallet.");
   const [entryValue, setEntryValue] = useState(active.defaultValue);
@@ -89,15 +101,37 @@ export function useRoundSession(active: UseCase) {
   const [revealProgress, setRevealProgress] = useState<{ current: number; total: number } | null>(
     null,
   );
+  const [networkMismatch, setNetworkMismatch] = useState<{
+    chainNetwork: string;
+    sdkNetwork: string;
+  } | null>(null);
   const contract = useWalletContract(address);
+  const generation = useRef(0);
+  const latestRefresh = useRef(0);
+  const mounted = useRef(true);
+  const roundIds = useRef<Record<UseCaseId, bigint | null>>({ auction: null });
+  const context = useRef({ contract, address, id: active.id });
+  context.current = { contract, address, id: active.id };
+  useEffect(() => {
+    mounted.current = true;
+    generation.current++;
+    return () => {
+      mounted.current = false;
+      generation.current++;
+    };
+  }, [contract, address, active.id]);
   const session = sessions[active.id];
   const { auditorPublicKey, commitValue, sealedCiphertext, live, log, roundId, roundCreatedAt } =
     session;
-  const canUseContract = Boolean(CONTRACT_ID && contract);
+  const actionGate = useMemo(
+    () => gateDemoActions(contract ? contract.options : null, PUBLIC_ENV),
+    [contract],
+  );
+  const canUseContract = Boolean(CONTRACT_ID && contract && actionGate.enabled);
   const targetRound = live ? Number(live.round.reveal_round) : DEMO_TRACE.meta.revealRound;
   const drandGate = useDrandCountdown(targetRound);
   const commitSecondsRemaining = live
-    ? Math.max(0, Number(live.round.commit_deadline) - Math.floor(Date.now() / 1000))
+    ? Math.max(0, Number(live.round.commit_deadline) - clock.nowSeconds())
     : null;
   const commitClosed = commitSecondsRemaining != null && commitSecondsRemaining <= 0;
   const committedOnChain = Boolean(address && live?.bidStates[address]);
@@ -110,7 +144,28 @@ export function useRoundSession(active: UseCase) {
     setEntryValue(active.defaultValue);
   }, [active.id, active.defaultValue]);
 
+  /**
+   * Refuse an on-chain action when the wallet's detected chain passphrase no
+   * longer matches the SDK client's configured network. Runs immediately
+   * before commit, reveal, and settle so a wallet switch cannot submit into the
+   * wrong network.
+   */
+  async function guardNetwork(action: DemoActionName) {
+    if (!contract) return;
+    const chainPassphrase = await detectChainNetworkPassphrase();
+    assertDemoNetworkMatch({
+      action,
+      chainPassphrase,
+      sdkPassphrase: sdkClientNetworkPassphrase(contract),
+    });
+    setNetworkMismatch(null);
+  }
+
   function updateSession(id: UseCaseId, patch: Partial<CaseSession>) {
+    if ("roundId" in patch) {
+      roundIds.current[id] = patch.roundId ?? null;
+      generation.current++;
+    }
     setSessions((prev) => ({
       ...prev,
       [id]: { ...prev[id], ...patch },
@@ -125,17 +180,29 @@ export function useRoundSession(active: UseCase) {
   }
 
   async function refresh(targetRoundId = roundId, id = active.id) {
-    if (!contract || targetRoundId == null) return;
-    const round = await contract.get_round({ round_id: targetRoundId });
-    const bidders = await contract.get_bidders({ round_id: targetRoundId });
-    const bidStates: Record<string, BidState> = {};
-    for (const bidder of bidders.result.unwrap()) {
-      const state = await contract.get_bid_state({ round_id: targetRoundId, bidder });
-      bidStates[bidder] = state.result.unwrap();
+    if (!contract || targetRoundId == null || !mounted.current ||
+        context.current.contract !== contract || context.current.address !== address ||
+        context.current.id !== id || roundIds.current[id] !== targetRoundId) return;
+    const startedGeneration = generation.current;
+    const request = ++latestRefresh.current;
+    const isCurrent = () => mounted.current && generation.current === startedGeneration &&
+      latestRefresh.current === request && roundIds.current[id] === targetRoundId &&
+      context.current.contract === contract && context.current.address === address && context.current.id === id;
+    try {
+      const round = await contract.get_round({ round_id: targetRoundId });
+      const bidders = await contract.get_bidders({ round_id: targetRoundId });
+      const bidStates: Record<string, BidState> = {};
+      for (const bidder of bidders.result.unwrap()) {
+        const state = await contract.get_bid_state({ round_id: targetRoundId, bidder });
+        bidStates[bidder] = state.result.unwrap();
+      }
+      if (!isCurrent()) return;
+      updateSession(id, {
+        live: { round: round.result.unwrap(), bidders: bidders.result.unwrap(), bidStates },
+      });
+    } catch (error) {
+      if (isCurrent()) throw error;
     }
-    updateSession(id, {
-      live: { round: round.result.unwrap(), bidders: bidders.result.unwrap(), bidStates },
-    });
   }
 
   async function connect() {
@@ -152,8 +219,14 @@ export function useRoundSession(active: UseCase) {
       const addr = await resolveFreighterAddress(access);
       setAddress(addr);
       const net = await getNetworkDetails();
-      const netMsg =
-        net.networkPassphrase === NETWORK
+      const mismatch = demoNetworkMismatch({
+        chainPassphrase: net.networkPassphrase,
+        sdkPassphrase: sdkClientNetworkPassphrase(contract),
+      });
+      setNetworkMismatch(mismatch);
+      const netMsg = mismatch
+        ? `Connected — wallet is on ${mismatch.chainNetwork}, but this demo submits to ${mismatch.sdkNetwork}. Switch networks and reconnect.`
+        : net.networkPassphrase === NETWORK
           ? `Connected on ${net.network}.`
           : `Connected — switch Freighter to Testnet (current: ${net.network}).`;
       setWalletStatus(netMsg);
@@ -162,7 +235,7 @@ export function useRoundSession(active: UseCase) {
       toast.dismiss(workingId);
       toast.push("success", "Wallet connected", netMsg);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = publicErrorMessage(error);
       setWalletStatus(msg);
       setStatus("error");
       toast.dismiss(workingId);
@@ -192,7 +265,7 @@ export function useRoundSession(active: UseCase) {
       const commitDeadline = tReveal - LIVE_COMMIT_CLOSE_BEFORE_REVEAL_SECONDS;
       const revealDeadline = tReveal + LIVE_REVEAL_WINDOW_AFTER_REVEAL_SECONDS;
       const auditor = generateAuditorKeypair();
-      const itemRef = await sha256Bytes(`${active.id}:${address}:${Date.now()}`);
+      const itemRef = await sha256Bytes(`${active.id}:${address}:${clock.nowMs()}`);
       const tx = await contract.create_round({
         operator: address,
         item_ref: Buffer.from(itemRef),
@@ -201,13 +274,14 @@ export function useRoundSession(active: UseCase) {
         commit_deadline: BigInt(commitDeadline),
         reveal_deadline: BigInt(revealDeadline),
         auditor_pubkey: Buffer.from(auditor.publicKey),
+        asset_config: { asset_type: "native", contract_id: "", code: "XLM", decimals: 7, issuer: "" },
       });
       const sent = await tx.signAndSend();
       const nextRoundId = sent.result.unwrap() as bigint;
       updateSession(id, {
         roundId: nextRoundId,
         auditorPublicKey: auditor.publicKey,
-        roundCreatedAt: Date.now(),
+        roundCreatedAt: clock.nowMs(),
         commitValue: null,
         sealedCiphertext: null,
         live: null,
@@ -254,14 +328,14 @@ export function useRoundSession(active: UseCase) {
         throw new Error(`Round #${parsedId} is ${round.status.tag} — commit window has closed.`);
       }
       const commitDeadline = Number(round.commit_deadline);
-      const now = Math.floor(Date.now() / 1000);
+      const now = clock.nowSeconds();
       if (commitDeadline <= now) {
         throw new Error(`Round #${parsedId} commit window has already closed.`);
       }
       updateSession(id, {
         roundId: parsedId,
         auditorPublicKey: new Uint8Array(round.auditor_pubkey),
-        roundCreatedAt: Date.now(),
+        roundCreatedAt: clock.nowMs(),
         commitValue: null,
         sealedCiphertext: null,
         live: null,
@@ -284,20 +358,29 @@ export function useRoundSession(active: UseCase) {
 
   async function commitEntry() {
     if (!contract || !address || roundId == null) return;
+    if (!actionGate.enabled) {
+      toast.push("error", "Commit disabled", actionGate.issues[0]?.message ?? "Config mismatch");
+      return;
+    }
     const id = active.id;
     const displayed = active.formatValue(entryValue);
     const workingId = toast.push("working", "Sealing your entry…", `${active.inputLabel}: ${displayed}`);
     setStatus("working");
     try {
+      await guardNetwork("commit");
       const roundTx = await contract.get_round({ round_id: roundId });
       const round = roundTx.result.unwrap();
       const roundAuditorPublicKey = new Uint8Array(round.auditor_pubkey);
       const value = toDemoEscrowAmount(entryValue);
       const drand = quicknet();
+      const revealRound = Number(round.reveal_round);
       const sealed = await sealBid({
+        contractId: contract.options.contractId,
+        bidderId: address,
         value,
         nonce: generateNonce(),
-        round: Number(round.reveal_round),
+        round: revealRound,
+        revealRound,
         client: drand,
         identity: new TextEncoder().encode(`${active.nav}:${address}`),
         auditorPublicKey: auditorPublicKey ?? roundAuditorPublicKey,
@@ -309,6 +392,7 @@ export function useRoundSession(active: UseCase) {
         ciphertext: Buffer.from(sealed.ciphertext),
         escrow: value,
         auditor_blob: Buffer.from(sealed.auditorBlob),
+        seal_round: BigInt(sealed.sealRound),
       });
       await tx.signAndSend();
       updateSession(id, {
@@ -323,6 +407,9 @@ export function useRoundSession(active: UseCase) {
       toast.push("success", "Entry sealed on-chain", msg);
       await refresh(roundId, id);
     } catch (error) {
+      if (error instanceof DemoNetworkMismatchError) {
+        setNetworkMismatch({ chainNetwork: error.chainNetwork, sdkNetwork: error.sdkNetwork });
+      }
       const msg = displayError(error);
       setStatus("error");
       push(msg, id);
@@ -333,6 +420,10 @@ export function useRoundSession(active: UseCase) {
 
   async function openAndReveal() {
     if (!contract || roundId == null) return;
+    if (!actionGate.enabled) {
+      toast.push("error", "Reveal disabled", actionGate.issues[0]?.message ?? "Config mismatch");
+      return;
+    }
     const id = active.id;
     if (live && !drandGate.published) {
       toast.push(
@@ -346,6 +437,7 @@ export function useRoundSession(active: UseCase) {
     setStatus("working");
     setRevealProgress(null);
     try {
+      await guardNetwork("reveal");
       const drand = quicknet();
       const roundTx = await contract.get_round({ round_id: roundId });
       let round = roundTx.result.unwrap();
@@ -385,26 +477,28 @@ export function useRoundSession(active: UseCase) {
           `Revealing bid ${i + 1} of ${pending.length}`,
           shortAddr(bidder),
         );
-        const seal = (await contract.get_seal({ round_id: roundId, bidder })).result;
-        let ciphertext: Uint8Array | null = seal ? new Uint8Array(seal.ciphertext) : null;
-        if (!ciphertext && address === bidder && sealedCiphertext) {
-          ciphertext = sealedCiphertext;
-        }
-        if (!ciphertext) {
-          skipped.push(`${shortAddr(bidder)}: seal expired or missing`);
+        try {
+          const seal = (await contract.get_seal({ round_id: roundId, bidder })).result;
+          let ciphertext: Uint8Array | null = seal ? new Uint8Array(seal.ciphertext) : null;
+          if (!ciphertext && address === bidder && sealedCiphertext) {
+            ciphertext = sealedCiphertext;
+          }
+          if (!ciphertext) {
+            skipped.push(`${shortAddr(bidder)}: seal expired or missing`);
+            continue;
+          }
+          const opened = await openBid(ciphertext, drand);
+          const revealTx = await contract.reveal({
+            round_id: roundId,
+            bidder,
+            value: opened.value,
+            nonce: Buffer.from(opened.nonce),
+          });
+          await revealTx.signAndSend();
+          revealed += 1;
+        } finally {
           toast.dismiss(stepId);
-          continue;
         }
-        const opened = await openBid(ciphertext, drand);
-        const revealTx = await contract.reveal({
-          round_id: roundId,
-          bidder,
-          value: opened.value,
-          nonce: Buffer.from(opened.nonce),
-        });
-        await revealTx.signAndSend();
-        revealed += 1;
-        toast.dismiss(stepId);
       }
       setRevealProgress(null);
       if (revealed === 0) {
@@ -433,6 +527,9 @@ export function useRoundSession(active: UseCase) {
       await refresh(roundId, id);
     } catch (error) {
       setRevealProgress(null);
+      if (error instanceof DemoNetworkMismatchError) {
+        setNetworkMismatch({ chainNetwork: error.chainNetwork, sdkNetwork: error.sdkNetwork });
+      }
       const msg = displayError(error);
       setStatus("error");
       push(msg, id);
@@ -449,10 +546,12 @@ export function useRoundSession(active: UseCase) {
     session,
     status,
     canUseContract,
+    actionGate,
     targetRound,
     drandGate,
     commitSecondsRemaining,
     commitClosed,
+    networkMismatch,
     revealedCount,
     committed,
     commitValue,
@@ -468,9 +567,4 @@ export function useRoundSession(active: UseCase) {
     openAndReveal,
     refresh,
   };
-}
-
-function shortAddr(addr: string, len = 6) {
-  if (addr.length <= len * 2 + 3) return addr;
-  return `${addr.slice(0, len)}…${addr.slice(-len)}`;
 }

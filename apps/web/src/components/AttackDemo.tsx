@@ -1,13 +1,16 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
 import { useState } from "react";
 import type { AttackStep } from "../lib/demoTypes";
 import { useToast } from "../ui/Toast";
 
-function StepList({ steps, variant }: { steps: AttackStep[]; variant: "bad" | "good" }) {
+export function StepList({ steps, variant }: { steps: AttackStep[]; variant: "bad" | "good" }) {
+  const listLabel = variant === "bad" ? "Seal-off attack steps" : "Seal-on protection steps";
   return (
-    <ul className={`attack-steps ${variant}`}>
+    <ul className={`attack-steps ${variant}`} aria-label={listLabel}>
       {steps.map((s) => (
         <li key={s.label} className={s.ok ? "ok" : "fail"}>
-          <span className="attack-mark">{s.ok ? "✓" : "✗"}</span>
+          <span className="attack-mark" aria-hidden="true">{s.ok ? "✓" : "✗"}</span>
           <div>
             <strong>{s.label}</strong>
             <p>{s.detail}</p>
@@ -18,7 +21,26 @@ function StepList({ steps, variant }: { steps: AttackStep[]; variant: "bad" | "g
   );
 }
 
-export function AttackDemo() {
+/** The leaky "seal off" column body — withheld until the reveal round opens. */
+export function SealOffColumn({
+  steps,
+  revealOpen,
+}: {
+  steps: AttackStep[] | null;
+  revealOpen: boolean;
+}) {
+  if (steps && revealOpen) return <StepList steps={steps} variant="bad" />;
+  if (steps) {
+    return (
+      <p className="placeholder">
+        Bids still sealed — values hidden until Drand R opens the reveal round.
+      </p>
+    );
+  }
+  return <p className="placeholder">Run demo</p>;
+}
+
+export function AttackDemo({ phase = "Reveal" }: { phase?: "Open" | "Reveal" | "Settled" }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [sealOff, setSealOff] = useState<AttackStep[] | null>(null);
@@ -43,7 +65,7 @@ export function AttackDemo() {
         `Seal-off leaks early · seal-on waits for R=${res.revealRound.toLocaleString()}`,
       );
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = publicErrorMessage(e);
       setErr(msg);
       toast.dismiss(workingId);
       toast.push("error", "Attack demo failed", msg);
@@ -52,8 +74,15 @@ export function AttackDemo() {
     }
   }
 
+  // The demo never renders a revealed value while the shared round-phase
+  // helper says the reveal round is still sealed — regardless of what the
+  // attack steps computed. Seal-on columns stay visible (they only ever show
+  // the commitment hash and step status); the seal-off column, which exists
+  // to leak, is withheld until the phase says reveal has opened.
+  const revealOpen = phase !== "Open";
+
   return (
-    <section className="panel attack-panel">
+    <section className="panel attack-panel" aria-label="Seal-off vs seal-on attack">
       <header className="panel-head attack-head">
         <div>
           <p className="eyebrow">Main stage</p>
@@ -66,24 +95,30 @@ export function AttackDemo() {
       </header>
 
       <div className="attack-control">
-        <button type="button" className="btn primary" onClick={run} disabled={loading}>
+        <button
+          type="button"
+          className="btn primary"
+          onClick={run}
+          disabled={loading}
+          aria-busy={loading}
+        >
           {loading ? "Running live tlock demo..." : "Run live attack comparison"}
         </button>
         {round != null && (
           <p className="muted">Sealed to future Drand round R={round.toLocaleString()}</p>
         )}
-        {err && <p className="error">{err}</p>}
+        {err && <p className="error" role="alert">{err}</p>}
       </div>
 
       <div className="attack-columns">
-        <div className="attack-col bad">
+        <div className="attack-col bad" role="region" aria-label="Seal OFF — broken commit-reveal">
           <h3>Seal OFF — broken commit-reveal</h3>
           <p className="attack-sub">
             Bid stored in reversible form. Observer reads early. Losing bidder can abort.
           </p>
-          {sealOff ? <StepList steps={sealOff} variant="bad" /> : <p className="placeholder">Run demo</p>}
+          <SealOffColumn steps={sealOff} revealOpen={revealOpen} />
         </div>
-        <div className="attack-col good">
+        <div className="attack-col good" role="region" aria-label="Seal ON — Sub Rosa + Drand tlock">
           <h3>Seal ON — Sub Rosa + Drand tlock</h3>
           <p className="attack-sub">
             Undecryptable until R. Permissionless mass reveal. Commitment binding on-chain.

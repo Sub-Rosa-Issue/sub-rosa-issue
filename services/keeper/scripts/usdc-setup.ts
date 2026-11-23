@@ -1,3 +1,7 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
+import { createLogger } from '@sub-rosa/logging';
+import { assertUsdcSetupGuard } from '@sub-rosa/sdk/asset-config';
+const diagnostics = createLogger("services.keeper.scripts.usdc-setup");
 // USDC asset provisioning (classic operations via Horizon).
 //
 // Establishes trustlines for the operator + both bidders to a custom-issued
@@ -29,12 +33,21 @@ const reqEnv = (n: string): string => {
 };
 
 async function main() {
+  // Refuse mainnet or a SAC contract/decimals mismatch before any tx is built.
+  assertUsdcSetupGuard({
+    networkPassphrase: NETWORK,
+    sacContractId: process.env.USDK_SAC_CONTRACT_ID,
+    decimals: process.env.USDK_DECIMALS
+      ? Number(process.env.USDK_DECIMALS)
+      : undefined,
+  });
+
   const issuerKp = Keypair.fromSecret(reqEnv("ISSUER_SECRET"));
   const operatorKp = Keypair.fromSecret(reqEnv("OPERATOR_SECRET"));
   const bidder1Kp = Keypair.fromSecret(reqEnv("BIDDER1_SECRET"));
   const bidder2Kp = Keypair.fromSecret(reqEnv("BIDDER2_SECRET"));
 
-  const server = new Horizon.Server(HORIZON_URL);
+  const server = new Horizon.Server(NORIZON_URL);
   const asset = new Asset(ASSET_CODE, issuerKp.publicKey());
 
   async function submit(sourceKp: Keypair, op: xdr.Operation) {
@@ -53,7 +66,7 @@ async function main() {
   // Trustlines: operator (receives the winning bid) + both bidders.
   for (const kp of [operatorKp, bidder1Kp, bidder2Kp]) {
     await submit(kp, Operation.changeTrust({ asset }));
-    console.log(`trustline OK: ${kp.publicKey()}`);
+    diagnostics.info("trustline-ok", `trustline OK: ${kp.publicKey()}`);
   }
 
   // Mint USDC to the bidders so they can escrow real funds.
@@ -66,11 +79,11 @@ async function main() {
         amount: MINT_AMOUNT,
       }),
     );
-    console.log(`minted ${MINT_AMOUNT} ${ASSET_CODE} → ${kp.publicKey()}`);
+    diagnostics.info("minted", `minted ${MINT_AMOUNT} ${ASSET_CODE} → ${kp.publicKey()}`);
   }
 }
 
 main().catch((err) => {
-  console.error("usdc-setup failed:", err?.response?.data ?? err);
+  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": normalizeError(err) });
   process.exit(1);
 });

@@ -1,0 +1,65 @@
+name: Bindings check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  # Los cuatro workflows solo leen el repo: clonan, instalan y corren
+  # tests. Ninguno hace push, ni comenta, ni publica, ni toca secrets.
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # Read-only workflow: downstream steps do not push
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Assert pinned Stellar CLI workflow
+        run: node --test scripts/check-bindings-cli.test.mjs
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "contracts/round"
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev libsodium-dev
+
+      - name: Install stellar CLI
+        # 22.8.2 is the latest stable stellar-cli that still supports soroban-sdk 22.
+        # CLI 23.0.0 and newer require soroban-sdk 23.
+        run: cargo install stellar-cli --version 22.8.2 --locked
+
+      - name: Print Stellar CLI version
+        run: stellar --version
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated bindings are up to date
+        run: pnpm bindings:check
+      - name: Fail if the worktree is dirty after the bindings check
+        run: git diff --exit-code

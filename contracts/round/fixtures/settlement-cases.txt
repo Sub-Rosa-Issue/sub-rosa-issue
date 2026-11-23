@@ -1,0 +1,57 @@
+# Sub Rosa settlement fixture — SHARED between the contract and the keeper.
+#
+# Read by:
+#   contracts/round/src/test.rs              (include_str!)
+#   services/keeper/src/settlement-guard.test.ts
+#
+# Both suites assert the same rows, so the round contract's rules and the
+# keeper settlement guard's rules cannot drift apart. Editing one side only
+# fails the other suite.
+#
+# Syntax: fields are separated by '|', lists are separated by ','.
+# Blank lines and lines starting with '#' are ignored.
+# Fields:
+#   name        stable case id, referenced by both suites
+#   action      settle | void        the submission the keeper is asking for
+#   rule        HighestBid | LowestBid
+#   status      on-chain status when the guard is asked to act
+#   grace       1 = now is past reveal_deadline + VOID_GRACE, 0 = still inside
+#   bids        bid value per bidder (index aligned with escrows/revealed)
+#   escrows     locked escrow per bidder; ?(N) = the keeper could not read
+#               that bid state (N is the escrow the contract actually holds)
+#   revealed    1 = the bidder revealed before clear, 0 = it never did
+#   read        how many bidders of the index the keeper actually read
+#               (< #bids means the bidder page was truncated)
+#   winner_idx  index of the winner after clear, -1 = nobody won
+#   operator    operator payout when the contract accepts the action
+#   surplus     winner's escrow surplus when the contract accepts the action
+#   refunds     escrow the contract returns for this action, as idx:amount;
+#               '-' when the contract rejects the action (nothing is paid)
+#   guard_reason  '-' = the guard may submit, otherwise the typed refusal the
+#               guard must return for this exact view
+#   contract    ok = the contract accepts the action, otherwise the error name
+#               it must reject with
+#
+# Agreement rule asserted by both suites: every row the contract rejects has a
+# guard_reason, i.e. the guard never submits what the contract would revert.
+#
+# The rows this fixture exists for — the guard and the contract disagreed on
+# all three before Issue #385, because the guard happily submitted them:
+#   no-valid-bids-voided     settle → contract answers RoundVoided
+#   void-of-revealed-round   void   → contract answers NotVoidable
+#   void-inside-grace        void   → contract answers NotVoidable
+# Both suites now assert the guard refuses each of them before submitting.
+# The reverse direction is covered too: `missing-refund-state` and
+# `truncated-bidder-page` are rounds the contract accepts, which the guard
+# still refuses because its local view cannot prove the refund set.
+name|action|rule|status|grace|bids|escrows|revealed|read|winner_idx|operator|surplus|refunds|guard_reason|contract
+highest-basic|settle|HighestBid|Cleared|1|700,500|700,500|1,1|2|0|700|0|1:500|-|ok
+highest-surplus|settle|HighestBid|Cleared|1|700,500|1000,800|1,1|2|0|700|300|1:800|-|ok
+lowest-basic|settle|LowestBid|Cleared|1|300,200,100|300,200,100|1,1,1|3|2|100|0|0:300,1:200|-|ok
+unrevealed-loser-refunded|settle|HighestBid|Cleared|1|999,100|999,100|0,1|2|1|100|0|0:999|-|ok
+missing-refund-state|settle|HighestBid|Cleared|1|700,500|700,?(500)|1,1|2|0|700|0|1:500|refund_missing|ok
+truncated-bidder-page|settle|HighestBid|Cleared|1|700,500,500|700,500,500|1,1,1|2|0|700|0|1:500,2:500|bidder_page_incomplete|ok
+no-valid-bids-voided|settle|HighestBid|Voided|1|700|700|0|1|-1|0|0|-|round_voided|RoundVoided
+void-of-revealed-round|void|HighestBid|Revealing|1|700,500|700,500|1,1|2|-1|0|0|-|void_not_open|NotVoidable
+void-inside-grace|void|HighestBid|Open|0|700|700|0|1|-1|0|0|-|void_grace_not_elapsed|NotVoidable
+stale-open-void|void|HighestBid|Open|1|700|700|0|1|-1|0|0|0:700|-|ok

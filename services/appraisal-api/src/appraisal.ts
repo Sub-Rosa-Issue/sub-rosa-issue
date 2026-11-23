@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Deterministic appraisal model.
 //
 // Given a structured item descriptor, produce a fair-value estimate, a
@@ -10,6 +11,34 @@
 import { createHash } from "node:crypto";
 
 export const APPRAISAL_MODEL = "subrosa-appraisal/v1";
+
+/** Safety bounds for free-text fields. Generous, but caps integrator footguns. */
+export const MAX_ITEMREF_LENGTH = 256;
+export const MAX_CATEGORY_LENGTH = 64;
+
+/** Max raw appraisal request body (bytes). Guards against oversized exfiltration. */
+export const MAX_APPRAISAL_BODY_BYTES = 8192;
+
+/** Default quote time-to-live (seconds) when the server mints a payment quote. */
+export const APPRAISAL_QUOTE_TTL_SECONDS = 60;
+
+/**
+ * Payment quote bound to an appraisal call.
+ *
+ * The agent must validate this quote against its signed mandate *before* any
+ * Stellar transfer: asset + destination must match expectations, amount must be
+ * within the mandate cap, and `expiresAt` must still be in the future.
+ */
+export interface AppraisalQuote {
+  /** SEP-41 token contract (C...) the x402 payment settles in. */
+  asset: string;
+  /** Quoted price in stroops (7-decimal integer, as a string). */
+  amount: string;
+  /** Destination account/contract (payTo) receiving the appraisal payment. */
+  destination: string;
+  /** Unix seconds after which the quote must no longer be paid. */
+  expiresAt: number;
+}
 
 export interface AppraisalAttributes {
   /** Intrinsic quality, 0–100. */
@@ -76,20 +105,119 @@ export function inputsHash(req: AppraisalRequest): string {
 
 export class AppraisalInputError extends Error {}
 
+/** Keys that look like credentials — never allowed inside an appraisal body. */
+const CREDENTIAL_LIKE_KEY = /(secret|password|passwd|token|authorization|private[\-_]?key|api[\-_]?key|seed|mnemonic)/i;
+
+function assertNoCredentialFieldsDeep(value: unknown, depth = 0): void {
+  if (depth > 8 || value === null || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    for (const item of value) assertNoCredentialFieldsDeep(item, depth + 1);
+    return;
+  }
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (CREDENTIAL_LIKE_KEY.test(key)) {
+      throw new AppraisalInputError(
+        "appraisal body must not contain credential-like fields",
+      );
+    }
+    assertNoCredentialFieldsDeep((value as Record<string, unknown>)[key], depth + 1);
+  }
+}
+
+/** Refuse empty, oversized, or credential-bearing raw bodies before any payment. */
+export function assertAppraisalBodyBytes(raw: Buffer | Uint8Array | string): void {
+  const len =
+    typeof raw === "string" ? Buffer.byteLength(raw, "utf8") : raw.length;
+  if (len === 0) {
+    throw new AppraisalInputError("appraisal body must not be empty");
+  }
+  if (len > MAX_APPRAISAL_BODY_BYTES) {
+    throw new AppraisalInputError(
+      `appraisal body exceeds ${MAX_APPRAISAL_BODY_BYTES} bytes`,
+    );
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) {
+      throw new AppraisalInputError("appraisal body must not be empty");
+    }
+    try {
+      assertNoCredentialFieldsDeep(JSON.parse(trimmed));
+    } catch (e) {
+      if (e instanceof AppraisalInputError) throw e;
+      // Non-JSON bodies fail later in parseAppraisalRequest with a stable error;
+      // credential scan only applies to parseable JSON.
+    }
+  }
+}
+
+/** Refuse parsed bodies that carry credential-like fields (fail closed). */
+export function assertNoCredentialFields(value: unknown): void {
+  assertNoCredentialFieldsDeep(value);
+}
+
+/** Mint a payment quote for one appraisal call. Pure except for `nowSeconds`. */
+export function buildAppraisalQuote(params: {
+  asset: string;
+  /** Decimal price (e.g. 0.10 USDC). Must be finite and > 0. */
+  price: number;
+  destination: string;
+  nowSeconds: number;
+  ttlSeconds?: number;
+}): AppraisalQuote {
+  const { asset, price, destination, nowSeconds } = params;
+  const ttl = params.ttlSeconds ?? APPRAISAL_QUOTE_TTL_SECONDS;
+  if (!Number.isSafeInteger(nowSeconds) || nowSeconds < 0) {
+    throw new AppraisalInputError("nowSeconds must be a non-negative safe integer");
+  }
+  if (typeof asset !== "string" || asset.trim() === "") {
+    throw new AppraisalInputError("quote asset must be a non-empty string");
+  }
+  if (typeof destination !== "string" || destination.trim() === "") {
+    throw new AppraisalInputError("quote destination must be a non-empty string");
+  }
+  if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
+    throw new AppraisalInputError("quote price must be a finite number > 0");
+  }
+  const stroops = Math.round(price * 1e7);
+  if (!Number.isSafeInteger(stroops) || stroops <= 0) {
+    throw new AppraisalInputError("quote price is out of stroop-safe range");
+  }
+  return {
+    asset,
+    amount: String(stroops),
+    destination,
+    expiresAt: nowSeconds + ttl,
+  };
+}
+
 /** Validate and normalize a raw request; throws AppraisalInputError on bad input. */
 export function parseAppraisalRequest(raw: unknown): AppraisalRequest {
   if (!raw || typeof raw !== "object") {
     throw new AppraisalInputError("body must be a JSON object");
   }
+  // Fail closed: credential-like keys anywhere in the body refuse the request
+  // before any payment is offered or settled.
+  assertNoCredentialFieldsDeep(raw);
   const o = raw as Record<string, unknown>;
   if (typeof o.itemRef !== "string" || o.itemRef.trim() === "") {
     throw new AppraisalInputError("itemRef must be a non-empty string");
+  }
+  if (o.itemRef.length > MAX_ITEMREF_LENGTH) {
+    throw new AppraisalInputError(
+      `itemRef must be at most ${MAX_ITEMREF_LENGTH} characters`,
+    );
   }
   if (typeof o.basePrice !== "number" || !Number.isFinite(o.basePrice) || o.basePrice <= 0) {
     throw new AppraisalInputError("basePrice must be a finite number > 0");
   }
   if (o.category !== undefined && typeof o.category !== "string") {
     throw new AppraisalInputError("category must be a string");
+  }
+  if (typeof o.category === "string" && o.category.length > MAX_CATEGORY_LENGTH) {
+    throw new AppraisalInputError(
+      `category must be at most ${MAX_CATEGORY_LENGTH} characters`,
+    );
   }
   const attrs: AppraisalAttributes = {};
   if (o.attributes !== undefined) {
@@ -103,6 +231,9 @@ export function parseAppraisalRequest(raw: unknown): AppraisalRequest {
         if (typeof v !== "number" || !Number.isFinite(v)) {
           throw new AppraisalInputError(`attributes.${key} must be a number`);
         }
+        // Scores are clamped (do not reject) so integrators can submit raw 0–100
+        // survey data without coercing it first; only NaN/Infinity propagate
+        // invalidly into math and are treated as a validation error.
         attrs[key] = Math.min(100, Math.max(0, v));
       }
     }

@@ -1,0 +1,98 @@
+{
+  "$schema": "./event-snapshot.schema.json",
+  "$comment": "Golden fixture for the Round contract event surface. DO NOT edit one entry without coordinating with packages/round-bindings/src/event-snapshot.ts AND contracts/round/src/lib.rs. See packages/round-bindings/SNAPSHOT_TESTS.md for the regeneration procedure.",
+  "version": 1,
+  "contract": "SubRosaRound",
+  "topicShape": ["symbol_short", "u64"],
+  "topicShapeDoc": [
+    "topic[0]: Soroban Symbol — the event name below.",
+    "topic[1]: u64 — the round id the event belongs to.",
+    "Additional topic entries, if present, are reserved for Soroban host use and not part of the public surface."
+  ],
+  "events": [
+    {
+      "name": "created",
+      "contractMethod": "create_round",
+      "emittedBy": "contracts/round/src/lib.rs::SubRosaRound::create_round",
+      "dataShape": ["operator", "reveal_round", "commit_deadline"],
+      "arity": 3,
+      "dataTypes": {
+        "operator": "Address",
+        "reveal_round": "u64",
+        "commit_deadline": "u64"
+      }
+    },
+    {
+      "name": "commit",
+      "contractMethod": "commit",
+      "emittedBy": "contracts/round/src/lib.rs::SubRosaRound::commit",
+      "dataShape": ["bidder", "escrow"],
+      "arity": 2,
+      "dataTypes": {
+        "bidder": "Address",
+        "escrow": "i128"
+      }
+    },
+    {
+      "name": "revealing",
+      "contractMethod": "open_reveal",
+      "emittedBy": "contracts/round/src/lib.rs::SubRosaRound::open_reveal",
+      "dataShape": ["reveal_round"],
+      "arity": 1,
+      "dataTypes": {
+        "reveal_round": "u64"
+      }
+    },
+    {
+      "name": "reveal",
+      "contractMethod": "reveal",
+      "emittedBy": "contracts/round/src/lib.rs::SubRosaRound::reveal",
+      "dataShape": ["bidder", "value", "valid"],
+      "arity": 3,
+      "dataTypes": {
+        "bidder": "Address",
+        "value": "i128",
+        "valid": "bool"
+      }
+    },
+    {
+      "name": "cleared",
+      "contractMethod": "clear",
+      "emittedBy": "contracts/round/src/lib.rs::SubRosaRound::clear",
+      "dataShape": ["winner", "winning_bid"],
+      "arity": 2,
+      "dataTypes": {
+        "winner": "Address",
+        "winning_bid": "i128"
+      }
+    },
+    {
+      "name": "settled",
+      "contractMethod": "settle",
+      "emittedBy": "contracts/round/src/lib.rs::SubRosaRound::settle",
+      "dataShape": ["winner", "winning_bid"],
+      "arity": 2,
+      "dataTypes": {
+        "winner": "Address",
+        "winning_bid": "i128"
+      }
+    },
+    {
+      "name": "voided",
+      "contractMethod": "clear-or-void",
+      "emittedBy": "contracts/round/src/lib.rs::SubRosaRound::clear (discriminator=0) AND SubRosaRound::void (discriminator=1)",
+      "dataShape": ["discriminator"],
+      "arity": 1,
+      "dataTypes": {
+        "discriminator": "u32"
+      },
+      "singleDiscriminator": {
+        "key": "discriminator",
+        "values": {
+          "0": "no_valid_bids",
+          "1": "drand_liveness_grace"
+        }
+      }
+    }
+  ]
+}

@@ -3,12 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Jury demo UI — lifecycle, observer, agents, x402, keeper, seal-off vs seal-on attack, mandate cap safety lab.",
+  "description": "Sealed auction demo UI \u2014 lifecycle, observer, agents, x402, keeper, seal-off vs seal-on attack, mandate cap safety lab.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sub-Rosa-Issue/sub-rosa-issue.git",
+    "directory": "apps/web"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/demo/trace-health-check.test.ts",
+    "test": "node --import tsx --test src/demo/trace-health-check.test.ts src/lib/config.test.ts src/lib/hex.test.ts src/lib/chain.test.ts src/dashboard/fixture-health-check.test.ts src/lib/round-status.test.ts src/components/dashboard/RoundStatusCard.test.tsx src/hooks/useDashboardData.test.ts src/lib/countdown.test.ts src/passkey-session.test.ts && node --experimental-test-module-mocks --import tsx --test src/hooks/useRoundSession.reveal.test.tsx src/hooks/useRoundSession.refresh.test.tsx src/hooks/useLiveRound.test.tsx",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -16,6 +21,7 @@
     "@stellar/stellar-sdk": "^15.1.0",
     "@sub-rosa/agent": "workspace:*",
     "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/tlock": "workspace:*",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
@@ -25,14 +31,17 @@
     "process": "^0.11.10",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "stream-browserify": "^3.0.0"
+    "stream-browserify": "^3.0.0",
+    "@sub-rosa/logging": "workspace:*"
   },
   "devDependencies": {
     "@rollup/plugin-inject": "^5.0.5",
     "@types/node": "^25.9.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@types/react-test-renderer": "19.1.0",
     "@vitejs/plugin-react": "^4.4.1",
+    "react-test-renderer": "19.1.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^6.3.5"

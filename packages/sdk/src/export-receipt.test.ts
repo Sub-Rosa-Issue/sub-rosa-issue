@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // exportReceipt integration test — no network, no deploy.
 //
 // Verifies that the receipt produced by SubRosaClient.exportReceipt() includes
@@ -7,8 +8,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { StrKey } from "@stellar/stellar-sdk";
+import { rpc, StrKey } from "@stellar/stellar-sdk";
 import { commitment } from "@sub-rosa/tlock";
+import { expectedRoundEventSequence } from "@sub-rosa/round-bindings/event-snapshot";
 import { SubRosaClient } from "./client.js";
 import { verifyReceipt } from "./verify.js";
 
@@ -19,6 +21,13 @@ function newClient(): SubRosaClient {
     rpcUrl: "https://soroban-testnet.stellar.org",
     networkPassphrase: TESTNET,
     contractId: StrKey.encodeContract(Buffer.alloc(32)),
+    _server: {
+      getNetwork: async () => ({
+        passphrase: TESTNET,
+        protocolVersion: "23",
+      }),
+      getLedgerEntries: async () => ({ entries: [{}], latestLedger: 123 }),
+    } as unknown as rpc.Server,
   });
 }
 
@@ -65,7 +74,7 @@ test("exportReceipt includes revealed_nonce — offline verifier recomputes comm
   (client.contract as any).get_config = async () =>
     fakeResult({ usdc: addr(3), drand_pubkey: Buffer.alloc(192), g2_neg_generator: Buffer.alloc(192), dst: Buffer.alloc(0), drand_genesis: 0n, drand_period: 3n });
   (client.contract as any).get_bidders_page = async (_args: any) =>
-    fakeResult({ data: [bidder], next_cursor: 0, total: 1 });
+    fakeResult({ data: [bidder], next_cursor: undefined, has_more: false, total: 1 });
   (client.contract as any).get_bid_state = async () => fakeResult(fakeBidState);
   (client.contract as any).get_seal = async () => ({ result: undefined });
 
@@ -77,6 +86,24 @@ test("exportReceipt includes revealed_nonce — offline verifier recomputes comm
   assert.equal(entry.nonce, Buffer.from(nonce).toString("hex"),
     "exported nonce must match the on-chain revealed_nonce");
   assert.equal(entry.revealedValue, value.toString());
+
+  // The exported event log must list the full lifecycle in order.
+  assert.ok(Array.isArray(receipt.events), "exported receipt must carry an events array");
+  assert.deepEqual(
+    receipt.events.map((e) => e.name),
+    expectedRoundEventSequence(1n).map((e) => e.name),
+    "exported events must be the bindings' expected lifecycle sequence, in order",
+  );
+  for (const ev of receipt.events) {
+    assert.deepEqual(ev.topics, ["symbol_short", "u64"]);
+    assert.equal(ev.roundId, "1");
+  }
+  const ledgers = receipt.events.map((e) => e.ledger);
+  assert.deepEqual(
+    ledgers,
+    [...ledgers].sort((a, b) => a - b),
+    "exported ledger sequences must be ascending",
+  );
 
   // The offline verifier must be able to recompute and confirm the binding.
   const result = verifyReceipt(receipt);

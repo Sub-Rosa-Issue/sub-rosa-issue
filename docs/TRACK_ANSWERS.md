@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Track Answers — Build On Stellar / IBW 2026
 
 Sub Rosa won **1st Place in the Hack Privacy Track**. The multi-agent/x402,

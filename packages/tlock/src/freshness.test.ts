@@ -1,0 +1,141 @@
+// Copyright (c) 2026 Sub Rosa contributors
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import { classifyDrandRound, computePublishAtMs, DEFAULT_STALE_THRESHOLD_MS } from "./freshness.js";
+
+test("freshness: missing or invalid round returns unknown", () => {
+  const info = { genesis_time: 1677685200, period: 3 };
+  const now = 1700000000000;
+
+  assert.equal(classifyDrandRound(undefined, info, now).status, "unknown");
+  assert.equal(classifyDrandRound(null, info, now).status, "unknown");
+  assert.equal(classifyDrandRound(0, info, now).status, "unknown");
+  assert.equal(classifyDrandRound(-5, info, now).status, "unknown");
+  assert.equal(classifyDrandRound(1.5, info, now).status, "unknown");
+});
+
+test("freshness: malformed drand info returns unknown", () => {
+  const now = 1700000000000;
+  const round = 1000;
+
+  assert.equal(classifyDrandRound(round, undefined, now).status, "unknown");
+  assert.equal(classifyDrandRound(round, null, now).status, "unknown");
+  assert.equal(classifyDrandRound(round, { genesis_time: -10, period: 3 }, now).status, "unknown");
+  assert.equal(classifyDrandRound(round, { genesis_time: 1677685200, period: 0 }, now).status, "unknown");
+  assert.equal(classifyDrandRound(round, { genesis_time: 1677685200, period: -3 }, now).status, "unknown");
+
+  // @ts-expect-error Testing missing props at runtime
+  assert.equal(classifyDrandRound(round, { genesis_time: 1677685200 }, now).status, "unknown");
+});
+
+test("freshness: invalid timestamp returns unknown", () => {
+  const info = { genesis_time: 1677685200, period: 3 };
+  assert.equal(classifyDrandRound(1000, info, -500).status, "unknown");
+  assert.equal(classifyDrandRound(1000, info, 1.5).status, "unknown");
+  // @ts-expect-error Testing invalid types
+  assert.equal(classifyDrandRound(1000, info, "yesterday").status, "unknown");
+});
+
+test("freshness: future round", () => {
+  const info = { genesis_time: 1000, period: 3 };
+  const round = 10;
+  // publishAtMs = (1000 + 3 * 10) * 1000 = 1030000
+
+  const now = 1000000; // well before publish
+  const res = classifyDrandRound(round, info, now);
+  assert.equal(res.status, "future");
+  assert.equal(res.publishAtMs, 1030000);
+});
+
+test("freshness: fresh round", () => {
+  const info = { genesis_time: 1000, period: 3 };
+  const round = 10;
+  // publishAtMs = 1030000
+
+  // Exactly at publish time
+  assert.equal(classifyDrandRound(round, info, 1030000).status, "fresh");
+
+  // Just under threshold
+  assert.equal(classifyDrandRound(round, info, 1030000 + DEFAULT_STALE_THRESHOLD_MS).status, "fresh");
+
+  // Custom threshold
+  assert.equal(classifyDrandRound(round, info, 1030005, 10).status, "fresh");
+});
+
+test("freshness: stale round", () => {
+  const info = { genesis_time: 1000, period: 3 };
+  const round = 10;
+  // publishAtMs = 1030000
+
+  // Just over threshold
+  const res = classifyDrandRound(round, info, 1030000 + DEFAULT_STALE_THRESHOLD_MS + 1);
+  assert.equal(res.status, "stale");
+  assert.equal(res.ageMs, DEFAULT_STALE_THRESHOLD_MS + 1);
+
+  // Custom threshold stale
+  assert.equal(classifyDrandRound(round, info, 1030011, 10).status, "stale");
+});
+
+test("computePublishAtMs rejects unsafe round and period combinations", () => {
+  const info = { genesis_time: 1_000_000_000, period: 3 };
+
+  assert.equal(computePublishAtMs(info, Number.MAX_SAFE_INTEGER), null);
+  assert.equal(
+    computePublishAtMs({ genesis_time: Number.MAX_SAFE_INTEGER, period: 2 }, 1_000),
+    null,
+  );
+  assert.equal(computePublishAtMs({ genesis_time: 0, period: 3 }, 1), 3000);
+});
+
+test("freshness: unsafe timestamp math returns unknown near MAX_SAFE_INTEGER", () => {
+  const info = { genesis_time: Number.MAX_SAFE_INTEGER - 1, period: 2 };
+  const round = 2;
+  const now = 1_700_000_000_000;
+
+  const res = classifyDrandRound(round, info, now);
+  assert.equal(res.status, "unknown");
+  assert.match(String(res.reason ?? ""), /overflow|unsafe/i);
+});
+
+test("freshness: valid boundary round still classifies correctly", () => {
+  const info = { genesis_time: 1000, period: 1 };
+  const round = 1_000_000;
+  const publishAtMs = computePublishAtMs(info, round);
+  assert.equal(publishAtMs, 1_001_000_000);
+  assert.equal(classifyDrandRound(round, info, publishAtMs!).status, "fresh");
+});
+
+test("freshness: one millisecond before the boundary is future, at boundary is fresh", () => {
+  const info = { genesis_time: 1692803367, period: 3 };
+  const round = 10;
+  const publishAtMs = computePublishAtMs(info, round)!;
+
+  const before = classifyDrandRound(round, info, publishAtMs - 1);
+  assert.equal(before.status, "future");
+
+  const at = classifyDrandRound(round, info, publishAtMs);
+  assert.equal(at.status, "fresh");
+});
+
+test("freshness: a mutated period fails the fixture comparison", () => {
+  const info = { genesis_time: 1692803367, period: 3 };
+  const round = 10;
+  const fixturePublishAt = computePublishAtMs(info, round);
+
+  const mutatedInfo = { ...info, period: 4 };
+  const mutatedPublishAt = computePublishAtMs(mutatedInfo, round);
+
+  assert.notEqual(mutatedPublishAt, fixturePublishAt);
+});
+
+test("freshness: round stays fresh across the full period including the last second", () => {
+  const info = { genesis_time: 1692803367, period: 3 };
+  const round = 10;
+  const publishAtMs = computePublishAtMs(info, round)!;
+  const endOfPeriodMs = publishAtMs + info.period * 1000 - 1;
+
+  const during = classifyDrandRound(round, info, endOfPeriodMs);
+  assert.equal(during.status, "fresh");
+});
+

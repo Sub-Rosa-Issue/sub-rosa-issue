@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa — Threat Model
 
 ## Assets
@@ -45,7 +46,7 @@
 | --- | --- | --- |
 | Winner doesn't pay | Escrow locked at commit; settle pulls from escrow | Requires valid reveal |
 | Drand never delivers R | `void` after grace refunds all escrow | Grace window must be configured |
-| Double settle | Idempotent settle skips settled bids | Proven in e2e |
+| Double settle | Idempotent settle skips settled bids; keeper watch checkpoint records completed steps (hash-verified on startup) so a restart cannot rebroadcast | Proven in e2e |
 
 ### Identity privacy
 
@@ -61,6 +62,20 @@
 | Agent exceeds maxBid | Off-chain `assertBidWithinMandate` | **Not Soroban-enforced** — rogue agent could commit higher if funded |
 | Agent overpays appraisal | `maxAppraisalSpend` off-chain | Same — requires honest agent code |
 | Stolen session key | Caps limit damage to one round/mandate | Principal should rotate; passkey policies in production |
+
+### Receipt verification
+
+`@sub-rosa/sdk`'s offline `verifyReceipt` checks the canonical JSON export
+against the round's commitments, clearing rule, and declared winner. The full
+schema and verifier surface lives in `docs/RECEIPTS.md`; this subsection only
+captures the threat-model-relevant surface.
+
+| Threat | Mitigation | Residual |
+| --- | --- | --- |
+| Forged receipt | Verifier recomputes `sha256(be16(value) ‖ nonce)` against the stored commitment for every revealed bid; winner is derived from a deterministic clearing rule, not trusted from the exporter | Exporter can still lie about on-chain facts the receipt does not bind to (see `docs/LIMITATIONS.md`); consumers should cross-check against current ledger state |
+| Tampered passphrase | `networkFingerprint = sha256(utf8(network))` is embedded in the receipt, so editing the claimed network invalidates the fingerprint | Operationally annoying but bounded — valid `null` ciphertext/auditorBlob after expiry is reported as a warning, not a failure |
+| Recycled / replayed receipt | Receipts are versioned (`version: 1`) and status-bound (`Cleared` / `Settled` / `Voided`); receipts are exported with the on-chain state at the time of export | A receipt from a later status can be presented as evidence of an earlier state — re-export and reconcile before relying on a receipt for high-value disputes |
+| Single-exporter trust | Anyone can re-export the same round from the RPC and diff; idempotent `settle` skips already-settled bids, so two honest exporters always converge | Forensic, not automatic — see SCF/Wave diligence guidance in `docs/PILOT_PLAYBOOK.md` |
 
 ## Trust assumptions
 
