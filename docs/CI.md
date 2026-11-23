@@ -28,6 +28,13 @@ Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
 [GITHUB_ACTIONS_SECURITY.md](./GITHUB_ACTIONS_SECURITY.md).
 
+## Direct time access guard
+
+The `TypeScript coverage` workflow runs `pnpm time:guard:test` followed by
+`pnpm time:guard` on pushes to `main` and on pull requests. The guard fails if
+first-party code calls the clock or timer globals outside `@sub-rosa/time`.
+Both commands are blocking CI steps and can be run locally from the root.
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for

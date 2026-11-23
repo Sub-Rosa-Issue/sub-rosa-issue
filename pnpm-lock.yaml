@@ -238,6 +238,9 @@ importers:
       '@sub-rosa/logging':
         specifier: workspace:*
         version: link:../../packages/logging
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../../packages/time
       '@x402/core':
         specifier: ^2.14.0
         version: 2.14.0

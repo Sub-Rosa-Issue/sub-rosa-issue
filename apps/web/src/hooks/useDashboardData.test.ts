@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { systemClock } from "@sub-rosa/time";
 
 import { isStale } from "./useDashboardData";
 
@@ -20,36 +21,36 @@ test("invalid or missing timestamps are treated as stale", () => {
 });
 
 test("valid fresh timestamps are not stale", () => {
-  const fetchedAt = new Date(NOW_MS - 30_000).toISOString(); // 30s ago
+  const fetchedAt = systemClock.toISOString(NOW_MS - 30_000); // 30s ago
   assert.equal(isStale(fetchedAt, NOW_MS), false);
 });
 
 test("valid old timestamps beyond the threshold are stale", () => {
-  const fetchedAt = new Date(NOW_MS - STALE_THRESHOLD_MS - 60_000).toISOString(); // 6 min ago
+  const fetchedAt = systemClock.toISOString(NOW_MS - STALE_THRESHOLD_MS - 60_000); // 6 min ago
   assert.equal(isStale(fetchedAt, NOW_MS), true);
 });
 
 test("a timestamp equal to now is fresh", () => {
-  const fetchedAt = new Date(NOW_MS).toISOString();
+  const fetchedAt = systemClock.toISOString(NOW_MS);
   assert.equal(isStale(fetchedAt, NOW_MS), false);
 });
 
 test("a future timestamp is fresh (unchanged pre-existing behavior)", () => {
-  const fetchedAt = new Date(NOW_MS + 60_000).toISOString(); // 1 min in the future
+  const fetchedAt = systemClock.toISOString(NOW_MS + 60_000); // 1 min in the future
   assert.equal(isStale(fetchedAt, NOW_MS), false);
 });
 
 test("boundary: exactly at the stale threshold is still fresh (strict greater-than)", () => {
-  const fetchedAt = new Date(NOW_MS - STALE_THRESHOLD_MS).toISOString();
+  const fetchedAt = systemClock.toISOString(NOW_MS - STALE_THRESHOLD_MS);
   assert.equal(isStale(fetchedAt, NOW_MS), false);
 });
 
 test("boundary: one millisecond past the stale threshold is stale", () => {
-  const fetchedAt = new Date(NOW_MS - STALE_THRESHOLD_MS - 1).toISOString();
+  const fetchedAt = systemClock.toISOString(NOW_MS - STALE_THRESHOLD_MS - 1);
   assert.equal(isStale(fetchedAt, NOW_MS), true);
 });
 
 test("boundary: one millisecond inside the stale threshold is fresh", () => {
-  const fetchedAt = new Date(NOW_MS - STALE_THRESHOLD_MS + 1).toISOString();
+  const fetchedAt = systemClock.toISOString(NOW_MS - STALE_THRESHOLD_MS + 1);
   assert.equal(isStale(fetchedAt, NOW_MS), false);
 });
