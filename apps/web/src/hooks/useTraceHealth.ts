@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { useMemo } from "react";
+import { normalizeError } from "@sub-rosa/logging/errors";
 import { DEMO_TRACE } from "../demo/trace";
 import { assertDemoTrace } from "../demo/trace-health-check";
 import { verifyMilestones } from "../demo/demo-trace.checksum";
@@ -24,7 +25,7 @@ export function useTraceHealth(): TraceHealthState {
     try {
       assertDemoTrace(DEMO_TRACE);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const { message } = normalizeError(e);
       return { ok: false, errorCode: `TRACE_INVALID: ${message}` };
     }
 

@@ -41,6 +41,7 @@ const EXPECTED_EXPORTS = [
   "SubRosaMissingReturnValueError",
   "SubRosaNetworkMismatchError",
   "SubRosaNetworkPassphraseMismatchError",
+  "SubRosaPaginationError",
   "SubRosaPreflightError",
   "SubRosaSessionMismatchError",
   "SubRosaSubmitError",

@@ -113,7 +113,7 @@ test(
     const round = (await currentRound(client)) - 5;
     const value = 555n;
     const nonce = generateNonce();
-    const sealed = await sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round, client });
+    const sealed = await sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round, revealRound: round, client });
     const opened = await openBid(sealed.ciphertext, client);
 
     const wrongNonce = new Uint8Array(32).fill(0x42);
@@ -126,7 +126,7 @@ test("sealBid rejects a non-positive Drand round", async () => {
   const client = quicknet();
   for (const round of [0, -1, -100]) {
     await assert.rejects(
-      sealBid({ contractId: validContractId, bidderId: validBidderId, value: 1n, nonce: generateNonce(), round, client }),
+      sealBid({ contractId: validContractId, bidderId: validBidderId, value: 1n, nonce: generateNonce(), round, revealRound: round, client }),
       /round must be a positive integer/,
     );
   }
@@ -166,19 +166,19 @@ test("sealBid rejects non-positive or non-integer round numbers", async () => {
   const value = 100n;
 
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 0, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 0, revealRound: 1, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: -5, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: -5, revealRound: 1, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 1.5, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 1.5, revealRound: 1, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: NaN, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: NaN, revealRound: 1, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
 });
@@ -189,15 +189,15 @@ test("sealBid rejects invalid nonce lengths", async () => {
   const round = 1000;
 
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(16), round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(16), round, revealRound: round, client }),
     /nonce must be 32 bytes/,
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(31), round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(31), round, revealRound: round, client }),
     /nonce must be 32 bytes/,
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(33), round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(33), round, revealRound: round, client }),
     /nonce must be 32 bytes/,
   );
 });
@@ -217,52 +217,52 @@ test("sealBid rejects malformed contractId and bidderId", async () => {
   const nonce = generateNonce();
 
   await assert.rejects(
-    () => sealBid({ contractId: "", bidderId: validBidderId, value, nonce, round, client }),
+    () => sealBid({ contractId: "", bidderId: validBidderId, value, nonce, round, revealRound: round, client }),
     /contractId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: "   ", bidderId: validBidderId, value, nonce, round, client }),
+    () => sealBid({ contractId: "   ", bidderId: validBidderId, value, nonce, round, revealRound: round, client }),
     /contractId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: "not-a-contract-id", bidderId: validBidderId, value, nonce, round, client }),
+    () => sealBid({ contractId: "not-a-contract-id", bidderId: validBidderId, value, nonce, round, revealRound: round, client }),
     /contractId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM!", bidderId: validBidderId, value, nonce, round, client }),
+    () => sealBid({ contractId: "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM!", bidderId: validBidderId, value, nonce, round, revealRound: round, client }),
     /contractId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: "C123", bidderId: validBidderId, value, nonce, round, client }),
+    () => sealBid({ contractId: "C123", bidderId: validBidderId, value, nonce, round, revealRound: round, client }),
     /contractId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY", bidderId: validBidderId, value, nonce, round, client }),
+    () => sealBid({ contractId: "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY", bidderId: validBidderId, value, nonce, round, revealRound: round, client }),
     /contractId/
   );
 
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: "", value, nonce, round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: "", value, nonce, round, revealRound: round, client }),
     /bidderId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: "   ", value, nonce, round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: "   ", value, nonce, round, revealRound: round, client }),
     /bidderId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: "not-a-bidder-id", value, nonce, round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: "not-a-bidder-id", value, nonce, round, revealRound: round, client }),
     /bidderId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY!", value, nonce, round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY!", value, nonce, round, revealRound: round, client }),
     /bidderId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: "G123", value, nonce, round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: "G123", value, nonce, round, revealRound: round, client }),
     /bidderId/
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM", value, nonce, round, client }),
+    () => sealBid({ contractId: validContractId, bidderId: "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM", value, nonce, round, revealRound: round, client }),
     /bidderId/
   );
 });

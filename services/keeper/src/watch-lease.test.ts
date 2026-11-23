@@ -97,8 +97,8 @@ function createSdk(chain: FakeChain, label: string, options: FakeSdkOptions = {}
         clearing_rule: { tag: "HighestBid" },
       };
     },
-    async getBiddersPage(_id: bigint, _cursor: number, _limit: number) {
-      return { data: bidders, next_cursor: 0, total: bidders.length };
+    async getBiddersPage(_id: bigint, _cursor: Uint8Array | undefined, _limit: number) {
+      return { data: bidders, next_cursor: undefined, has_more: false, total: bidders.length };
     },
     async getBidState(_id: bigint, bidder: string) {
       const s = state[bidder];

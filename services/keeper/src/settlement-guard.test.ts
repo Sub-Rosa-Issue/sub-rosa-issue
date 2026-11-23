@@ -675,11 +675,12 @@ function createFakeSdk(round: FakeRound) {
         auditor_pubkey: Buffer.alloc(0),
       };
     },
-    async getBiddersPage(_id: bigint, _cursor: number, _limit: number) {
+    async getBiddersPage(_id: bigint, _cursor: Uint8Array | undefined, _limit: number) {
       const dropped = new Set(round.dropped ?? []);
       return {
         data: round.bidders.filter((bidder) => !dropped.has(bidder)),
-        next_cursor: 0,
+        next_cursor: undefined,
+        has_more: false,
         total: round.bidders.length,
       };
     },

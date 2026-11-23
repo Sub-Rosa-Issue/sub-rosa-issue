@@ -122,6 +122,7 @@ test("live bid state without a revealed value stays sealed even post-R", () => {
         trace={DEMO_TRACE}
         live={{
           round: {
+            asset_config: { asset_type: "native", contract_id: "", code: "XLM", decimals: 7, issuer: "" },
             auditor_pubkey: Buffer.alloc(0),
             bidders: DEMO_TRACE.bidders.map((b) => b.address),
             clearing_rule: { tag: "HighestBid", values: undefined },
@@ -148,6 +149,10 @@ test("live bid state without a revealed value stays sealed even post-R", () => {
               },
             ]),
           ),
+          phase: "Reveal",
+          revealCursor: { revealed: 0, total: DEMO_TRACE.bidders.length },
+          escrow: { committed: 0n, revealed: 0n },
+          sequence: 1,
           polledAt: fake.clock.nowMs(),
         }}
       />

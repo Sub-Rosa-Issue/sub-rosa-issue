@@ -29,7 +29,7 @@ import {
 } from "@sub-rosa/round-bindings/event-snapshot";
 import { toHex } from "@sub-rosa/tlock";
 import type { SealedBid } from "@sub-rosa/tlock";
-import type { RoundReceipt } from "./receipt.js";
+import type { RoundReceipt, RoundReceiptEvent } from "./receipt.js";
 import { assertSealedBid } from "./encrypted-blob.js";
 import type { SealedBidBinding } from "./encrypted-blob.js";
 import { networkFingerprint } from "./receipt.js";
@@ -54,6 +54,7 @@ import {
   SubRosaEscrowConservationError,
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
+  SubRosaPaginationError,
   SubRosaAssetValidationError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
@@ -119,6 +120,8 @@ export interface SubRosaClientConfig {
    * If not provided, no asset validation is performed.
    */
   assetConfig?: import("./asset-config.js").AssetConfig;
+  /** Optional passkey session to bind commits to. */
+  session?: PasskeySessionBinding;
   /**
    * @internal Testing hook: inject a mock Soroban RPC server for simulation.
    */
@@ -126,22 +129,6 @@ export interface SubRosaClientConfig {
 }
 
 export type ClearingRuleTag = ClearingRule["tag"];
-
-/**
- * The contract's `RoundAssetConfig` (contracts/round/src/types.rs).
- *
- * Declared here rather than imported because the generated bindings in this
- * tree predate the `asset_config` argument on `create_round`; the shape mirrors
- * the Rust struct exactly. Once the bindings are regenerated this type and the
- * accompanying cast at the call site can both be dropped.
- */
-interface RoundAssetConfig {
-  asset_type: string;
-  contract_id: string;
-  code: string;
-  decimals: number;
-  issuer: string;
-}
 
 export interface CreateRoundParams {
   /** sha256 (or any opaque 32-byte ref) of the off-chain item description. */
@@ -177,6 +164,10 @@ export interface CommitParams {
    * it (tlock >= this change), otherwise it must be supplied.
    */
   sealRound?: number | bigint;
+  /** Optional plaintext binding used to validate the seal before submission. */
+  binding?: SealedBidBinding;
+  /** Optional passkey session to bind this commit to. */
+  session?: PasskeySessionBinding;
 }
 
 export interface RevealParams {
@@ -492,6 +483,7 @@ export class SubRosaClient {
   }
 
   async commit(params: CommitParams): Promise<void> {
+    this.#validateCommitSession(params);
     // Gate the seal before submitting. Size/encoding defects surface here
     // instead of as an on-chain PayloadTooLarge revert, and — when the caller
     // passes the value/nonce/round it sealed from — a blob whose commitment
@@ -626,8 +618,7 @@ export class SubRosaClient {
     });
   }
 
-  /** Simulate `commit` without signing or submitting. */
-  async preflightCommit(params: CommitParams): Promise<PreflightResult<void>> {
+  #validateCommitSession(params: CommitParams): void {
     const session = params.session ?? this.#session;
     if (session) {
       validatePasskeySession(session, {
@@ -636,6 +627,11 @@ export class SubRosaClient {
         account: params.bidder ?? this.#source,
       });
     }
+  }
+
+  /** Simulate `commit` without signing or submitting. */
+  async preflightCommit(params: CommitParams): Promise<PreflightResult<void>> {
+    this.#validateCommitSession(params);
     return this.#preflight("commit", () => {
       const bidder = params.bidder ?? this.#requireSource("bidder");
       const rawSealRound = params.sealRound ?? (params.sealed as { sealRound?: number | bigint }).sealRound;
@@ -778,8 +774,7 @@ export class SubRosaClient {
 
     return proveEscrowConservationFromPages(
       {
-        getBiddersPage: async (cursor, limit) =>
-          (await this.getBiddersPage(rid, cursor, limit)) as BiddersPage,
+        getBiddersPage: (cursor, limit) => this.getBiddersPage(rid, cursor, limit),
         getBidState: async (bidder) => {
           try {
             return await this.getBidState(rid, bidder);

@@ -42,18 +42,20 @@ function source(options: FakeIndex): EscrowConservationSource & { calls: number 
     get calls() {
       return calls;
     },
-    async getBiddersPage(cursor: number, limit: number): Promise<BiddersPage> {
+    async getBiddersPage(token: Uint8Array | undefined, limit: number): Promise<BiddersPage> {
       calls += 1;
+      const cursor = token ? Buffer.from(token).readUInt32BE(1) : 0;
       const size = Math.max(1, Math.min(limit, pageSize));
       const slice = options.bidders.slice(cursor, cursor + size);
       const data = options.pages ? options.pages(slice) : slice;
+      const offset = options.nextCursor?.(cursor) ??
+        (cursor + size >= options.bidders.length ? 0 : cursor + size);
+      const next = offset === 0 ? undefined : Buffer.alloc(41);
+      next?.writeUInt32BE(offset, 1);
       return {
         data,
-        next_cursor: options.nextCursor
-          ? options.nextCursor(cursor)
-          : cursor + size >= options.bidders.length
-            ? 0
-            : cursor + size,
+        next_cursor: next,
+        has_more: next !== undefined,
         total: options.totals ? options.totals(cursor) : options.bidders.length,
       };
     },

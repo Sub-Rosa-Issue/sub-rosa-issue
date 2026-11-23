@@ -46,6 +46,10 @@ const ERROR_PATH_REGISTRY: &[(Error, &'static str)] = &[
     (Error::RoundFull, "error_path_round_full"),
     (Error::InvalidLimit, "error_path_invalid_limit"),
     (Error::EscrowNotConserved, "error_path_escrow_not_conserved"),
+    (Error::SealRoundTooLate, "error_path_seal_round_too_late"),
+    (Error::InvalidSealRoundZero, "error_path_invalid_seal_round_zero"),
+    (Error::SealRoundTooEarly, "error_path_seal_round_too_early"),
+    (Error::InvalidCursor, "error_path_invalid_cursor"),
 ];
 
 fn oversized_bytes(env: &Env, len: u32) -> Bytes {
@@ -88,7 +92,7 @@ fn settle_happy_path(f: &Fixture, t_reveal: u64, commit_deadline: u64, reveal_de
 fn error_paths_registry_covers_every_variant() {
     assert_eq!(
         ERROR_PATH_REGISTRY.len(),
-        28,
+        32,
         "update ERROR_PATH_REGISTRY when adding/removing Error variants"
     );
     for (variant, name) in ERROR_PATH_REGISTRY {

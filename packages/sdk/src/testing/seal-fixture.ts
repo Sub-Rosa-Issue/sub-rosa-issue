@@ -40,16 +40,22 @@ export const BID_ROUND = 1_234_567;
 
 /** Seal a bid offline. Each call re-encrypts, so ciphertexts differ per call. */
 export function sealFixture(overrides?: {
+  contractId?: string;
+  bidderId?: string;
   value?: bigint;
   nonce?: Uint8Array;
   round?: number;
   identity?: Uint8Array;
   auditorPublicKey?: Uint8Array;
 }): Promise<SealedBid> {
+  const round = overrides?.round ?? BID_ROUND;
   return sealBid({
+    contractId: overrides?.contractId ?? "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    bidderId: overrides?.bidderId ?? "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
     value: overrides?.value ?? BID_VALUE,
     nonce: overrides?.nonce ?? BID_NONCE,
-    round: overrides?.round ?? BID_ROUND,
+    round,
+    revealRound: round,
     client: offlineClient,
     ...(overrides?.identity ? { identity: overrides.identity } : {}),
     ...(overrides?.auditorPublicKey

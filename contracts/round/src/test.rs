@@ -12,7 +12,7 @@ use crate::storage::{
     TEMP_THRESHOLD,
 };
 use crate::types::{
-    BidState, ClearingRule, DataKey, Error, EscrowLedger, GlobalConfig, Round, Status,
+    BidState, ClearingRule, DataKey, Error, EscrowLedger, GlobalConfig, Round, RoundAssetConfig, Status,
 };
 use crate::{conserved, SubRosaRound, SubRosaRoundClient};
 
@@ -179,7 +179,6 @@ pub fn native_xlm(env: &Env) -> RoundAssetConfig {
 }
 
 fn open_round(f: &Fixture, operator: &Address) -> u64 {
-    let asset_config = sac_asset_config(&f.env);
     f.client.create_round(
         operator,
         &b32(&f.env, 1),
@@ -338,13 +337,21 @@ fn create_round_rejects_deadline_in_past() {
 /// a far-future deadline that would strand the round past the void window.
 #[test]
 fn create_round_rejects_overflowing_reveal_round() {
-    let f = setup();
+    let (f, _, commit_deadline, reveal_deadline) = setup_drand();
     let operator = Address::generate(&f.env);
-    let res = f.client.try_create_round(
-        &operator, &b32(&f.env, 1), &u64::MAX, &ClearingRule::HighestBid,
-        &1_500, &2_500, &Bytes::from_array(&f.env, b"a"),
+    assert_try_create_round_err(
+        f.client.try_create_round(
+            &operator,
+            &b32(&f.env, 1),
+            &u64::MAX,
+            &ClearingRule::HighestBid,
+            &commit_deadline,
+            &reveal_deadline,
+            &Bytes::from_array(&f.env, b"a"),
+            &native_xlm(&f.env),
+        ),
+        Error::InvalidSealRoundZero,
     );
-    assert!(res.is_err());
 }
 
 #[test]
@@ -1847,7 +1854,7 @@ fn many_bidders_across_multiple_pages_settle_conserving_escrow() {
     // Walk the bidder index in three pages; the pages must agree with the full
     // list and report a stable total before anything is revealed.
     let mut paged: Vec<Address> = Vec::new(&f.env);
-    let mut cursor: u32 = 0;
+    let mut cursor = None;
     loop {
         let page = f.client.get_bidders_page(&id, &cursor, &3);
         assert_eq!(
@@ -1857,7 +1864,7 @@ fn many_bidders_across_multiple_pages_settle_conserving_escrow() {
         for i in 0..page.data.len() {
             paged.push_back(page.data.get(i).unwrap());
         }
-        if page.next_cursor == 0 {
+        if page.next_cursor.is_none() {
             break;
         }
         cursor = page.next_cursor;
@@ -2272,7 +2279,7 @@ pub(super) const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
     (Error::RoundVoided, 20),
     (Error::NotVoidable, 21),
     (Error::WrongStatus, 22),
-    // ── 30–40: cryptography & validation ──
+    // ── 30–39: cryptography & validation ──
     (Error::InvalidDrandSignature, 30),
     (Error::HashMismatch, 31),
     (Error::AlreadyRevealed, 32),
@@ -2283,8 +2290,13 @@ pub(super) const DOCUMENTED_ERROR_CODES: &[(Error, u32)] = &[
     (Error::NoValidBids, 37),
     (Error::RoundFull, 38),
     (Error::InvalidLimit, 39),
-    // ── 40–49: escrow accounting ──
+    // ── 40: escrow accounting ──
     (Error::EscrowNotConserved, 40),
+    // ── 41–44: seal-round and pagination validation ──
+    (Error::SealRoundTooLate, 41),
+    (Error::InvalidSealRoundZero, 42),
+    (Error::SealRoundTooEarly, 43),
+    (Error::InvalidCursor, 44),
 ];
 
 /// Convert an `Error` to its on-chain discriminant using the [`repr(u32)`]
@@ -2324,6 +2336,10 @@ pub(super) fn variant_name(e: Error) -> &'static str {
         Error::RoundFull => "RoundFull",
         Error::InvalidLimit => "InvalidLimit",
         Error::EscrowNotConserved => "EscrowNotConserved",
+        Error::SealRoundTooLate => "SealRoundTooLate",
+        Error::InvalidSealRoundZero => "InvalidSealRoundZero",
+        Error::SealRoundTooEarly => "SealRoundTooEarly",
+        Error::InvalidCursor => "InvalidCursor",
     }
 }
 
@@ -2344,7 +2360,7 @@ fn error_discriminants_match_document() {
 
 #[test]
 fn error_codes_have_no_duplicate_discriminants() {
-    // O(n²) is fine: n = 28. Done without `std::collections` because the
+    // O(n²) is fine for this small registry. `std::collections` is unavailable because the
     // contract's `#![no_std]` applies to this module.
     for (i, (variant_a, code_a)) in DOCUMENTED_ERROR_CODES.iter().enumerate() {
         let name_a = variant_name(*variant_a);
@@ -2371,7 +2387,7 @@ fn error_table_enumerates_every_variant() {
     // DOCUMENTED_ERROR_CODES.
     assert_eq!(
         DOCUMENTED_ERROR_CODES.len(),
-        28,
+        32,
         "DOCUMENTED_ERROR_CODES appears missing entries. The exhaustive \
          `variant_name` match already enforces parity at compile time — \
          update it together with this list and contracts/round/ERRORS.md."
@@ -2384,12 +2400,13 @@ fn error_codes_use_reserved_ranges() {
     //   1–4     → initialization/lookup
     //   10–22   → lifecycle/timing
     //   30–39   → crypto/validation
-    //   40–49   → escrow accounting
+    //   40      → escrow accounting
+    //   41–44   → seal-round and pagination validation
     // New categories should pick a fresh, contiguous range — not collide with
     // logging conventions — and update ERRORS.md at the same time.
     for (variant, code) in DOCUMENTED_ERROR_CODES {
         let name = variant_name(*variant);
-        let in_range = matches!(*code, 1..=4 | 10..=22 | 30..=39 | 40..=49);
+        let in_range = matches!(*code, 1..=4 | 10..=22 | 30..=44);
         assert!(
             in_range,
             "{name} = {code} falls outside the documented code ranges; \
@@ -2401,6 +2418,7 @@ fn error_codes_use_reserved_ranges() {
 fn shared_pagination_round() -> (Fixture, u64, Vec<Address>) {
     let f = setup();
     let id = open_round(&f, &Address::generate(&f.env));
+    let reveal_round = f.client.get_round(&id).reveal_round;
     let mut bidders = Vec::new(&f.env);
     for (i, line) in include_str!("../../../fixtures/bidder-pagination.txt")
         .lines()
@@ -2415,6 +2433,7 @@ fn shared_pagination_round() -> (Fixture, u64, Vec<Address>) {
             &Bytes::from_array(&f.env, b"c"),
             &100,
             &Bytes::new(&f.env),
+            &reveal_round,
         );
         bidders.push_back(bidder);
     }
@@ -2505,6 +2524,7 @@ fn bidder_cursor_snapshot_survives_append_and_overwrite() {
     let (f, id, expected) = shared_pagination_round();
     let first = f.client.get_bidders_page(&id, &None, &3);
     let newcomer = funded_bidder(&f, 1000);
+    let reveal_round = f.client.get_round(&id).reveal_round;
     for bidder in [newcomer, expected.get(0).unwrap()] {
         f.client.commit(
             &id,
@@ -2513,6 +2533,7 @@ fn bidder_cursor_snapshot_survives_append_and_overwrite() {
             &Bytes::from_array(&f.env, b"c"),
             &100,
             &Bytes::new(&f.env),
+            &reveal_round,
         );
     }
     let second = f.client.get_bidders_page(&id, &first.next_cursor, &3);

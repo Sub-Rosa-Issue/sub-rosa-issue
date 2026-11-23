@@ -19,10 +19,32 @@ import {
   openBid,
 } from "@sub-rosa/tlock";
 import type { AttackStep, CapDemoResult } from "./demoTypes";
+import { DEMO_TRACE } from "../demo/trace";
 import { systemClock } from "@sub-rosa/time";
 import { DEMO_ACTIONS, type DemoAction, type DemoActionGate } from "./config";
 
 export type { AttackStep, CapDemoResult };
+export type { DemoAction, DemoActionGate };
+
+export class DemoActionBlockedError extends Error {
+  readonly name = "DemoActionBlockedError";
+  readonly action: DemoAction;
+
+  constructor(action: DemoAction) {
+    super(`Demo ${action} is disabled: public config does not match the SDK client.`);
+    this.action = action;
+  }
+}
+
+/** Which demo actions may submit; all-or-nothing on the config gate. */
+export function demoActionAvailability(gate: DemoActionGate): Record<DemoAction, boolean> {
+  return Object.fromEntries(DEMO_ACTIONS.map((action) => [action, gate.enabled])) as Record<DemoAction, boolean>;
+}
+
+/** Call before any demo commit, reveal or settle submission. */
+export function assertDemoActionAllowed(action: DemoAction, gate: DemoActionGate): void {
+  if (!gate.enabled) throw new DemoActionBlockedError(action);
+}
 
 // Demo actions must never submit a commit/reveal/settle into the wrong
 // network. Re-export the guard so demo flows share one implementation.
@@ -182,9 +204,12 @@ export async function runSealAttackDemo(): Promise<{
 
   // ── Seal ON: real tlock to round R ─────────────────────────────────────
   const sealed = await sealBid({
+    contractId: DEMO_TRACE.meta.contractId,
+    bidderId: DEMO_TRACE.bidders[0].address,
     value,
     nonce,
     round: revealRound,
+    revealRound,
     client,
   });
   sealOn.push({

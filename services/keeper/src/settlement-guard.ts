@@ -440,13 +440,18 @@ export async function readSettlementView(
   let total = round.bidders?.length ?? 0;
   const index: string[] = [];
   try {
-    let cursor = 0;
+    const seenCursors = new Set<string>();
+    let cursor: Uint8Array | undefined;
     for (;;) {
       const page = await reader.getBiddersPage(roundId, cursor, BIDDER_PAGE_SIZE);
-      total = page.total;
+      total = Math.max(total, page.total);
       for (const bidder of page.data) index.push(bidder);
-      if (page.next_cursor === 0 || index.length >= total) break;
-      cursor = page.next_cursor;
+      const next = page.next_cursor;
+      if (!page.has_more || !next || index.length >= total) break;
+      const cursorKey = Buffer.from(next).toString("hex");
+      if (seenCursors.has(cursorKey) || page.data.length === 0) break;
+      seenCursors.add(cursorKey);
+      cursor = next;
     }
   } catch {
     // Keep the bidders read so far: an incomplete page must be refused, not

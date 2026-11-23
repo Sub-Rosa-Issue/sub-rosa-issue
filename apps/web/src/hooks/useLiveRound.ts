@@ -3,7 +3,7 @@ import { publicErrorMessage } from "@sub-rosa/logging/errors";
 import { useEffect, useRef, useState } from "react";
 import type { Round, BidState } from "@sub-rosa/sdk";
 import { useTime } from "../lib/time";
-import { classifyRoundPhase, type RoundPhase } from "../lib/round-phase";
+import { classifyRoundPhase, roundStatusFromTag, type RoundPhase } from "../lib/round-phase";
 
 import type { TimerHandle } from "@sub-rosa/time";
 
@@ -65,6 +65,7 @@ export function buildRoundSnapshot({
 }: BuildRoundSnapshotInput): RoundSnapshot {
   const states = Object.values(bidStates);
   const revealed = states.filter((state) => state.revealed_value != null).length;
+  const committed = states.reduce((sum, state) => sum + state.escrow, 0n);
   const revealedTotal = states.reduce(
     (sum, state) => sum + (state.revealed_value ?? 0n),
     0n,
@@ -73,9 +74,9 @@ export function buildRoundSnapshot({
     round,
     bidders,
     bidStates,
-    phase: classifyRoundPhase({ status: round.status, drandPublished }),
+    phase: classifyRoundPhase({ status: roundStatusFromTag(round.status.tag), drandPublished }),
     revealCursor: { revealed, total: bidders.length },
-    escrow: { committed: round.escrow ?? 0n, revealed: revealedTotal },
+    escrow: { committed, revealed: revealedTotal },
     sequence,
     polledAt,
   };

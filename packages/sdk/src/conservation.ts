@@ -134,7 +134,7 @@ export function evaluateEscrowConservation(
 
 /** The subset of client reads a conservation walk needs. */
 export interface EscrowConservationSource {
-  getBiddersPage(cursor: number, limit: number): Promise<BiddersPage>;
+  getBiddersPage(cursor: Uint8Array | undefined, limit: number): Promise<BiddersPage>;
   getBidState(bidder: string): Promise<BidState | undefined>;
 }
 
@@ -208,7 +208,8 @@ export async function proveEscrowConservationFromPages(
   let refundable = 0n;
   let winnerEscrow = 0n;
   let declaredTotal: number | undefined;
-  let cursor = 0;
+  const seenCursors = new Set<string>();
+  let cursor: Uint8Array | undefined;
   let pages = 0;
 
   for (;;) {
@@ -220,7 +221,7 @@ export async function proveEscrowConservationFromPages(
       issues.push(
         issue(
           "page_total_drift",
-          `bidder count changed mid-walk: page at cursor ${cursor} reports ` +
+          `bidder count changed mid-walk: page ${pages} reports ` +
             `${page.total} bidders, earlier pages reported ${declaredTotal}`,
         ),
       );
@@ -287,36 +288,23 @@ export async function proveEscrowConservationFromPages(
       );
       break;
     }
-    if (page.next_cursor === 0) break;
-    if (page.next_cursor <= cursor) {
-      issues.push(
-        issue(
-          "cursor_stalled",
-          `next_cursor ${page.next_cursor} did not advance past ${cursor}`,
-        ),
-      );
+    const next = page.next_cursor;
+    if (!page.has_more && next == null) break;
+    if (!page.has_more || !(next instanceof Uint8Array) || next.length !== 41) {
+      issues.push(issue("cursor_stalled", "bidder page returned an invalid continuation cursor"));
+      break;
+    }
+    const cursorKey = Buffer.from(next).toString("hex");
+    if (seenCursors.has(cursorKey)) {
+      issues.push(issue("cursor_stalled", "bidder page repeated a continuation cursor"));
       break;
     }
     if (pages >= maxPages) {
-      issues.push(
-        issue(
-          "cursor_stalled",
-          `index walk exceeded ${maxPages} pages before the cursor reached 0`,
-        ),
-      );
+      issues.push(issue("cursor_stalled", `index walk exceeded ${maxPages} pages`));
       break;
     }
-    if (page.next_cursor > ESCROW_MAX_BIDDERS) {
-      issues.push(
-        issue(
-          "cursor_stalled",
-          `next_cursor ${page.next_cursor} points past the contract maximum of ` +
-            `${ESCROW_MAX_BIDDERS} bidders`,
-        ),
-      );
-      break;
-    }
-    cursor = page.next_cursor;
+    seenCursors.add(cursorKey);
+    cursor = next;
   }
 
   if (winner !== undefined && !seen.has(winner)) {

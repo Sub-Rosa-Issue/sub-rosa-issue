@@ -49,10 +49,14 @@ async function sealFixture(overrides?: {
   nonce?: Uint8Array;
   round?: number;
 }): Promise<SealedBid> {
+  const round = overrides?.round ?? ROUND;
   return sealBid({
+    contractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    bidderId: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
     value: overrides?.value ?? VALUE,
     nonce: overrides?.nonce ?? NONCE,
-    round: overrides?.round ?? ROUND,
+    round,
+    revealRound: round,
     client: offlineClient,
   });
 }

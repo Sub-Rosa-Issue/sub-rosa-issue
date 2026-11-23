@@ -176,13 +176,15 @@ describe("KeeperStatusClient readiness", () => {
     assert.equal(verdict.ready === false && verdict.reason, "round_mismatch");
   });
 
-  it("errors never include keeper URL userinfo", async () => {
-    const { c } = client([LIVE], {
-      baseURL: "http://operator:hunter2@keeper.test",
-      fetchImpl: async (url) => { throw new TypeError(`Request cannot be constructed from a URL that includes credentials: ${String(url)}`); },
-    });
-    const verdict = await c.readiness();
-    assert.equal(verdict.ready === false && verdict.reason, "unavailable");
-    assert.ok(verdict.ready === false && !verdict.error.includes("hunter2") && !verdict.error.includes("operator:"));
+  it("rejects keeper URL userinfo without exposing credentials", () => {
+    assert.throws(
+      () => client([LIVE], { baseURL: "http://operator:hunter2@keeper.test" }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /must not contain credentials/);
+        assert.doesNotMatch(error.message, /hunter2|operator:/);
+        return true;
+      },
+    );
   });
 });

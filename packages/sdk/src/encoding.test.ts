@@ -45,9 +45,11 @@ test("commit args encode and round-trip exactly", () => {
     ciphertext: Buffer.from(ciphertext),
     escrow: 700n,
     auditor_blob: Buffer.from(auditorBlob),
+    seal_round: 7n,
   });
 
-  assert.equal(args.length, 6);
+  assert.equal(args.length, 7);
+  assert.equal(scValToNative(args[6]), 7n);
   const [roundId, b, cm, ct, escrow, ab] = args.map((a) => scValToNative(a));
   assert.equal(roundId, 1n);
   assert.equal(b, bidder);
@@ -140,6 +142,7 @@ test("commit rejects a wrong-width commitment (BytesN<32>)", () => {
       ciphertext: Buffer.from("x"),
       escrow: 1n,
       auditor_blob: Buffer.alloc(0),
+      seal_round: 7n,
     }),
   );
 });
@@ -164,6 +167,7 @@ test("a tlock SealedBid encodes byte-for-byte into commit", () => {
     ciphertext: Buffer.from(sealed.ciphertext),
     escrow: value,
     auditor_blob: Buffer.from(sealed.auditorBlob),
+    seal_round: BigInt(sealed.sealRound),
   });
 
   // The H the contract will hash-check is exactly the H tlock produced.

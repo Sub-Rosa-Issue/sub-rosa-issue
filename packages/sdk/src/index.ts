@@ -37,6 +37,7 @@ export {
   SubRosaManifestError,
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
+  SubRosaPaginationError,
   SubRosaPreflightError,
   SubRosaSessionMismatchError,
   SubRosaSubmitError,

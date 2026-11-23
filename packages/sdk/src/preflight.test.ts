@@ -383,15 +383,20 @@ describe("SubRosaClient escrow conservation preflight", () => {
   ): void {
     Object.defineProperty(client.contract, "get_bidders_page", {
       configurable: true,
-      value: async (args: { cursor: number; limit: number }) =>
-        mockAssembledTransaction<unknown>("settle", {
+      value: async ({ cursor, limit }: { cursor?: Buffer; limit: number }) => {
+        const offset = cursor?.readUInt32BE(1) ?? 0;
+        const end = offset + limit;
+        const next = end < bidders.length ? Buffer.alloc(41) : undefined;
+        next?.writeUInt32BE(end, 1);
+        return mockAssembledTransaction<unknown>("settle", {
           parsed: new Ok({
-            data: bidders.slice(args.cursor, args.cursor + args.limit),
-            next_cursor:
-              args.cursor + args.limit >= bidders.length ? 0 : args.cursor + args.limit,
+            data: bidders.slice(offset, end),
+            next_cursor: next,
+            has_more: next !== undefined,
             total: bidders.length,
           }),
-        }),
+        });
+      },
     });
     Object.defineProperty(client.contract, "get_bid_state", {
       configurable: true,

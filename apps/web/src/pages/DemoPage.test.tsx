@@ -72,9 +72,9 @@ function EvidencePanelTestDouble({ errorCode }: { errorCode?: string }) {
 
   // When healthy, render a stand-in that includes trace bid amounts so we
   // can assert they ARE visible when the trace is valid.
-  const bidAmounts = (DEMO_TRACE as { bidders: Array<{ bidUsdc: number | null }> }).bidders
+  const bidAmounts = DEMO_TRACE.bidders
     .map((b) => b.bidUsdc)
-    .filter((v): v is number => v !== null);
+    .filter((value) => value !== null);
 
   return createElement(
     "div",

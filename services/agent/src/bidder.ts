@@ -160,7 +160,7 @@ export async function runBidderAgent(config: BidderAgentConfig, dependencies: Bi
   const quotedPrice = BigInt(config.mandate.appraisalPriceStroops);
   assertAppraisalSpendAllowed(config.mandate, quotedPrice, 0n);
 
-const requestBody = JSON.stringify(req);
+  const requestBody = JSON.stringify(req);
   // Fail closed before any payment: empty/oversized/credential-like bodies
   // throw a typed refusal the keeper trace can show — no transfer happens.
   assertAppraisalRequestBodyAllowed(requestBody);
@@ -168,7 +168,7 @@ const requestBody = JSON.stringify(req);
   const expectedAsset = config.appraisalAsset ?? config.mandate.appraisalAsset;
   const expectedDestination = config.appraisalPayTo ?? config.mandate.appraisalPayTo;
 
-  log(`paying appraisal (${stroopsToUsdc(quotedPrice)} USDC…);
+  log(`paying appraisal (${stroopsToUsdc(quotedPrice)} USDC)…`);
   const paidFetch = dependencies.createPaidFetch({
     secret: config.sessionSecret,
     network: config.x402Network ?? "stellar:testnet",

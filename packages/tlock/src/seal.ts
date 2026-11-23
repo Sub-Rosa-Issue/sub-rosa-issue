@@ -14,6 +14,7 @@ import { commitment, decodeBidPreimage, encodeBidPreimage, NONCE_BYTES } from ".
 import { sealIdentityForBidder } from "./auditor.js";
 import type { DrandClient } from "./quicknet.js";
 import { assertContractId, assertBidderId } from "./validate.js";
+import { assertSealRoundWindow } from "./window.js";
 
 const utf8Encode = new TextEncoder();
 const utf8Decode = new TextDecoder();
@@ -51,7 +52,7 @@ export function generateNonce(): Uint8Array {
 }
 
 export async function sealBid(params: SealBidParams): Promise<SealedBid> {
-  const { contractId, bidderId, value, nonce, round, client, identity, auditorPublicKey } = params;
+  const { contractId, bidderId, value, nonce, round, revealRound, client, identity, auditorPublicKey } = params;
 
   assertContractId(contractId);
   assertBidderId(bidderId);

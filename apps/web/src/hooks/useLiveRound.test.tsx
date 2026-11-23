@@ -16,9 +16,9 @@ mock.module("@sub-rosa/sdk", { namedExports: {
   ROUND_PHASE_LABELS: { Open: "Open", Reveal: "Reveal", Settled: "Settled" },
   roundPhaseLabel: (phase: "Open" | "Reveal" | "Settled") => phase,
   SubRosaClient: class {
-  async getRound() { calls++; active++; peak = Math.max(peak, active); try { return await read(); } finally { active--; } }
+  async getRound() { calls++; active++; peak = Math.max(peak, active); try { return { ...await read(), status: { tag: "Open" } }; } finally { active--; } }
   async getBidders() { return ["bidder"]; }
-  async getBidState() { return { revealed_value: null }; }
+  async getBidState() { return { escrow: 0n, revealed_value: null }; }
 } } });
 const { useLiveRound } = await import("./useLiveRound");
 function deferred() {

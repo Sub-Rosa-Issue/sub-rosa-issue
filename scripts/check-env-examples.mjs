@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { resolve } from "node:path";
+import { createLogger } from "../packages/logging/src/index.cjs";
 
 const TEMPLATES = [
   ['.env.example', new URL('../.env.example', import.meta.url)],
@@ -60,8 +61,9 @@ export function checkTemplates(templates = TEMPLATES) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const logger = createLogger("scripts.check-env-examples");
   const errors = checkTemplates();
-  for (const error of errors) console.error(error);
+  for (const error of errors) logger.error("invalid-environment-template", error);
   if (errors.length) process.exitCode = 1;
-  else console.log('Environment templates are valid.');
+  else logger.info("environment-templates-valid", "Environment templates are valid.");
 }

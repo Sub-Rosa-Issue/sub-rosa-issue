@@ -154,7 +154,7 @@ export function main(argv = process.argv.slice(2), api = ghApi) {
   try {
     opts = parseArgs(argv);
   } catch (error) {
-    diagnostics.error("usage", error.message);
+    diagnostics.error("usage", "Invalid command-line arguments", { error });
     return 2;
   }
 
