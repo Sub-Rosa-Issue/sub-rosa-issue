@@ -435,7 +435,8 @@
   .seal-orb,
   .seal-orb::before,
   .seal-orb::after,
-  .seal-orb img {
+  .seal-orb img,
+  .seal-pulse {
     animation: none;
   }
 }

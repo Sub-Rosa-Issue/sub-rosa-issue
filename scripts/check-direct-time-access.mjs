@@ -8,9 +8,9 @@ const diagnostics = createLogger("scripts.check-direct-time-access");
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SCAN_ROOTS = ["packages", "services", "apps"];
 const ALLOWED = new Set([
   "packages/time/src/system.ts",
@@ -74,6 +74,7 @@ export function findViolations(content, relPath) {
 export function scanTree(rootDir = ROOT) {
   /** @type {ReturnType<typeof findViolations>} */
   const all = [];
+  let foundRoots = 0;
   for (const scanRoot of SCAN_ROOTS) {
     const abs = join(rootDir, scanRoot);
     try {
@@ -81,11 +82,15 @@ export function scanTree(rootDir = ROOT) {
     } catch {
       continue;
     }
+    foundRoots++;
     for (const file of walk(abs)) {
       const relPath = relative(rootDir, file).split("\\").join("/");
       const content = readFileSync(file, "utf-8");
       all.push(...findViolations(content, relPath));
     }
+  }
+  if (foundRoots === 0) {
+    throw new Error(`No direct-time-access scan roots found in ${rootDir}`);
   }
   return all;
 }
