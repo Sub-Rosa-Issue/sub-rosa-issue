@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useRef } from "react";
 import { animate, useReducedMotion } from "framer-motion";
+import { motionEnabled } from "../lib/reduced-motion";
 
 interface CountUpProps {
   value: number;
@@ -22,7 +23,7 @@ export function CountUp({
 }: CountUpProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const fromRef = useRef(0);
-  const reduce = useReducedMotion();
+  const reduce = !motionEnabled("count-up", useReducedMotion());
 
   useEffect(() => {
     const node = ref.current;

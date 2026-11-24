@@ -186,3 +186,11 @@
   height: 9px;
   border-radius: 50%;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-layer,
+  .confetti-piece {
+    animation: none;
+    transition: none;
+  }
+}
