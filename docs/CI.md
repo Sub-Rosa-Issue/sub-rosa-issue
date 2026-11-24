@@ -33,6 +33,15 @@ JS dependencies without lifecycle scripts, then runs `pnpm appraisal:test` and
 `services/appraisal-api`; `node --test scripts/appraisal-ci.test.mjs` verifies
 the CI job configuration.
 
+## Agent checks
+
+The `Agent checks` workflow (`.github/workflows/agent.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm agent:test` and
+`pnpm agent:typecheck` in order. Run the same two commands locally to check
+`services/agent`; `node --test scripts/agent-ci.test.mjs` verifies the CI job
+configuration.
+
 ## Keeper checks
 
 The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
