@@ -11,6 +11,7 @@ import { x402Client, x402HTTPClient } from "@x402/core/client";
 import type { Network, PaymentRequired, SettleResponse } from "@x402/core/types";
 import { createEd25519Signer } from "@x402/stellar";
 import { ExactStellarScheme as ClientStellarScheme } from "@x402/stellar/exact/client";
+import { systemClock } from "@sub-rosa/time";
 
 import {
   assertAppraisalBodyBytes,
@@ -256,7 +257,7 @@ function quoteExpiry(entry: Record<string, unknown>): number | undefined {
 export function assertChallengeMatchesQuote(
   paymentRequired: PaymentRequired,
   expected: ExpectedQuote,
-  nowSeconds: () => number = () => Math.floor(Date.now() / 1000),
+  nowSeconds: () => number = () => systemClock.nowSeconds(),
 ): void {
   const entry = firstQuote(paymentRequired);
   if (!entry) {
@@ -438,7 +439,7 @@ export function assertPaymentQuoteAllowed(
     );
   }
   const nowSeconds =
-    expected.nowSeconds ?? Math.floor(Date.now() / 1000);
+    expected.nowSeconds ?? systemClock.nowSeconds();
   if (expected.expiresAt !== undefined) {
     if (!Number.isSafeInteger(expected.expiresAt) || expected.expiresAt < 0) {
       throw new AppraisalQuoteRefusalError("QUOTE_INVALID", "expected expiresAt is invalid");

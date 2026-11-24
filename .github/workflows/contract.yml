@@ -25,7 +25,9 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          toolchain: "1.85.0"
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -43,3 +45,6 @@ jobs:
 
       - name: Run error drift script tests
         run: node --test scripts/check-round-errors.test.mjs
+
+      - name: Assert pinned Rust toolchain alignment
+        run: node --test scripts/check-rust-toolchain.test.mjs && node scripts/check-rust-toolchain.mjs

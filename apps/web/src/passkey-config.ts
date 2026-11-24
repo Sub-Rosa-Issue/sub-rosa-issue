@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import type { CommitParams, SubRosaClient } from "@sub-rosa/sdk";
 import { assertNoUrlCredentials, validatePasskeySession } from "@sub-rosa/sdk";
+import { systemClock } from "@sub-rosa/time";
 
 /** Public testnet smart-wallet WASM (passkey-kit demo). Not a secret. */
 export const PASSKEY_TESTNET_WALLET_WASM_HASH =
@@ -75,7 +76,7 @@ export function createPasskeySession(params: {
     account: params.account.trim(),
     keyId: params.keyId,
     publicKey: params.publicKey,
-    createdAt: new Date().toISOString(),
+    createdAt: systemClock.toISOString(),
   };
 }
 

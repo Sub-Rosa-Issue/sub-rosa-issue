@@ -34,10 +34,21 @@ interface Route {
   ) => Promise<{ status: number; body: unknown }>;
 }
 
-const JSON_CONTENT = {
+/**
+ * Headers on every keeper status response, including errors.
+ * JSON content type, no-store, nosniff, and frame denial (X-Frame-Options
+ * plus CSP frame-ancestors). There is no separate production header adapter:
+ * these values are fixed so a proxy cannot weaken them by omission.
+ */
+export const KEEPER_STATUS_RESPONSE_HEADERS = {
   "content-type": "application/json",
   "cache-control": "no-store",
-};
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "content-security-policy": "frame-ancestors 'none'",
+} as const;
+
+const JSON_CONTENT = KEEPER_STATUS_RESPONSE_HEADERS;
 
 function send(
   res: http.ServerResponse,

@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { StrKey } from "@stellar/stellar-sdk";
+import { systemClock } from "@sub-rosa/time";
 
 import {
   AssetConfigError,
@@ -365,7 +366,7 @@ describe("assertAssetGuard - asset config guard for setup scripts", () => {
 
   it("does not contact a live RPC", () => {
     // assertAssetGuard performs pure value comparisons only.
-    const before = Date.now();
+    const before = systemClock.nowMs();
     assert.doesNotThrow(() =>
       assertAssetGuard(
         {
@@ -375,6 +376,6 @@ describe("assertAssetGuard - asset config guard for setup scripts", () => {
         expected,
       ),
     );
-    assert.ok(Date.now() - before < 100);
+    assert.ok(systemClock.nowMs() - before < 100);
   });
 });

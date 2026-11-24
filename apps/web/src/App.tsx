@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
+import { MotionConfig } from "framer-motion";
 import { getUseCase } from "./config/useCases";
 import type { UseCaseId } from "./config/useCases";
 import { hashFor, routeFromHash, type RouteState } from "./config/routing";
@@ -36,6 +37,7 @@ export default function App() {
   const active = getUseCase(route.useCase);
 
   return (
+    <MotionConfig reducedMotion="user">
     <TimeProvider>
       <ToastProvider>
       <SkipLink />
@@ -62,5 +64,6 @@ export default function App() {
       )}
       </ToastProvider>
     </TimeProvider>
+    </MotionConfig>
   );
 }

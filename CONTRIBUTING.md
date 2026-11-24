@@ -43,7 +43,7 @@ Do not invent newer requirements.
 | --- | --- | --- |
 | Node.js | `>= 22` | pinned by `engines.node` |
 | pnpm | `10.13.1` | pinned by `packageManager`; `corepack enable` picks it up |
-| Rust | stable + `wasm32v1-none` target | pinned by `rust-toolchain.toml` |
+| Rust | `1.85.0` + `wasm32v1-none` target | pinned by `rust-toolchain.toml` |
 | Stellar CLI | latest | `cargo install stellar-cli --locked` |
 | Build deps (Linux) | build-essential, pkg-config, libssl-dev, libdbus-1-dev, libudev-dev, libsodium-dev | same as CI (`.github/workflows/*`) |
 
