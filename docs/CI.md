@@ -24,6 +24,15 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+## Appraisal API checks
+
+The `Appraisal API checks` workflow (`.github/workflows/appraisal.yml`) runs on
+pushes to `main` and on pull requests. Its single blocking job installs locked
+JS dependencies without lifecycle scripts, then runs `pnpm appraisal:test` and
+`pnpm appraisal:typecheck` in order. Run the same two commands locally to check
+`services/appraisal-api`; `node --test scripts/appraisal-ci.test.mjs` verifies
+the CI job configuration.
+
 ## Agent checks
 
 The `Agent checks` workflow (`.github/workflows/agent.yml`) runs on pushes to
