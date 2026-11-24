@@ -128,6 +128,12 @@ For a paid end-to-end against testnet:
 pnpm appraisal:e2e     # x402 handshake + on-chain settlement
 ```
 
+## Quote rate limit
+
+`POST /appraise` checks a quote-creation limiter after payment is verified and before `buildAppraisalQuote`. When the limiter refuses, the response is HTTP 429 `{ "error": "appraisal quote rate limit exceeded" }` with `retry-after`. No quote is returned and the authorized payment is not settled.
+
+The default adapter is `createMemoryQuoteRateLimiter`: a fixed window of 30 quotes per 60 seconds per socket address, retaining at most 1,000 keys. It is for a single development process. Production should pass `quoteRateLimiter` on `buildAppraisalServer` with an implementation of `QuoteRateLimiter` backed by a shared store. The interface is `take(key, nowMs) -> { allowed, retryAfterMs }`.
+
 ## Determinism
 
 The valuation is a pure function of `(itemRef, basePrice, category, attributes)`.
