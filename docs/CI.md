@@ -24,6 +24,11 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+Toast keyboard behavior: when a toast is dismissed by keyboard (close button or
+`Escape` while focus is inside the toast), focus returns to the action that
+opened the toast; programmatic/auto-dismiss does not move focus when the user
+has moved elsewhere.
+
 The same job runs `pnpm snapshot:check` to require the committed contract
 snapshot categories, while `web:test` checks the generated demo trace and its
 agreement with the dashboard fixture. The contract job regenerates Rust test

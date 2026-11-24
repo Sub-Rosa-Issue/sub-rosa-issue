@@ -129,6 +129,13 @@
   background: var(--surface-3);
 }
 
+.toast-close:focus-visible {
+  color: var(--ink);
+  background: var(--surface-3);
+  outline: 2px solid var(--focus-ring, currentColor);
+  outline-offset: 2px;
+}
+
 .toast-bar {
   position: absolute;
   inset: auto 0 0 0;
