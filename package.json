@@ -105,6 +105,8 @@
     "line-lengths:check": "node scripts/check-line-lengths.mjs",
     "line-lengths:test": "node --test scripts/check-line-lengths.test.mjs",
     "wf-creds:check": "node scripts/check-workflow-credentials.mjs",
-    "wf-creds:test": "node --test scripts/check-workflow-credentials.test.mjs"
+    "wf-creds:test": "node --test scripts/check-workflow-credentials.test.mjs",
+    "audit:prod": "node scripts/audit-prod-deps.mjs",
+    "audit:prod:test": "node --test scripts/audit-prod-deps.test.mjs"
   }
 }
