@@ -1,0 +1,40 @@
+name: Font assets check
+
+on:
+  push:
+    paths:
+      - '**.woff'
+      - '**.woff2'
+      - 'scripts/check-font-assets.mjs'
+      - 'scripts/check-font-assets.test.mjs'
+      - '.github/workflows/font-assets.yml'
+  pull_request:
+    paths:
+      - '**.woff'
+      - '**.woff2'
+      - 'scripts/check-font-assets.mjs'
+      - 'scripts/check-font-assets.test.mjs'
+      - '.github/workflows/font-assets.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-fonts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run font asset checker tests
+        run: node --test scripts/check-font-assets.test.mjs
+      - name: Verify font assets magic bytes
+        run: node scripts/check-font-assets.mjs
