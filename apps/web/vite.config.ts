@@ -4,6 +4,8 @@ import inject from "@rollup/plugin-inject";
 import { createRequire } from "node:module";
 import { defineConfig } from "vite";
 
+import { SECURITY_HEADERS } from "./src/lib/security-headers";
+
 const require = createRequire(import.meta.url);
 
 export default defineConfig({
@@ -36,9 +38,13 @@ export default defineConfig({
     include: ["buffer", "crypto-browserify", "stream-browserify", "process/browser", "events"],
   },
   server: {
+    headers: SECURITY_HEADERS,
     port: 5173,
     fs: {
       allow: ["..", "../..", "../../..", "../../../.."],
     },
+  },
+  preview: {
+    headers: SECURITY_HEADERS,
   },
 });

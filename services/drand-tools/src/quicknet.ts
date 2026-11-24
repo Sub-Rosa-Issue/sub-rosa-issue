@@ -21,16 +21,50 @@ export interface Beacon {
   signature: string; // compressed G1, hex (48 bytes)
 }
 
+/// The one stable category every "this did not come back as JSON" failure uses,
+/// so callers can match on it instead of on message text.
+export const NON_JSON_RESPONSE = "non-json-response";
+
+export class DrandResponseError extends Error {
+  readonly category = NON_JSON_RESPONSE;
+  constructor(
+    readonly endpoint: string,
+    readonly contentType: string | null,
+    detail: string,
+  ) {
+    super(`${endpoint} returned a non-JSON response (${detail})`);
+    this.name = "DrandResponseError";
+  }
+}
+
+/// `application/json`, optionally followed by parameters such as a charset.
+const JSON_MEDIA_TYPE = /^application\/json\s*(;.*)?$/i;
+
+/// Parse a success response as JSON, but only when the server says it is JSON.
+/// An intermediary that answers 200 with an HTML error page would otherwise
+/// surface as an opaque `Unexpected token '<'` parse error.
+async function readJson<T>(res: Response, endpoint: string): Promise<T> {
+  const contentType = res.headers.get("content-type");
+  if (contentType === null || !JSON_MEDIA_TYPE.test(contentType.trim())) {
+    throw new DrandResponseError(endpoint, contentType, `content-type ${contentType ?? "missing"}`);
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new DrandResponseError(endpoint, contentType, "body is not valid JSON");
+  }
+}
+
 export async function getChainInfo(): Promise<ChainInfo> {
   const res = await fetch(`${API}/${QUICKNET_HASH}/info`);
   if (!res.ok) throw new Error(`info HTTP ${res.status}`);
-  return (await res.json()) as ChainInfo;
+  return readJson<ChainInfo>(res, "info");
 }
 
 export async function getBeacon(round: number | "latest"): Promise<Beacon> {
   const res = await fetch(`${API}/${QUICKNET_HASH}/public/${round}`);
   if (!res.ok) throw new Error(`beacon ${round} HTTP ${res.status}`);
-  return (await res.json()) as Beacon;
+  return readJson<Beacon>(res, `beacon ${round}`);
 }
 
 export function roundAt(info: ChainInfo, unixSeconds: number): number {
