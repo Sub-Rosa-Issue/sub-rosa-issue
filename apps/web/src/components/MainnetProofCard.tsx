@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { MAINNET_ARTIFACTS } from "@sub-rosa/sdk";
 import { shortAddr } from "../lib/format";
+import { ExternalLink } from "./ExternalLink";
 
 export function MainnetProofCard() {
   const a = MAINNET_ARTIFACTS;
@@ -62,9 +63,9 @@ export function MainnetProofCard() {
             <li>
               <strong>Explorer</strong>
               <span>
-                <a href={a.explorerContract} target="_blank" rel="noreferrer">
+                <ExternalLink href={a.explorerContract}>
                   stellar.expert contract
-                </a>
+                </ExternalLink>
               </span>
             </li>
           </ul>
