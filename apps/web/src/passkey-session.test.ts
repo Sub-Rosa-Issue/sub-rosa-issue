@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import { systemClock } from "@sub-rosa/time";
+import { QUICKNET_HASH } from "@sub-rosa/tlock";
 import {
   SubRosaClient,
   SubRosaNetworkMismatchError,
@@ -13,6 +14,18 @@ import {
   commitWithPasskeySession,
   type PasskeySession,
 } from "./passkey-config";
+
+function buildSyntheticSealedCiphertext(round = 1): Uint8Array {
+  const ageHeader = Buffer.from(
+    `age-encryption.org/v1\n-> tlock ${round} ${QUICKNET_HASH}\nAAAA\n--- AAAA\n`,
+    "ascii",
+  );
+  const agePayload = Buffer.concat([ageHeader, Buffer.alloc(80, 0x42)]);
+  const b64Lines = agePayload.toString("base64").match(/.{1,64}/g) ?? [];
+  return new TextEncoder().encode(
+    `-----BEGIN AGE ENCRYPTED FILE-----\n${b64Lines.join("\n")}\n-----END AGE ENCRYPTED FILE-----\n`,
+  );
+}
 
 describe("Passkey session binding fixture test", () => {
   const fixtureKeypair = Keypair.random();
@@ -37,10 +50,12 @@ describe("Passkey session binding fixture test", () => {
 
   const FAKE_COMMIT_PARAMS = {
     roundId: 1,
+    sealRound: 1,
     sealed: {
       commitment: new Uint8Array(32),
-      ciphertext: new Uint8Array([0x61, 0x67, 0x65]),
+      ciphertext: buildSyntheticSealedCiphertext(1),
       auditorBlob: new Uint8Array(1),
+      sealRound: 1,
     },
     escrow: 100_000n,
     bidder: FIXTURE_PUBLIC,

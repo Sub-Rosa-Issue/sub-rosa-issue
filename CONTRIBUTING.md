@@ -71,15 +71,20 @@ pnpm install --frozen-lockfile
 Everything uses one of two patterns, so you can scope a command to exactly
 what you touched instead of running the whole workspace.
 
-**TypeScript packages** (`packages/*`, `services/*`): filter by package name.
+**TypeScript packages** (`packages/*`, `services/*`, `apps/*`): filter by package name.
+In `apps/web`, `pnpm --filter @sub-rosa/web test` discovers every `*.test.ts` /
+`*.test.tsx` under `apps/web` (see `apps/web/scripts/run-tests.mjs`).
 
 ```bash
 pnpm --filter @sub-rosa/sdk test
 pnpm --filter @sub-rosa/sdk typecheck
+pnpm --filter @sub-rosa/web test
+pnpm --filter @sub-rosa/web typecheck
 # Shorthands for the same thing:
 pnpm sdk:typecheck
 pnpm keeper:test
 pnpm tlock:typecheck
+pnpm web:test
 ```
 
 **Soroban contract** (`contracts/round`):

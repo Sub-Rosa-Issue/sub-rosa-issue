@@ -21,6 +21,7 @@ import {
 } from "@sub-rosa/tlock";
 import type { UseCase } from "../config/useCases";
 import type { UseCaseId } from "../config/useCases";
+import * as chainModule from "../lib/chain";
 import {
   CONTRACT_ID,
   LIVE_COMMIT_CLOSE_BEFORE_REVEAL_SECONDS,
@@ -122,10 +123,20 @@ export function useRoundSession(active: UseCase) {
   const session = sessions[active.id];
   const { auditorPublicKey, commitValue, sealedCiphertext, live, log, roundId, roundCreatedAt } =
     session;
-  const actionGate = useMemo(
-    () => gateDemoActions(contract ? contract.options : null, PUBLIC_ENV),
-    [contract],
-  );
+  const actionGate = useMemo(() => {
+    const publicEnvRecord =
+      (chainModule as { PUBLIC_ENV?: Record<string, string | undefined> }).PUBLIC_ENV ?? {
+        VITE_CONTRACT_ID: CONTRACT_ID,
+        VITE_NETWORK_PASSPHRASE: NETWORK,
+      };
+    const clientIdentity = contract
+      ? {
+          contractId: contract.options?.contractId ?? CONTRACT_ID,
+          networkPassphrase: contract.options?.networkPassphrase ?? NETWORK,
+        }
+      : null;
+    return gateDemoActions(clientIdentity, publicEnvRecord);
+  }, [contract]);
   const canUseContract = Boolean(CONTRACT_ID && contract && actionGate.enabled);
   const targetRound = live ? Number(live.round.reveal_round) : DEMO_TRACE.meta.revealRound;
   const drandGate = useDrandCountdown(targetRound);

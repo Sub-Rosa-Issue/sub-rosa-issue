@@ -30,9 +30,7 @@ const CONFIG_PATTERNS = [
 
 // Allowlist for legitimate files that may have long lines
 // These are exact relative paths from repo root
-const ALLOWLIST = new Set([
-  "apps/web/package.json", // Long test script command line
-]);
+const ALLOWLIST = new Set([]);
 
 // Directories to skip entirely
 const SKIP_DIRS = new Set([

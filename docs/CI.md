@@ -24,6 +24,12 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+`pnpm web:test` (via `@sub-rosa/web`'s `test` script) discovers every
+`*.test.ts` / `*.test.tsx` under `apps/web/src` through
+`apps/web/scripts/run-tests.mjs` — do not maintain a manual file list in
+`apps/web/package.json`. Suites that call `mock.module` run in a second Node
+process with `--experimental-test-module-mocks`.
+
 The same job runs `pnpm snapshot:check` to require the committed contract
 snapshot categories, while `web:test` checks the generated demo trace and its
 agreement with the dashboard fixture. The contract job regenerates Rust test
