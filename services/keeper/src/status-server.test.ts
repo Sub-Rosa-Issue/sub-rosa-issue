@@ -342,7 +342,11 @@ test("rejects non-GET methods with 405 and Allow: GET at the server boundary", a
     const direct = await invokeHandler(source, "/status", method);
     assert.equal(direct.status, 405);
     assert.equal(direct.headers["allow"], "GET");
+    assert.equal(direct.headers["content-type"], "application/json");
     assert.equal(direct.headers["cache-control"], "no-store");
+    assert.equal(direct.headers["x-content-type-options"], "nosniff");
+    assert.equal(direct.headers["x-frame-options"], "DENY");
+    assert.equal(direct.headers["content-security-policy"], "frame-ancestors 'none'");
     const directBody = direct.body as Record<string, unknown>;
     assert.equal(directBody.error, "method not allowed");
     assert.equal(directBody.method, method);
@@ -368,7 +372,11 @@ test("rejects non-GET methods with 405 and Allow: GET at the server boundary", a
       });
       assert.equal(res.status, 405, `expected 405 for ${method} ${path}`);
       assert.equal(res.headers.get("allow"), "GET");
+      assert.equal(res.headers.get("content-type"), "application/json");
       assert.equal(res.headers.get("cache-control"), "no-store");
+      assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(res.headers.get("x-frame-options"), "DENY");
+      assert.equal(res.headers.get("content-security-policy"), "frame-ancestors 'none'");
       const body = (await res.json()) as Record<string, unknown>;
       assert.equal(body.error, "method not allowed");
       assert.equal(body.method, method);
