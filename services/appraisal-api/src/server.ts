@@ -47,6 +47,11 @@ import {
   type QuoteRateLimitDecision,
   type QuoteRateLimiter,
 } from "./quote-rate-limit.js";
+import {
+  APPRAISAL_REQUEST_ID_HEADER,
+  readInboundAppraisalRequestId,
+  resolveAppraisalRequestId,
+} from "./request-id.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
 
@@ -89,6 +94,10 @@ export interface AppraisalServerOptions {
   quoteRateLimiter?: QuoteRateLimiter;
   /** Client key for the quote limiter. Defaults to the socket address. */
   quoteRateKey?: (req: http.IncomingMessage) => string;
+  /** Optional request-id generator (defaults to `randomUUID`). */
+  generateRequestId?: () => string;
+  /** Optional logger override (used by deterministic unit tests). */
+  logger?: ReturnType<typeof createLogger>;
 }
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
@@ -113,29 +122,44 @@ function makeAdapter(
   };
 }
 
+function withRequestIdHeaders(
+  requestId: string,
+  headers: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    ...withNonCacheableHeaders(headers),
+    [APPRAISAL_REQUEST_ID_HEADER]: requestId,
+  };
+}
+
 function send(
   res: http.ServerResponse,
   status: number,
   headers: Record<string, string>,
   body: unknown,
+  requestId: string,
 ) {
   const payload =
     typeof body === "string" ? body : JSON.stringify(body ?? {}, null, 2);
   res.writeHead(status, {
     "content-type": "application/json",
-    ...withNonCacheableHeaders(headers),
+    ...withRequestIdHeaders(requestId, headers),
   });
   res.end(payload);
 }
 
-function writeInstructions(res: http.ServerResponse, i: HTTPResponseInstructions) {
+function writeInstructions(
+  res: http.ServerResponse,
+  i: HTTPResponseInstructions,
+  requestId: string,
+) {
   const body =
     i.isHtml || typeof i.body === "string"
       ? (i.body as string)
       : JSON.stringify(i.body ?? {}, null, 2);
   res.writeHead(i.status, {
     "content-type": i.isHtml ? "text/html" : "application/json",
-    ...withNonCacheableHeaders(i.headers),
+    ...withRequestIdHeaders(requestId, i.headers),
   });
   res.end(body ?? "");
 }
@@ -197,14 +221,19 @@ export async function buildAppraisalServer(
   const quoteLimiter =
     options.quoteRateLimiter ?? createMemoryQuoteRateLimiter(DEVELOPMENT_QUOTE_RATE_LIMIT);
   const quoteRateKey = options.quoteRateKey ?? appraisalQuoteRateKey;
+  const log = options.logger ?? diagnostics;
 
   return http.createServer(async (req, res) => {
+    const requestId = resolveAppraisalRequestId(
+      readInboundAppraisalRequestId(req.headers),
+      options.generateRequestId,
+    );
     try {
       const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
       const method = req.method ?? "GET";
 
       if (method === "GET" && url.pathname === "/healthz") {
-        return send(res, 200, {}, { ok: true, service: "sub-rosa-appraisal" });
+        return send(res, 200, {}, { ok: true, service: "sub-rosa-appraisal" }, requestId);
       }
       if (method === "GET" && url.pathname === "/") {
         return send(res, 200, {}, {
@@ -213,13 +242,13 @@ export async function buildAppraisalServer(
           asset: config.asset,
           price: config.price,
           network: config.network,
-        });
+        }, requestId);
       }
 
       const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);
       if ("status" in taken) {
         // Fail closed before JSON parsing and before any payment offer.
-        send(res, taken.status, {}, taken.body);
+        send(res, taken.status, {}, taken.body, requestId);
         res.on("finish", () => req.destroy());
         return;
       }
@@ -229,11 +258,11 @@ export async function buildAppraisalServer(
         try {
           parsedBody = JSON.parse(rawBody.toString("utf8"));
         } catch {
-          return send(res, 400, {}, { error: "invalid JSON body" });
+          return send(res, 400, {}, { error: "invalid JSON body" }, requestId);
         }
       } else if (method === "POST" && url.pathname === "/appraise") {
         // Empty POST bodies are a stable 400 — never a 402, never a settlement.
-        return send(res, 400, {}, { error: "Invalid appraisal request" });
+        return send(res, 400, {}, { error: "Invalid appraisal request" }, requestId);
       }
 
       const adapter = makeAdapter(req, url, parsedBody);
@@ -247,10 +276,10 @@ export async function buildAppraisalServer(
       const result = await httpServer.processHTTPRequest(ctx);
 
       if (result.type === "no-payment-required") {
-        return send(res, 404, {}, { error: "not found" });
+        return send(res, 404, {}, { error: "not found" }, requestId);
       }
       if (result.type === "payment-error") {
-        return writeInstructions(res, result.response);
+        return writeInstructions(res, result.response, requestId);
       }
 
       // result.type === "payment-verified": funds are authorized but not yet
@@ -273,6 +302,7 @@ export async function buildAppraisalServer(
           429,
           { "retry-after": String(retryAfterSeconds) },
           { error: "appraisal quote rate limit exceeded" },
+          requestId,
         );
       }
 
@@ -292,7 +322,7 @@ export async function buildAppraisalServer(
         };
       } catch (e) {
         if (e instanceof AppraisalInputError) {
-          return send(res, 400, {}, { error: "Invalid appraisal request" });
+          return send(res, 400, {}, { error: "Invalid appraisal request" }, requestId);
         }
         throw e;
       }
@@ -302,11 +332,15 @@ export async function buildAppraisalServer(
         result.paymentPayload as PaymentPayload,
         result.paymentRequirements as PaymentRequirements,
         result.declaredExtensions,
-        { request: ctx, responseBody, responseHeaders: withNonCacheableHeaders() },
+        {
+          request: ctx,
+          responseBody,
+          responseHeaders: withRequestIdHeaders(requestId),
+        },
       );
 
       if (!settle.success) {
-        return writeInstructions(res, settle.response);
+        return writeInstructions(res, settle.response, requestId);
       }
       return send(
         res,
@@ -320,10 +354,11 @@ export async function buildAppraisalServer(
             payer: settle.payer,
           },
         },
+        requestId,
       );
     } catch (err) {
-      diagnostics.error("request-failed", normalizeError(err));
-      send(res, 500, {}, { error: publicErrorMessage(err) });
+      log.error("request-failed", normalizeError(err), { requestId });
+      send(res, 500, {}, { error: publicErrorMessage(err) }, requestId);
     }
   });
 }
