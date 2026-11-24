@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { RoundStatus } from "@sub-rosa/sdk";
 import { AgentActivity, KeeperPanel, X402Logs } from "../components/AgentPanels";
 import { AttackDemo } from "../components/AttackDemo";
@@ -16,6 +16,7 @@ import { SettlementRail } from "../components/SettlementRail";
 import type { UseCase, UseCaseId } from "../config/useCases";
 import { USE_CASES } from "../config/useCases";
 import { DEMO_TRACE } from "../demo/trace";
+import { motionEnabled } from "../lib/reduced-motion";
 import {
   COMMIT_DURATION_PRESETS,
   CONTRACT_ID,
@@ -135,6 +136,7 @@ function PhaseGuide(props: {
     return rem === 0 ? `${mins} min` : `${mins}m ${rem}s`;
   }
 
+  const decorativeMotion = motionEnabled("nonessential", useReducedMotion());
   const working = status === "working";
   const commitSeconds = commitSecondsRemaining ?? 0;
   // Use the selected duration (or a sensible fallback) so the progress bar
@@ -271,10 +273,10 @@ function PhaseGuide(props: {
         <AnimatePresence mode="wait">
           <motion.strong
             key={title}
-            initial={{ opacity: 0, y: 8 }}
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3 }}
+            exit={decorativeMotion ? { opacity: 0, y: -8 } : { opacity: 1 }}
+            transition={{ duration: decorativeMotion ? 0.3 : 0 }}
           >
             {title}
           </motion.strong>
@@ -284,9 +286,9 @@ function PhaseGuide(props: {
         {showInput ? (
           <motion.div
             className="phase-input phase-input--amount"
-            initial={{ opacity: 0, y: 8 }}
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: decorativeMotion ? 0.25 : 0 }}
           >
             <label>{useCase.inputLabel}</label>
 
@@ -340,9 +342,9 @@ function PhaseGuide(props: {
         {showJoin ? (
           <motion.div
             className="duration-picker"
-            initial={{ opacity: 0, y: 8 }}
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: decorativeMotion ? 0.25 : 0 }}
           >
             <label>Commit window</label>
             <div className="duration-chips" role="radiogroup" aria-label="Commit window length">
@@ -369,9 +371,9 @@ function PhaseGuide(props: {
         {showJoin ? (
           <motion.div
             className="join-form"
-            initial={{ opacity: 0, y: 8 }}
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, delay: 0.05 }}
+            transition={{ duration: decorativeMotion ? 0.25 : 0, delay: decorativeMotion ? 0.05 : 0 }}
           >
             <div className="join-form-divider" aria-hidden="true">
               <span>or</span>
@@ -418,10 +420,10 @@ function PhaseGuide(props: {
           <AnimatePresence mode="wait">
             <motion.b
               key={timerValue}
-              initial={{ opacity: 0, y: 8 }}
+              initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.25 }}
+              exit={decorativeMotion ? { opacity: 0, y: -6 } : { opacity: 1 }}
+              transition={{ duration: decorativeMotion ? 0.25 : 0 }}
             >
               {timerValue}
             </motion.b>
