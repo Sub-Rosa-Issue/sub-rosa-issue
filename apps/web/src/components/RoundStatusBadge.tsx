@@ -1,5 +1,8 @@
 // Copyright (c) 2026 Sub Rosa contributors
+import { useState } from "react";
+import { TransactionStatusAnnouncer } from "./TransactionStatusAnnouncer";
 import type { BadgeState } from "../lib/round-status";
+import { transactionStatusAnnouncement } from "../lib/transaction-status";
 
 export interface RoundStatusBadgeProps {
   state: BadgeState;
@@ -24,6 +27,13 @@ export function RoundStatusBadge({
   error,
   onRetry,
 }: RoundStatusBadgeProps) {
+  const [retryMessage, setRetryMessage] = useState("");
+
+  function retry() {
+    setRetryMessage(transactionStatusAnnouncement("retry", "working"));
+    onRetry?.();
+  }
+
   return (
     <span
       className={`round-status-badge ${state}`}
@@ -52,16 +62,17 @@ export function RoundStatusBadge({
       ) : null}
 
       {state === "error" && onRetry ? (
-        <button type="button" className="round-status-retry" onClick={onRetry}>
+        <button type="button" className="round-status-retry" onClick={retry}>
           Retry
         </button>
       ) : null}
 
       {state === "stale" && onRetry ? (
-        <button type="button" className="round-status-retry" onClick={onRetry}>
+        <button type="button" className="round-status-retry" onClick={retry}>
           Refresh
         </button>
       ) : null}
+      <TransactionStatusAnnouncer message={retryMessage} />
     </span>
   );
 }
