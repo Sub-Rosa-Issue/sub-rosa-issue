@@ -2,6 +2,8 @@
 // Live Drand quicknet access. No hardcoded beacons — everything is fetched from
 // the public API so the harness validates against the real network.
 
+import { fetchWithTimeout } from "@sub-rosa/time";
+
 export const QUICKNET_HASH =
   "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 
@@ -64,8 +66,10 @@ async function fetchDrand(
 ): Promise<Response> {
   // Never follow redirects: trust only the configured endpoint, not an
   // intermediary-selected Location destination.
-  const res = await fetchImpl(url, { redirect: "manual" });
+  // `fetchWithTimeout` bounds the connection, the headers and the body read.
+  const res = await fetchWithTimeout(url, { redirect: "manual" }, { fetchImpl });
   if (res.type === "opaqueredirect" || isHttpRedirectStatus(res.status)) {
+    await res.body?.cancel();
     throw DrandRedirectError.fromResponse(resource, res);
   }
   return res;
@@ -73,7 +77,10 @@ async function fetchDrand(
 
 export async function getChainInfo(fetchImpl?: FetchImpl): Promise<ChainInfo> {
   const res = await fetchDrand(`${API}/${QUICKNET_HASH}/info`, "chain-info", fetchImpl);
-  if (!res.ok) throw new Error(`info HTTP ${res.status}`);
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new Error(`info HTTP ${res.status}`);
+  }
   return (await res.json()) as ChainInfo;
 }
 
@@ -86,7 +93,10 @@ export async function getBeacon(
     "beacon",
     fetchImpl,
   );
-  if (!res.ok) throw new Error(`beacon ${round} HTTP ${res.status}`);
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new Error(`beacon ${round} HTTP ${res.status}`);
+  }
   return (await res.json()) as Beacon;
 }
 

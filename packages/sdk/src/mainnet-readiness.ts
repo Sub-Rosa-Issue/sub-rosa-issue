@@ -10,6 +10,7 @@ import {
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import type { BidState, GlobalConfig, Round, Status } from "@sub-rosa/round-bindings";
+import { DEFAULT_REQUEST_TIMEOUT_MS } from "@sub-rosa/time";
 
 import type { SubRosaClient } from "./client.js";
 import {
@@ -465,7 +466,7 @@ export function createSacBalanceReader(
   tokenSacId: string,
   sourcePublicKey: string,
 ): (address: string) => Promise<bigint> {
-  const server = new rpc.Server(rpcUrl);
+  const server = new rpc.Server(rpcUrl, { timeout: DEFAULT_REQUEST_TIMEOUT_MS });
   const sac = new Contract(tokenSacId);
   return async (address: string): Promise<bigint> => {
     const source = new Account(sourcePublicKey, "0");
@@ -967,7 +968,7 @@ export async function runMainnetReadiness(
   }
 
   // ── Live: read the deployment through the read-only client ───────────────
-  const rpcServer = deps.rpc ?? new rpc.Server(input.rpcUrl);
+  const rpcServer = deps.rpc ?? new rpc.Server(input.rpcUrl, { timeout: DEFAULT_REQUEST_TIMEOUT_MS });
 
   try {
     await rpcServer.getHealth();

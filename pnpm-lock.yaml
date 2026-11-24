@@ -300,6 +300,9 @@ importers:
       '@sub-rosa/logging':
         specifier: workspace:*
         version: link:../../packages/logging
+      '@sub-rosa/time':
+        specifier: workspace:*
+        version: link:../../packages/time
     devDependencies:
       '@sub-rosa/tlock':
         specifier: workspace:*

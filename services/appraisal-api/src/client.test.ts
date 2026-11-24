@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { x402HTTPClient } from "@x402/core/client";
 import { Keypair } from "@stellar/stellar-sdk";
 import { describe, test } from "node:test";
+import { RequestTimeoutError } from "@sub-rosa/time";
 
 import { createPaidFetch, X402PaymentError, AppraisalResponseParseError, MAX_PAYMENT_ERROR_DIAGNOSTIC_LENGTH, sanitizePaymentErrorDiagnostic } from "./client.js";
 
@@ -291,6 +292,37 @@ describe("createPaidFetch response parsing", () => {
     } finally {
       globalThis.fetch = originalFetch;
       x402HTTPClient.prototype.getPaymentRequiredResponse = originalGetPaymentRequiredResponse;
+    }
+  });
+});
+
+describe("createPaidFetch request timeout", () => {
+  test("a hung probe request fails with RequestTimeoutError instead of hanging", async () => {
+    const paidFetch = createPaidFetch({ secret: TEST_SECRET, requestTimeoutMs: 100 });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+      });
+    try {
+      await assert.rejects(
+        paidFetch("https://example.com/appraise", { method: "POST", body: "{}" }),
+        (error: unknown) =>
+          error instanceof RequestTimeoutError && error.timeoutMs === 100,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("rejects an invalid requestTimeoutMs rather than disabling the bound", async () => {
+    const paidFetch = createPaidFetch({ secret: TEST_SECRET, requestTimeoutMs: 0 });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => buildResponse(200, "{}");
+    try {
+      await assert.rejects(paidFetch("https://example.com/appraise", { method: "POST", body: "{}" }), RangeError);
+    } finally {
+      globalThis.fetch = originalFetch;
     }
   });
 });
