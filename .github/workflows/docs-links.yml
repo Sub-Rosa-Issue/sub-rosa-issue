@@ -4,19 +4,27 @@ on:
   push:
     paths:
       - '**.md'
+      - '.env.example'
+      - 'apps/web/.env.example'
+      - 'package.json'
+      - 'scripts/check-deploy-docs.mjs'
       - 'scripts/check-links.js'
       - 'scripts/docs-links-ci.test.mjs'
       - '.github/workflows/docs-links.yml'
   pull_request:
     paths:
       - '**.md'
+      - '.env.example'
+      - 'apps/web/.env.example'
+      - 'package.json'
+      - 'scripts/check-deploy-docs.mjs'
       - 'scripts/check-links.js'
       - 'scripts/docs-links-ci.test.mjs'
       - '.github/workflows/docs-links.yml'
 
 permissions:
-  # Los cuatro workflows solo leen el repo: clonan, instalan y corren
-  # tests. Ninguno hace push, ni comenta, ni publica, ni toca secrets.
+  # The workflow only reads the repo: clones, installs, and runs tests.
+  # It does not push, comment, publish, or touch secrets.
   contents: read
 
 concurrency:
@@ -38,5 +46,8 @@ jobs:
           node-version: '22'
       - name: Check docs link workflow configuration
         run: node --test scripts/docs-links-ci.test.mjs
+      # Validates deployment documentation consistency with .env examples and package scripts
+      - name: Validate deployment documentation
+        run: node scripts/check-deploy-docs.mjs
       - name: Check local markdown links
         run: node scripts/check-links.js
