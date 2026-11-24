@@ -6,7 +6,16 @@ import { defineConfig } from "vite";
 
 const require = createRequire(import.meta.url);
 
-export default defineConfig({
+export function resolveBuildSourcemap(
+  mode: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean | "hidden" {
+  if (mode !== "production") return true;
+  const value = env.WEB_BUILD_SOURCEMAP?.trim().toLowerCase();
+  return value === "true" || value === "1" || value === "hidden" ? "hidden" : false;
+}
+
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     {
@@ -35,10 +44,13 @@ export default defineConfig({
   optimizeDeps: {
     include: ["buffer", "crypto-browserify", "stream-browserify", "process/browser", "events"],
   },
+  build: {
+    sourcemap: resolveBuildSourcemap(mode),
+  },
   server: {
     port: 5173,
     fs: {
       allow: ["..", "../..", "../../..", "../../../.."],
     },
   },
-});
+}));
