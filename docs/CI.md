@@ -30,6 +30,32 @@ agreement with the dashboard fixture. The contract job regenerates Rust test
 snapshots and fails if tracked snapshots change or new snapshots appear. Run
 `node --test scripts/snapshot-ci.test.mjs` to verify these CI gates.
 
+## SDK checks
+
+The `SDK checks` workflow (`.github/workflows/sdk.yml`) runs on pushes to
+`main` and on pull requests. Its blocking job installs frozen pnpm dependencies
+with lifecycle scripts disabled, then runs `pnpm sdk:test` and
+`pnpm sdk:typecheck`. Run those two commands locally to check `packages/sdk`;
+`node --test scripts/sdk-ci.test.mjs` verifies the CI job configuration.
+
+## Appraisal API checks
+
+The `Appraisal API checks` workflow (`.github/workflows/appraisal.yml`) runs on
+pushes to `main` and on pull requests. Its single blocking job installs locked
+JS dependencies without lifecycle scripts, then runs `pnpm appraisal:test` and
+`pnpm appraisal:typecheck` in order. Run the same two commands locally to check
+`services/appraisal-api`; `node --test scripts/appraisal-ci.test.mjs` verifies
+the CI job configuration.
+
+## Agent checks
+
+The `Agent checks` workflow (`.github/workflows/agent.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm agent:test` and
+`pnpm agent:typecheck` in order. Run the same two commands locally to check
+`services/agent`; `node --test scripts/agent-ci.test.mjs` verifies the CI job
+configuration.
+
 ## Keeper checks
 
 The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to

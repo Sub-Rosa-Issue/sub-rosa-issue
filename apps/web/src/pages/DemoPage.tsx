@@ -16,6 +16,7 @@ import { SettlementRail } from "../components/SettlementRail";
 import type { UseCase, UseCaseId } from "../config/useCases";
 import { USE_CASES } from "../config/useCases";
 import { DEMO_TRACE } from "../demo/trace";
+import { transactionStatusAnnouncement } from "../lib/transaction-status";
 import { motionEnabled } from "../lib/reduced-motion";
 import {
   COMMIT_DURATION_PRESETS,
@@ -32,6 +33,7 @@ import { getRoundStatusInfo } from "../lib/round-status";
 import { useRevealPhase } from "../lib/use-reveal-phase";
 import { shortAddr } from "../lib/format";
 import { RoundStatusBadge } from "../components/RoundStatusBadge";
+import { TransactionStatusAnnouncer } from "../components/TransactionStatusAnnouncer";
 import { LOGO_SRC } from "../lib/chain";
 import { ConfettiBurst } from "../ui/Confetti";
 import { CountUp } from "../ui/CountUp";
@@ -262,11 +264,28 @@ function PhaseGuide(props: {
     }
   }
 
+  const announcement = working && committed && drandGate.published
+    ? transactionStatusAnnouncement("reveal", "working")
+    : working && roundId != null && !committed
+      ? transactionStatusAnnouncement("commit", "working")
+      : status === "error" && revealedCount > 0
+        ? transactionStatusAnnouncement("settle", "error")
+        : status === "error" && committed
+          ? transactionStatusAnnouncement("reveal", "error")
+          : status === "error"
+            ? transactionStatusAnnouncement("commit", "error")
+            : revealedCount > 0
+              ? transactionStatusAnnouncement("settle", "success")
+              : committed
+                ? transactionStatusAnnouncement("commit", "success")
+                : "";
+
   return (
+    <>
+    <TransactionStatusAnnouncer message={announcement} />
     <section
       className={`phase-guide ${tone} ${working ? "working" : ""}`}
       style={{ "--commit-progress": `${commitPercent}%` } as CSSProperties}
-      aria-live="polite"
     >
       <div className="phase-copy">
         <span>{eyebrow}</span>
@@ -441,6 +460,7 @@ function PhaseGuide(props: {
         </button>
       </div>
     </section>
+    </>
   );
 }
 
