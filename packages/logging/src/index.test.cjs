@@ -35,8 +35,17 @@ test('serializes errors, causes, bigint and circular context safely',()=>{
  assert.equal(record.context.error.message,'failure');assert.equal(record.context.error.cause.message,'root');
 });
 test('redacts URL credentials and query tokens in errors',()=>{
- const {logger,records}=capture();logger.error('failed',new Error('https://user:secret@rpc.example/?token=hidden'));
- const text=JSON.stringify(records);assert.ok(!text.includes('user:secret'));assert.ok(!text.includes('token=hidden'));
+  const {logger,records}=capture();logger.error('failed',new Error('https://user:secret@rpc.example/?token=hidden'));
+  const text=JSON.stringify(records);assert.ok(!text.includes('user:secret'));assert.ok(!text.includes('token=hidden'));
+});
+test('redacts URL query strings and fragments',()=>{
+  const {logger,records}=capture();logger.error('failed','https://api.example.com/path?query=value&param=test#fragment');
+  const text=JSON.stringify(records);assert.ok(!text.includes('query=value'));assert.ok(!text.includes('param=test'));assert.ok(!text.includes('#fragment'));
+  assert.ok(text.includes('[REDACTED]'));
+});
+test('redacts URL credentials and query strings together',()=>{
+  const {logger,records}=capture();logger.error('failed','https://user:pass@api.example.com/path?query=value#fragment');
+  const text=JSON.stringify(records);assert.ok(!text.includes('user:pass'));assert.ok(!text.includes('query=value'));assert.ok(!text.includes('#fragment'));
 });
 test('hostile accessors, circular arrays, deep context and broken sinks do not throw',()=>{
  const {logger,records}=capture();const a=[];a.push(a);
