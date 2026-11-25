@@ -130,9 +130,11 @@ pnpm appraisal:e2e     # x402 handshake + on-chain settlement
 
 ## Quote rate limit
 
-`POST /appraise` checks a quote-creation limiter after payment is verified and before `buildAppraisalQuote`. When the limiter refuses, the response is HTTP 429 `{ "error": "appraisal quote rate limit exceeded" }` with `retry-after`. No quote is returned and the authorized payment is not settled.
+`POST /appraise` checks a quote-creation limiter after payment is verified and before `buildAppraisalQuote`. When the limiter refuses, the response is HTTP 429 `{ "error": "appraisal quote rate limit exceeded" }` with a standards-compliant `Retry-After` header (remaining window in whole seconds, rounded up, minimum `1`). No quote is returned and the authorized payment is not settled.
 
-The default adapter is `createMemoryQuoteRateLimiter`: a fixed window of 30 quotes per 60 seconds per socket address, retaining at most 1,000 keys. It is for a single development process. Production should pass `quoteRateLimiter` on `buildAppraisalServer` with an implementation of `QuoteRateLimiter` backed by a shared store. The interface is `take(key, nowMs) -> { allowed, retryAfterMs }`.
+`X-Forwarded-For` is ignored by default so callers cannot spoof client IPs to bypass rate limits. Set `TRUST_PROXY=true` (or `trustProxy: true` on `buildAppraisalServer`) only behind a trusted reverse proxy; selected addresses are normalized before rate-limit lookup.
+
+The default adapter is `createMemoryQuoteRateLimiter`: a fixed window of 30 quotes per 60 seconds per client address, retaining at most 1,000 keys. It is for a single development process. Production should pass `quoteRateLimiter` on `buildAppraisalServer` with an implementation of `QuoteRateLimiter` backed by a shared store. The interface is `take(key, nowMs) -> { allowed, retryAfterMs }`.
 
 ## Determinism
 

@@ -51,7 +51,15 @@ describe("configFromEnv valid configurations", () => {
       networkPassphrase: Networks.TESTNET,
       rpcUrl: DEFAULT_TESTNET_RPC_URL,
       port: 4021,
+      trustProxy: false,
     });
+  });
+
+  test("parses TRUST_PROXY boolean overrides", () => {
+    assert.equal(configFromEnv({ ...MINIMAL_ENV, TRUST_PROXY: "true" }).trustProxy, true);
+    assert.equal(configFromEnv({ ...MINIMAL_ENV, TRUST_PROXY: "1" }).trustProxy, true);
+    assert.equal(configFromEnv({ ...MINIMAL_ENV, TRUST_PROXY: "false" }).trustProxy, false);
+    assert.equal(configFromEnv({ ...MINIMAL_ENV, TRUST_PROXY: "0" }).trustProxy, false);
   });
 
   test("accepts explicit testnet overrides", () => {
@@ -111,6 +119,12 @@ describe("configFromEnv failure modes", () => {
   test("rejects invalid PORT values", () => {
     for (const port of ["abc", "1.5", "0", "65536"]) {
       assertConfigError({ ...MINIMAL_ENV, PORT: port }, "PORT");
+    }
+  });
+
+  test("rejects invalid TRUST_PROXY values", () => {
+    for (const val of ["yes", "no", "2", "invalid"]) {
+      assertConfigError({ ...MINIMAL_ENV, TRUST_PROXY: val }, "TRUST_PROXY");
     }
   });
 

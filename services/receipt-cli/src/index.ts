@@ -8,19 +8,23 @@ const diagnostics = createLogger("services.receipt-cli.src.index");
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt, redactReceipt } from "@sub-rosa/sdk";
+import { MAX_RECEIPT_INPUT_BYTES, ReceiptInputTooLargeError, readCappedReceiptInput } from "./input-limit.js";
 import { buildJsonOutput } from "./json-output.js";
 
 function usage(): never {
   diagnostics.error("usage-receipt-cli-export-roundid-fetch-receipt-from-rpc", `
 Usage:
   receipt-cli export <roundId>             Fetch receipt from RPC (uses env config)
-  receipt-cli verify <receipt.json> [--json] [--verify-artifact-checksum <artifact-file>]
-  receipt-cli redact <receipt.json> [out]  Redact sensitive fields for public demo
+  receipt-cli verify <receipt.json|-> [--json] [--verify-artifact-checksum <artifact-file>]
+  receipt-cli redact <receipt.json|-> [out]  Redact sensitive fields for public demo
 
 Options for "verify":
   --json                                  Print machine-readable verification output
   --verify-artifact-checksum <artifact-file>
                                           Verify the checksum of the required artifact file
+
+Limits:
+  Receipt input from files or stdin (-) is capped at ${MAX_RECEIPT_INPUT_BYTES} bytes (1 MiB).
 
 Environment for "export":
   RPC_URL                  Soroban RPC endpoint (default: https://soroban-testnet.stellar.org)
@@ -52,15 +56,18 @@ async function cmdExport(roundIdStr: string) {
 async function cmdVerify(path: string, jsonMode: boolean, artifactPath?: string) {
   let rawJson: string;
   try {
-    rawJson = readFileSync(path, "utf-8");
+    rawJson = await readCappedReceiptInput(path);
   } catch (e) {
+    const message = e instanceof ReceiptInputTooLargeError
+      ? e.message
+      : `Cannot read file: ${normalizeError(e).message}`;
     if (jsonMode) {
       writeData(JSON.stringify(buildJsonOutput(null, null, {
         code: "parse_error",
-        message: `Cannot read file: ${normalizeError(e).message}`,
+        message,
       }), null, 2));
     } else {
-      diagnostics.error("cannot-read", `Cannot read ${path}: ${normalizeError(e).message}`);
+      diagnostics.error("cannot-read", e instanceof ReceiptInputTooLargeError ? message : `Cannot read ${path}: ${normalizeError(e).message}`);
     }
     process.exit(1);
   }
@@ -161,9 +168,12 @@ async function cmdVerify(path: string, jsonMode: boolean, artifactPath?: string)
 async function cmdRedact(inputPath: string, outputPath?: string) {
   let json: string;
   try {
-    json = readFileSync(inputPath, "utf-8");
+    json = await readCappedReceiptInput(inputPath);
   } catch (e) {
-    diagnostics.error("cannot-read-2", `Cannot read ${inputPath}: ${normalizeError(e).message}`);
+    const message = e instanceof ReceiptInputTooLargeError
+      ? e.message
+      : `Cannot read ${inputPath}: ${normalizeError(e).message}`;
+    diagnostics.error("cannot-read-2", message);
     process.exit(1);
   }
 
@@ -177,7 +187,7 @@ async function cmdRedact(inputPath: string, outputPath?: string) {
 
   const redacted = redactReceipt(receipt);
   const out = serializeReceipt(redacted);
-  const outPath = outputPath ?? inputPath.replace(/\.json$/, ".redacted.json");
+  const outPath = outputPath ?? (inputPath === "-" ? "receipt.redacted.json" : inputPath.replace(/\.json$/, ".redacted.json"));
   writeFileSync(outPath, out, "utf-8");
   diagnostics.info("wrote-redacted-receipt-to", `Wrote redacted receipt to ${outPath}`);
 }

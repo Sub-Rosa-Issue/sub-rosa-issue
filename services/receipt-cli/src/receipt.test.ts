@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { verifyReceipt, parseReceipt, serializeReceipt } from "@sub-rosa/sdk";
+import { MAX_RECEIPT_INPUT_BYTES } from "./input-limit.js";
 import { buildJsonOutput } from "./json-output.js";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
@@ -328,4 +329,82 @@ test("CLI: --verify-artifact-checksum with missing artifact file fails", () => {
   } finally {
     try { unlinkSync(receiptPath); } catch {}
   }
+});
+
+test("CLI: verify accepts an exact-limit receipt file", () => {
+  const receiptJson = readFileSync(resolve(DIR, "fixtures", "golden.json"), "utf-8");
+  const paddingNeeded = MAX_RECEIPT_INPUT_BYTES - Buffer.byteLength(receiptJson, "utf-8");
+  assert.ok(paddingNeeded >= 0, "golden fixture must fit inside MAX_RECEIPT_INPUT_BYTES");
+  const exactLimitJson = receiptJson + " ".repeat(paddingNeeded);
+  assert.equal(Buffer.byteLength(exactLimitJson, "utf-8"), MAX_RECEIPT_INPUT_BYTES);
+
+  const receiptPath = resolve(DIR, "temp-receipt-exact-limit.json");
+  writeFileSync(receiptPath, exactLimitJson, "utf-8");
+  try {
+    const stdout = execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify ${receiptPath}`, { encoding: "utf8" });
+    assert.match(stdout, /Verification: PASS/);
+  } finally {
+    try { unlinkSync(receiptPath); } catch {}
+  }
+});
+
+test("CLI: verify rejects an over-limit receipt file without echoing contents", () => {
+  const sentinel = "OVER_LIMIT_SENTINEL_SECRET_PAYLOAD";
+  const overLimitPayload = JSON.stringify({ sentinel }) + " ".repeat(MAX_RECEIPT_INPUT_BYTES);
+  assert.ok(Buffer.byteLength(overLimitPayload, "utf-8") > MAX_RECEIPT_INPUT_BYTES);
+
+  const receiptPath = resolve(DIR, "temp-receipt-over-limit.json");
+  writeFileSync(receiptPath, overLimitPayload, "utf-8");
+  try {
+    assert.throws(() => {
+      execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify ${receiptPath} --json`, { stdio: "pipe" });
+    }, (err: any) => {
+      assert.equal(err.status, 1);
+      const stdout = err.stdout.toString();
+      const stderr = err.stderr.toString();
+      assert.ok(!stdout.includes(sentinel), "stdout must not echo rejected receipt contents");
+      assert.ok(!stderr.includes(sentinel), "stderr must not echo rejected receipt contents");
+      const parsed = JSON.parse(stdout);
+      assert.equal(parsed.valid, false);
+      assert.equal(parsed.errors[0].code, "parse_error");
+      assert.match(parsed.errors[0].message, /exceeds maximum size/);
+      return true;
+    });
+  } finally {
+    try { unlinkSync(receiptPath); } catch {}
+  }
+});
+
+test("CLI: verify accepts an exact-limit receipt via stdin (-)", () => {
+  const receiptJson = readFileSync(resolve(DIR, "fixtures", "golden.json"), "utf-8");
+  const paddingNeeded = MAX_RECEIPT_INPUT_BYTES - Buffer.byteLength(receiptJson, "utf-8");
+  const exactLimitJson = receiptJson + " ".repeat(paddingNeeded);
+  assert.equal(Buffer.byteLength(exactLimitJson, "utf-8"), MAX_RECEIPT_INPUT_BYTES);
+
+  const stdout = execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify -`, {
+    input: exactLimitJson,
+    encoding: "utf8",
+  });
+  assert.match(stdout, /Verification: PASS/);
+});
+
+test("CLI: verify rejects an over-limit receipt via stdin (-) without echoing contents", () => {
+  const sentinel = "STDIN_OVER_LIMIT_SENTINEL_PAYLOAD";
+  const overLimitPayload = JSON.stringify({ sentinel }) + " ".repeat(MAX_RECEIPT_INPUT_BYTES);
+  assert.ok(Buffer.byteLength(overLimitPayload, "utf-8") > MAX_RECEIPT_INPUT_BYTES);
+
+  assert.throws(() => {
+    execSync(`node --import tsx ${resolve(DIR, "index.ts")} verify -`, {
+      input: overLimitPayload,
+      stdio: "pipe",
+    });
+  }, (err: any) => {
+    assert.equal(err.status, 1);
+    const stdout = err.stdout.toString();
+    const stderr = err.stderr.toString();
+    assert.ok(!stdout.includes(sentinel), "stdout must not echo rejected stdin contents");
+    assert.ok(!stderr.includes(sentinel), "stderr must not echo rejected stdin contents");
+    assert.match(stderr, /exceeds maximum size/);
+    return true;
+  });
 });

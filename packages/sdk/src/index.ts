@@ -224,8 +224,10 @@ export {
 // Fetch client for the keeper status API.
 export {
   KeeperStatusClient,
+  MAX_STATUS_RESPONSE_BYTES,
   StatusApiError,
   StatusJsonParseError,
+  StatusResponseTooLargeError,
   KeeperStatusTimeoutError,
   redactUrlUserinfo,
   type KeeperReadiness,

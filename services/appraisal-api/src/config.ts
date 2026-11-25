@@ -38,6 +38,8 @@ export interface AppraisalServerConfig {
   rpcUrl: string;
   /** HTTP port. */
   port: number;
+  /** Trust `X-Forwarded-For` when identifying clients for rate limiting. Defaults to false. */
+  trustProxy?: boolean;
 }
 
 type AppraisalNetwork =
@@ -100,6 +102,21 @@ function parsePort(value: string | undefined): number {
     );
   }
   return port;
+}
+
+function parseBoolean(
+  value: string | undefined,
+  name: string,
+  defaultValue: boolean,
+): boolean {
+  if (value == null) return defaultValue;
+  const normalized = value.toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  throw new AppraisalConfigError(
+    name,
+    `must be a boolean ("true", "false", "1", or "0"), got ${JSON.stringify(value)}`,
+  );
 }
 
 function parseRpcUrl(
@@ -199,5 +216,6 @@ export function configFromEnv(
     networkPassphrase: expectedPassphrase,
     rpcUrl: parseRpcUrl(optionalEnv(env, "RPC_URL"), network),
     port: parsePort(optionalEnv(env, "PORT")),
+    trustProxy: parseBoolean(optionalEnv(env, "TRUST_PROXY"), "TRUST_PROXY", false),
   };
 }
