@@ -41,9 +41,9 @@ Do not invent newer requirements.
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Node.js | `>= 22` | pinned by `engines.node` |
+| Node.js | `>= 22` | `nvm use` reads `.nvmrc` to select Node 22; `engines.node` requires at least 22 |
 | pnpm | `10.13.1` | pinned by `packageManager`; `corepack enable` picks it up |
-| Rust | stable + `wasm32v1-none` target | pinned by `rust-toolchain.toml` |
+| Rust | `1.85.0` + `wasm32v1-none` target | pinned by `rust-toolchain.toml` |
 | Stellar CLI | latest | `cargo install stellar-cli --locked` |
 | Build deps (Linux) | build-essential, pkg-config, libssl-dev, libdbus-1-dev, libudev-dev, libsodium-dev | same as CI (`.github/workflows/*`) |
 

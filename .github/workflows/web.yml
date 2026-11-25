@@ -34,8 +34,14 @@ jobs:
       - name: Check web CI configuration
         run: node --test scripts/web-ci.test.mjs
 
+      - name: Check snapshot CI configuration
+        run: node --test scripts/snapshot-ci.test.mjs
+
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Check committed contract snapshot inventory
+        run: pnpm snapshot:check
 
       - name: Test web
         run: pnpm web:test
