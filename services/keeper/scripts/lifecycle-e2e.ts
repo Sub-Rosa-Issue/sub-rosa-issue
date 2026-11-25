@@ -171,14 +171,17 @@ async function main() {
   } });
 
   async function commitBid(secret: string, value: bigint, escrow: bigint, who: string) {
+    const kp = Keypair.fromSecret(secret);
     const nonce = generateNonce();
     const sealed = await sealBid({
+      contractId,
+      bidderId: kp.publicKey(),
       value, nonce, round: revealRound, revealRound, client: drand,
       identity: new TextEncoder().encode(`bidder:${who}`),
       auditorPublicKey: auditor.publicKey,
     });
     const client = new SubRosaClient({ rpcUrl: RPC_URL, networkPassphrase: NETWORK, contractId, secretKey: secret });
-    await client.commit({ roundId, sealed, escrow, sealRound: revealRound });
+    await client.commit({ roundId, sealed, escrow, sealRound: revealRound, binding: { value, nonce, round: revealRound } });
     diagnostics.info("progress-2", `    ✔ ${who} committed bid ${usdc(value)} / escrow ${usdc(escrow)} USDC`);
     return { label: who, blobHex: bytesHex(sealed.auditorBlob) };
   }

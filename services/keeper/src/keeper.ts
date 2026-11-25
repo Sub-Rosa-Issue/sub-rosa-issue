@@ -19,6 +19,7 @@ import { normalizeError } from "@sub-rosa/logging/errors";
 import type { SubRosaClient } from "@sub-rosa/sdk";
 import { openBid, fetchRoundSignature, type DrandClient } from "@sub-rosa/tlock";
 import { compareRoundIds } from "./store.js";
+import { WatchCheckpoint, KeeperStep, CHECKPOINT_SKIP_STEPS } from "./checkpoint.js";
 import {
   describeSettlementSkip,
   evaluateVoid,
@@ -35,8 +36,6 @@ import {
   type PartialTimeContext,
   type TimeContext,
 } from "@sub-rosa/time";
-
-import type { SettlementGuard } from "./settlement-guard.js";
 
 export type KeeperLogger = (msg: string) => void;
 
@@ -56,6 +55,7 @@ export interface KeeperDeps {
    * re-broadcast — that is what stops a restart from resettling a round.
    */
   checkpoint?: WatchCheckpoint;
+  settlementGuard?: SettlementGuard;
 }
 
 export interface SkipRecord {
@@ -376,9 +376,23 @@ export async function closeRound(
       log(`settle skipped: checkpoint records the round as settled`);
       result.skipped.push("settle already complete (checkpoint)");
     } else {
+      if (deps.settlementGuard) {
+        const view = await readSettlementView(sdk, rid, clock.nowSeconds());
+        const check = deps.settlementGuard.checkSettle(view);
+        if (!check.allowed) {
+          result.guardSkip = contractRefusal(check.event);
+          const reason = describeSettlementSkip(check.event);
+          result.skipped.push(`settle refused: ${reason}`);
+          log(`settle refused for round ${rid}: ${reason}`);
+          result.finalStatus = round.status.tag;
+          return result;
+        }
+        deps.settlementGuard.markSubmitted(rid);
+      }
       try {
         await sdk.settle(rid);
         result.settled = true;
+        deps.settlementGuard?.markTerminal(rid, "settled on-chain");
         log(`settled round ${rid}`);
         recordStep(deps, rid, "settle");
       } catch (e) {

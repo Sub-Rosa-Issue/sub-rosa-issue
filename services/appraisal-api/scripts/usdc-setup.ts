@@ -1,6 +1,5 @@
 import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
-import { assertUsdcSetupAsset } from '@sub-rosa/sdk/asset-config';
 const diagnostics = createLogger("services.appraisal-api.scripts.usdc-setup");
 // USDC asset provisioning for the x402 e2e (classic ops via Horizon).
 // Trustlines for the payer (client) + resource server, and mint USDC to the
@@ -18,7 +17,7 @@ import {
 } from "@stellar/stellar-sdk";
 
 const HORIZON_URL = process.env.HORIZON_URL ?? "https://horizon-testnet.stellar.org";
-const NETWORK = process.env.NETWORK_PASSTHRASE ?? Networks.TESTNET;
+const NETWORK = process.env.NETWORK_PASSPHRASE ?? Networks.TESTNET;
 const ASSET_CODE = process.env.ASSET_CODE ?? "USDC";
 const MINT_AMOUNT = process.env.MINT_AMOUNT ?? "1000";
 
@@ -27,6 +26,22 @@ const reqEnv = (n: string): string => {
   if (!v) throw new Error(`missing required env var ${n}`);
   return v;
 };
+
+function assertUsdcSetupAsset(params: {
+  networkPassphrase: string;
+  sacContractId: string | undefined;
+  decimals: number | undefined;
+}): void {
+  if (!params.sacContractId) {
+    throw new Error("USDK_SAC_CONTRACT_ID is required");
+  }
+  if (params.decimals === undefined) {
+    throw new Error("USDK_DECIMALS is required");
+  }
+  if (params.networkPassphrase === Networks.PUBLIC) {
+    throw new Error("refusing to run USDC setup on mainnet");
+  }
+}
 
 async function main() {
   const issuerKp = Keypair.fromSecret(reqEnv("ISSUER_SECRET"));

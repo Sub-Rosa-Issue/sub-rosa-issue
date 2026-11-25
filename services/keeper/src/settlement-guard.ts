@@ -440,12 +440,12 @@ export async function readSettlementView(
   let total = round.bidders?.length ?? 0;
   const index: string[] = [];
   try {
-    let cursor = 0;
+    let cursor: Uint8Array | undefined = undefined;
     for (;;) {
       const page = await reader.getBiddersPage(roundId, cursor, BIDDER_PAGE_SIZE);
       total = page.total;
       for (const bidder of page.data) index.push(bidder);
-      if (page.next_cursor === 0 || index.length >= total) break;
+      if (!page.next_cursor || page.next_cursor.length === 0 || index.length >= total) break;
       cursor = page.next_cursor;
     }
   } catch {

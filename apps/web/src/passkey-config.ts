@@ -96,7 +96,6 @@ export async function commitWithPasskeySession(
   });
   return client.commit({
     ...commitParams,
-    session,
   });
 }
 

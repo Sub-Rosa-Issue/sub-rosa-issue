@@ -116,6 +116,8 @@ async function main() {
   const escrow = 50_000_000n;
   const nonce = generateNonce();
   const sealed = await sealBid({
+    contractId,
+    bidderId: bidderKp.publicKey(),
     value,
     nonce,
     round: revealRound,
@@ -125,7 +127,7 @@ async function main() {
     auditorPublicKey: auditor.publicKey,
   });
   const bidder = new SubRosaClient({ rpcUrl: RPC_URL, networkPassphrase: NETWORK, contractId, secretKey: bidderSecret });
-  await bidder.commit({ roundId, sealed, escrow });
+  await bidder.commit({ roundId, sealed, escrow, binding: { value, nonce, round: revealRound } });
   diagnostics.info("committed-escrow", "    ✔ committed (escrow", { "value1_0": escrow.toString(), "value2_1": "stroops)" });
 
   // 4. Run the keeper (3rd-party account). It waits for R, opens, reveals.

@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { randomUUID } from "node:crypto";
 import { systemClock, type Clock } from "@sub-rosa/time";
+import type { KeeperDryRunPhase } from "./dry-run.js";
 
 export interface WatchedRound {
   roundId: string;

@@ -32,7 +32,7 @@ import { quicknet } from "@sub-rosa/tlock";
 import { KeeperCheckpointStore } from "./checkpoint.js";
 import { createSettlementGuard } from "./settlement-guard.js";
 import { createStatusServer, withGracefulShutdown } from "./status-server.js";
-import { KeeperStore } from "./store.js";
+import { KeeperStore, generateLeaseOwner, parseLeaseMs } from "./store.js";
 import { KeeperQueue } from "./queue.js";
 import { runWatchLoop } from "./watch-loop.js";
 

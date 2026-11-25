@@ -9,6 +9,7 @@ import {
   RandomnessBeacon,
   HttpCachingChain,
 } from "drand-client";
+import { systemClock } from "@sub-rosa/time";
 
 const JSON_CONTENT_TYPE = "application/json";
 
@@ -69,7 +70,7 @@ export class ValidatingHttpChainClient implements ChainClient {
 
   private withCachingParams(url: string): string {
     if (this.options.noCache) {
-      return `${url}?${Date.now()}`;
+      return `${url}?${systemClock.nowMs()}`;
     }
     return url;
   }

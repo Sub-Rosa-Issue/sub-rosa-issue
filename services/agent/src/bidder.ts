@@ -236,7 +236,7 @@ const requestBody = JSON.stringify(req);
   const report = config.onCommitStatus ?? (() => {});
   report({ status: "pending", bidder: bidderAddress });
   try {
-    await bidder.commit({ roundId, sealed, escrow });
+    await bidder.commit({ roundId, sealed, escrow, binding: { value: bidValue, nonce, round: revealRound } });
   } catch (error) {
     report({ status: "failed", bidder: bidderAddress, code: commitErrorCode(error) });
     throw error;

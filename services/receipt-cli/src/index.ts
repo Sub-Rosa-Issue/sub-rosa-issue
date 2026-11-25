@@ -8,6 +8,7 @@ const diagnostics = createLogger("services.receipt-cli.src.index");
 import { readFileSync, writeFileSync, renameSync, statSync, existsSync, constants, openSync, closeSync, unlinkSync, writeSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt, redactReceipt } from "@sub-rosa/sdk";
+import { systemClock } from "@sub-rosa/time";
 import { buildJsonOutput } from "./json-output.js";
 
 const MAX_OUTPUT_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
@@ -48,7 +49,7 @@ function writeFileAtomic(filePath: string, data: string, force: boolean): void {
   }
 
   // Write to temporary file first
-  const tempPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
+  const tempPath = `${filePath}.tmp.${process.pid}.${systemClock.nowMs()}`;
   try {
     // Write with owner-only permissions (0o600)
     const fd = openSync(tempPath, 'w', 0o600);
