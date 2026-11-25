@@ -1,8 +1,13 @@
 // Copyright (c) 2026 Sub Rosa contributors
-import type { BidState, Round, SubRosaClient } from "@sub-rosa/sdk";
+import {
+  assertNoUrlCredentials,
+  type BidState,
+  type Round,
+  type SubRosaClient,
+} from "@sub-rosa/sdk";
 import { systemClock } from "@sub-rosa/time";
 
-import { VOID_GRACE_SECONDS } from "./keeper.js";
+import { VOID_GRACE_SECONDS } from "./settlement-guard.js";
 import {
   CHECKPOINT_VERSION,
   DEFAULT_CHECKPOINT_PATH,
@@ -148,10 +153,13 @@ export function parseKeeperRunConfig(
     );
   }
 
+  const rpcUrl = env.RPC_URL?.trim() || DEFAULT_RPC_URL;
+  assertNoUrlCredentials(rpcUrl, "RPC_URL");
+
   return {
     contractId: requiredEnv(env, "ROUND_CONTRACT_ID"),
     roundId: parseRoundId(env.ROUND_ID),
-    rpcUrl: env.RPC_URL?.trim() || DEFAULT_RPC_URL,
+    rpcUrl,
     networkPassphrase:
       env.NETWORK_PASSPHRASE?.trim() || DEFAULT_NETWORK_PASSPHRASE,
     dryRun,

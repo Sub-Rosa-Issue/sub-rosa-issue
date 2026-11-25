@@ -11,6 +11,7 @@ import { x402Client, x402HTTPClient } from "@x402/core/client";
 import type { Network, PaymentRequired, SettleResponse } from "@x402/core/types";
 import { createEd25519Signer } from "@x402/stellar";
 import { ExactStellarScheme as ClientStellarScheme } from "@x402/stellar/exact/client";
+import { systemClock } from "@sub-rosa/time";
 
 import {
   assertAppraisalBodyBytes,
@@ -256,7 +257,7 @@ function quoteExpiry(entry: Record<string, unknown>): number | undefined {
 export function assertChallengeMatchesQuote(
   paymentRequired: PaymentRequired,
   expected: ExpectedQuote,
-  nowSeconds: () => number = () => Math.floor(Date.now() / 1000),
+  nowSeconds: () => number = () => systemClock.nowSeconds(),
 ): void {
   const entry = firstQuote(paymentRequired);
   if (!entry) {
@@ -438,7 +439,7 @@ export function assertPaymentQuoteAllowed(
     );
   }
   const nowSeconds =
-    expected.nowSeconds ?? Math.floor(Date.now() / 1000);
+    expected.nowSeconds ?? systemClock.nowSeconds();
   if (expected.expiresAt !== undefined) {
     if (!Number.isSafeInteger(expected.expiresAt) || expected.expiresAt < 0) {
       throw new AppraisalQuoteRefusalError("QUOTE_INVALID", "expected expiresAt is invalid");
@@ -467,8 +468,29 @@ export function assertPaymentQuoteAllowed(
     }
   }
 }
+function assertUrlHasNoCredentials(rawUrl: string, label: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl.trim());
+  } catch {
+    if (/^[a-z][a-z0-9+.-]*:\/\/[^/\s?#]*@/i.test(rawUrl.trim())) {
+      throw new Error(`${label}: must not contain credentials`);
+    }
+    throw new Error(`${label}: must be a valid HTTP or HTTPS URL`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${label}: must use http:// or https://`);
+  }
+  if (parsed.username !== "" || parsed.password !== "") {
+    throw new Error(`${label}: must not contain credentials`);
+  }
+}
+
 /** Build a paid-fetch function bound to a payer wallet. */
 export function createPaidFetch(config: PaidClientConfig) {
+  if (config.rpcUrl !== undefined) {
+    assertUrlHasNoCredentials(config.rpcUrl, "rpcUrl");
+  }
   const network = config.network ?? "stellar:testnet";
   const signer = createEd25519Signer(config.secret, network);
   const rpcConfig = config.rpcUrl ? { url: config.rpcUrl } : undefined;

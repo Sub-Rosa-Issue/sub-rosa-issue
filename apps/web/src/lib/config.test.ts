@@ -254,3 +254,22 @@ test("swapped VITE_PASSKEY_NETWORK_PASSPHRASE is reported as configuration misma
   );
 });
 
+test("VITE_RPC_URL with embedded credentials is rejected without echoing credentials", () => {
+  for (const url of [
+    "https://webuser:websecret@custom-soroban.example.com",
+    "https://webuser@custom-soroban.example.com",
+    "https://:websecret@custom-soroban.example.com",
+  ]) {
+    const issues = validatePublicConfig({
+      VITE_RPC_URL: url,
+      VITE_NETWORK_PASSPHRASE: "Custom Network",
+      VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+    });
+    const credIssue = issues.find(
+      (i) => i.key === "VITE_RPC_URL" && i.message.includes("must not contain credentials"),
+    );
+    assert.ok(credIssue, `expected credential issue for ${url}`);
+    assert.doesNotMatch(credIssue.message, /webuser|websecret/);
+  }
+});
+

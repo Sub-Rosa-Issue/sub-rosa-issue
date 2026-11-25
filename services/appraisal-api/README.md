@@ -67,6 +67,15 @@ The other endpoints are free (used for healthchecks / discovery):
 | GET    | `/`        | Discovery: price, asset, network |
 | GET    | `/healthz` | Health check                     |
 
+A `POST /appraise` body larger than 8192 bytes is rejected with **HTTP 413**
+`{ "error": "payload_too_large", "limitBytes": 8192 }` before the bytes are
+parsed as JSON, so the request never receives a 402 payment quote.
+
+All appraisal quote challenges (`402`), paid appraisal responses (`200`), and
+error responses include `Cache-Control: no-store`, `Pragma: no-cache`,
+`Expires: 0`, and `X-Content-Type-Options: nosniff` so intermediary caches
+never store or replay time-bound payment quotes or paid valuations.
+
 ## Schema fixtures
 
 The canonical request/response shapes and the per-failure-mode payloads live as
@@ -118,6 +127,12 @@ For a paid end-to-end against testnet:
 ```bash
 pnpm appraisal:e2e     # x402 handshake + on-chain settlement
 ```
+
+## Quote rate limit
+
+`POST /appraise` checks a quote-creation limiter after payment is verified and before `buildAppraisalQuote`. When the limiter refuses, the response is HTTP 429 `{ "error": "appraisal quote rate limit exceeded" }` with `retry-after`. No quote is returned and the authorized payment is not settled.
+
+The default adapter is `createMemoryQuoteRateLimiter`: a fixed window of 30 quotes per 60 seconds per socket address, retaining at most 1,000 keys. It is for a single development process. Production should pass `quoteRateLimiter` on `buildAppraisalServer` with an implementation of `QuoteRateLimiter` backed by a shared store. The interface is `take(key, nowMs) -> { allowed, retryAfterMs }`.
 
 ## Determinism
 

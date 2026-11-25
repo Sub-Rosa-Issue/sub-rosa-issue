@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import type { CommitParams, SubRosaClient } from "@sub-rosa/sdk";
-import { validatePasskeySession } from "@sub-rosa/sdk";
+import { assertNoUrlCredentials, validatePasskeySession } from "@sub-rosa/sdk";
+import { systemClock } from "@sub-rosa/time";
 
 /** Public testnet smart-wallet WASM (passkey-kit demo). Not a secret. */
 export const PASSKEY_TESTNET_WALLET_WASM_HASH =
@@ -15,6 +16,11 @@ const env: Record<string, string | undefined> =
 
 export const PASSKEY_RPC_URL =
   env.VITE_RPC_URL ?? "https://soroban-testnet.stellar.org";
+
+export function resolvePasskeyRpcUrl(rawUrl: string = PASSKEY_RPC_URL): string {
+  assertNoUrlCredentials(rawUrl, "VITE_RPC_URL");
+  return rawUrl.trim();
+}
 
 export const PASSKEY_NETWORK_PASSPHRASE =
   env.VITE_NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015";
@@ -70,7 +76,7 @@ export function createPasskeySession(params: {
     account: params.account.trim(),
     keyId: params.keyId,
     publicKey: params.publicKey,
-    createdAt: new Date().toISOString(),
+    createdAt: systemClock.toISOString(),
   };
 }
 

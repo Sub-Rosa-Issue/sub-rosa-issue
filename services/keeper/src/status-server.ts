@@ -34,18 +34,33 @@ interface Route {
   ) => Promise<{ status: number; body: unknown }>;
 }
 
-const JSON_CONTENT = {
+/**
+ * Headers on every keeper status response, including errors.
+ * JSON content type, no-store, nosniff, and frame denial (X-Frame-Options
+ * plus CSP frame-ancestors). There is no separate production header adapter:
+ * these values are fixed so a proxy cannot weaken them by omission.
+ */
+export const KEEPER_STATUS_RESPONSE_HEADERS = {
   "content-type": "application/json",
   "cache-control": "no-store",
-};
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "content-security-policy": "frame-ancestors 'none'",
+} as const;
+
+const JSON_CONTENT = KEEPER_STATUS_RESPONSE_HEADERS;
 
 function send(
   res: http.ServerResponse,
   status: number,
   body: unknown,
+  extraHeaders?: Record<string, string>,
 ): void {
   const payload = JSON.stringify(body, bigintReplacer, 2);
-  res.writeHead(status, JSON_CONTENT);
+  res.writeHead(
+    status,
+    extraHeaders ? { ...JSON_CONTENT, ...extraHeaders } : JSON_CONTENT,
+  );
   res.end(payload);
 }
 
@@ -188,7 +203,28 @@ export function createStatusHandler(config: StatusServerConfig): http.RequestLis
       const baseHost = req.headers.host ?? `${host}:${port}`;
       const url = new URL(req.url ?? "/", `http://${baseHost}`);
 
-      if (req.method === "GET" && url.pathname === "/healthz") {
+      if (req.method !== "GET") {
+        req.resume?.();
+        send(
+          res,
+          405,
+          {
+            error: "method not allowed",
+            method: req.method ?? "UNKNOWN",
+            allow: ["GET"],
+            available: [
+              "GET /status",
+              "GET /status/rounds/:id",
+              "GET /healthz",
+              "GET /status/health",
+            ],
+          },
+          { allow: "GET" },
+        );
+        return;
+      }
+
+      if (url.pathname === "/healthz") {
         void fastHealth(url).then((r) => send(res, r.status, r.body));
         return;
       }

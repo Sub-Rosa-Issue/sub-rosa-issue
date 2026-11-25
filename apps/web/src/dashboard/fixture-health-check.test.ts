@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { DASHBOARD_FIXTURE } from "./fixture.js";
+import { DEMO_TRACE } from "../demo/demo-trace.generated.js";
 import {
   assertDashboardData,
   DashboardDataHealthCheckError,
@@ -10,6 +11,21 @@ import {
 
 test("bundled dashboard fixture contains every field required by the UI", () => {
   assert.doesNotThrow(() => assertDashboardData(DASHBOARD_FIXTURE));
+});
+
+test("dashboard fixture agrees with the committed demo trace", () => {
+  assert.equal(DASHBOARD_FIXTURE.meta.contractId, DEMO_TRACE.meta.contractId);
+  assert.equal(DASHBOARD_FIXTURE.meta.roundId, DEMO_TRACE.meta.roundId);
+  assert.equal(DASHBOARD_FIXTURE.round.revealRound, DEMO_TRACE.meta.revealRound);
+  assert.equal(DASHBOARD_FIXTURE.meta.fetchedAt, DEMO_TRACE.meta.recordedAt);
+  assert.equal(DASHBOARD_FIXTURE.round.status, DEMO_TRACE.meta.roundStatus);
+  assert.equal(DASHBOARD_FIXTURE.round.winner, DEMO_TRACE.keeper.clearWinner);
+  assert.equal(DASHBOARD_FIXTURE.round.winningBid, DEMO_TRACE.settlement.operatorReceivedUsdc);
+  assert.equal(DASHBOARD_FIXTURE.settlement?.contractBalance, DEMO_TRACE.keeper.contractBalanceFinal);
+  assert.deepEqual(
+    DASHBOARD_FIXTURE.bidders.map(({ address, bidUsdc }) => ({ address, bidUsdc })),
+    DEMO_TRACE.bidders.map(({ address, bidUsdc }) => ({ address, bidUsdc })),
+  );
 });
 
 test("health check identifies a missing required field by its path", () => {

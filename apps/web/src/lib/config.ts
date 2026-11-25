@@ -98,6 +98,25 @@ export function validatePublicConfig(
         key: "VITE_RPC_URL",
         message: `VITE_RPC_URL is not a valid URL (${rpcUrl}). It must start with http:// or https://.`,
       });
+    } else {
+      try {
+        const parsed = new URL(normalized);
+        if (parsed.username !== "" || parsed.password !== "") {
+          issues.push({
+            key: "VITE_RPC_URL",
+            message:
+              "VITE_RPC_URL must not contain credentials (username or password).",
+          });
+        }
+      } catch {
+        if (/^https?:\/\/[^/\s?#]*@/i.test(normalized)) {
+          issues.push({
+            key: "VITE_RPC_URL",
+            message:
+              "VITE_RPC_URL must not contain credentials (username or password).",
+          });
+        }
+      }
     }
   }
 
