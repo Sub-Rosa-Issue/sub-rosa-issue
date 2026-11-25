@@ -5,18 +5,15 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-const SCRIPT_PATH = new URL(
-  "check-threat-model-anchors.mjs",
-  import.meta.url,
-).pathname;
-const PROJECT_ROOT = new URL("..", import.meta.url).pathname;
+// Use a simple relative path to the script
+const SCRIPT_PATH = join(process.cwd(), "scripts", "check-threat-model-anchors.mjs");
 
 function runScript(args = [], options = {}) {
-  return execFileSync("node", [SCRIPT_PATH, ...args], {
-    encoding: "utf-8",
-    cwd: PROJECT_ROOT,
+  const result = execFileSync("node", [SCRIPT_PATH, ...args], {
+    cwd: process.cwd(),
     ...options,
   });
+  return result.toString("utf-8");
 }
 
 function runScriptExpectFailure(args = []) {
@@ -75,7 +72,7 @@ describe("check-threat-model-anchors", () => {
       const target = join(tmp, "THREAT_MODEL.md");
       // Copy the real doc — the script's contract is that any doc with the
       // required anchors passes, regardless of filename.
-      copyFileSync(join(PROJECT_ROOT, "docs/THREAT_MODEL.md"), target);
+      copyFileSync(join(process.cwd(), "docs/THREAT_MODEL.md"), target);
       const result = runScript([target]);
       assert.match(result, /All 5 required threat model anchors are present\./);
     } finally {
@@ -102,7 +99,6 @@ describe("check-threat-model-anchors", () => {
           "## Protections",
           "",
           "Nothing here.",
-          "",
         ].join("\n"),
       );
       const outcome = runScriptExpectFailure([target]);
