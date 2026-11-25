@@ -42,6 +42,9 @@ const offlineClient = {
 const ROUND = 1_234_567;
 const VALUE = 8_675_309n;
 const NONCE = new Uint8Array(NONCE_BYTES).fill(0x2a);
+// Test fixture contract/bidder IDs (valid Soroban strkeys)
+const TEST_CONTRACT_ID = "C0000000000000000000000000000000000000000000000000000000000000000";
+const TEST_BIDDER_ID = "GB0000000000000000000000000000000000000000000000000000000000000000";
 
 /** Seal a bid offline. Each call re-encrypts, so ciphertexts differ. */
 async function sealFixture(overrides?: {
@@ -50,9 +53,12 @@ async function sealFixture(overrides?: {
   round?: number;
 }): Promise<SealedBid> {
   return sealBid({
+    contractId: TEST_CONTRACT_ID,
+    bidderId: TEST_BIDDER_ID,
     value: overrides?.value ?? VALUE,
     nonce: overrides?.nonce ?? NONCE,
     round: overrides?.round ?? ROUND,
+    revealRound: ROUND,
     client: offlineClient,
   });
 }
