@@ -4,13 +4,14 @@
 
 import {
   fetchBeacon,
-  quicknetClient,
   roundAt as drandRoundAt,
+  type ChainClient,
 } from "drand-client";
 
 import { drandSignatureToSoroban, verifyDrandSignature } from "./bls.js";
 import { assertBeacon, assertChainInfo } from "./validate.js";
 import { systemClock, type Clock } from "@sub-rosa/time";
+import { createValidatingQuicknetClient } from "./http-client.js";
 
 export const QUICKNET_HASH =
   "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
@@ -47,10 +48,10 @@ export function assertQuicknetFixture(info: {
   }
 }
 
-export type DrandClient = ReturnType<typeof quicknetClient>;
+export type DrandClient = ChainClient;
 
 export function quicknet(): DrandClient {
-  return quicknetClient();
+  return createValidatingQuicknetClient();
 }
 
 export async function chainInfo(client: DrandClient) {

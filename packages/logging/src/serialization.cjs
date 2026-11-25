@@ -5,8 +5,14 @@ const sensitive = (key) => /secret|token|password|passwd|privatekey|credential|c
 
 function scrubText(value, secrets) {
   let text = value
-    .replace(/(https?:\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[REDACTED]@')
-    .replace(/([?&](?:[^=&\s]*(?:secret|token|password|credential|api[_-]?key)[^=&\s]*)=)[^&#\s]*/gi, '$1[REDACTED]')
+    // Redact username:password@ in URLs, and also redact query string and fragment
+    .replace(/(https?:\/\/)[^\s/@]+(?::[^\s/@]*)?@([^\s?#]+)(\?[^\s#]*)?(#[^\s]*)?/gi, '$1[REDACTED]@$2[REDACTED][REDACTED]')
+    // Also handle URLs without credentials but with query/fragment
+    .replace(/(https?:\/\/[^\s?#]+)(\?[^\s#]*)?(#[^\s]*)?/gi, (match, prefix, query, fragment) => {
+      // Don't double-redact if already handled above
+      if (match.includes('[REDACTED]@')) return match;
+      return prefix + (query ? '[REDACTED]' : '') + (fragment ? '[REDACTED]' : '');
+    })
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/_=.-]+/gi, '$1 [REDACTED]')
     .replace(/((?:[\w-]*(?:secret|token|password|credential|authorization|cookie|api[_-]?key)[\w-]*)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi, '$1[REDACTED]')
     .replace(/\bS[A-Z2-7]{55}\b/g, REDACTED)
