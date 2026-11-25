@@ -76,6 +76,7 @@ export {
   type BidReceiptEntry,
   RECEIPT_VERSION,
 } from "./receipt.js";
+export { truncateStrings, truncateError, type TruncateOptions } from "./truncate.js";
 export {
   verifyReceipt,
   type VerificationIssue,
