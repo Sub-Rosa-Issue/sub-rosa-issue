@@ -4,11 +4,16 @@
 
 import {
   fetchBeacon,
-  quicknetClient,
   roundAt as drandRoundAt,
+  type Chain,
+  type ChainClient,
+  type ChainInfo,
+  type ChainOptions,
+  type RandomnessBeacon,
 } from "drand-client";
 
 import { drandSignatureToSoroban, verifyDrandSignature } from "./bls.js";
+import { fetchDrandJson, type FetchLike } from "./http.js";
 import { assertBeacon, assertChainInfo } from "./validate.js";
 import { systemClock, type Clock } from "@sub-rosa/time";
 
@@ -47,10 +52,55 @@ export function assertQuicknetFixture(info: {
   }
 }
 
-export type DrandClient = ReturnType<typeof quicknetClient>;
+export type DrandClient = ChainClient;
 
-export function quicknet(): DrandClient {
-  return quicknetClient();
+const QUICKNET_CHAIN_URL = `https://api.drand.sh/${QUICKNET_HASH}`;
+
+const QUICKNET_CHAIN_OPTIONS: ChainOptions = {
+  disableBeaconVerification: false,
+  noCache: false,
+  chainVerificationParams: {
+    chainHash: QUICKNET_HASH,
+    publicKey: QUICKNET_FIXTURE.public_key,
+  },
+};
+
+/// A Drand chain client whose HTTP layer caps every response at
+/// `MAX_DRAND_RESPONSE_BYTES` (see `http.ts`) before parsing it.
+class BoundedQuicknetClient implements ChainClient {
+  readonly options = QUICKNET_CHAIN_OPTIONS;
+
+  constructor(private readonly fetchImpl: FetchLike = fetch) {}
+
+  chain(): Chain {
+    return {
+      baseUrl: QUICKNET_CHAIN_URL,
+      info: () =>
+        fetchDrandJson<ChainInfo>(`${QUICKNET_CHAIN_URL}/info`, this.fetchImpl),
+    };
+  }
+
+  get(roundNumber: number): Promise<RandomnessBeacon> {
+    return fetchDrandJson<RandomnessBeacon>(
+      `${QUICKNET_CHAIN_URL}/public/${roundNumber}`,
+      this.fetchImpl,
+    );
+  }
+
+  latest(): Promise<RandomnessBeacon> {
+    return fetchDrandJson<RandomnessBeacon>(
+      `${QUICKNET_CHAIN_URL}/public/latest`,
+      this.fetchImpl,
+    );
+  }
+}
+
+/**
+ * The quicknet client used by the sealer, keeper and web app. `fetchImpl` is
+ * injectable so tests can exercise the response-size ceiling offline.
+ */
+export function quicknet(fetchImpl: FetchLike = fetch): DrandClient {
+  return new BoundedQuicknetClient(fetchImpl);
 }
 
 export async function chainInfo(client: DrandClient) {
