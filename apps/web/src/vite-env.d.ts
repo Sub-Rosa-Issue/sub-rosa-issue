@@ -5,6 +5,10 @@ declare module "process/browser";
 
 interface ImportMetaEnv {
   readonly VITE_RPC_URL?: string;
+  readonly VITE_KEEPER_URL?: string;
+  readonly VITE_APPRAISAL_URL?: string;
+  readonly VITE_DRAND_URL?: string;
+  readonly VITE_DASHBOARD_ENDPOINT?: string;
   readonly VITE_NETWORK_PASSPHRASE?: string;
   readonly VITE_CONTRACT_ID?: string;
   readonly VITE_ROUND_ID?: string;

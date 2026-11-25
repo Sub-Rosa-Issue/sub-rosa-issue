@@ -63,6 +63,20 @@ VITE_CONTRACT_ID=CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX
 VITE_ROUND_ID=1
 ```
 
+Production builds add a `connect-src` CSP to the generated HTML. It allows
+`'self'`, the origin of `VITE_RPC_URL` (testnet RPC by default),
+`VITE_DRAND_URL` (`https://api.drand.sh` by default), and any configured
+`VITE_KEEPER_URL`, `VITE_APPRAISAL_URL`, or `VITE_DASHBOARD_ENDPOINT` origins.
+Only origins are included; paths and query strings do not broaden the policy.
+Malformed URLs, URL credentials, and wildcard hosts fail the production build.
+These settings are public and must never contain secrets.
+
+For local development, the web `.env.example` documents local keeper,
+appraisal, Drand, and dashboard endpoints (for example
+`http://localhost:3001`, `http://localhost:4021`, and
+`http://localhost:8080`). The development server does not inject the production
+CSP; do not use wildcard hosts in production configuration.
+
 Important: Vite only exposes vars prefixed with `VITE_`. They are **public** in the browser bundle — never put secret keys here.
 
 ### Local dev (optional)
@@ -272,4 +286,3 @@ lines, unhandled crash dumps, and DevTools HAR files can still include them:
   in `localStorage` or `sessionStorage`, `Cookie` and `Authorization` headers in
   Network HAR exports, wallet seed phrases or `S…` secret keys, and local
   unrevealed bid values/nonces before the round enters `Revealing`.
-
