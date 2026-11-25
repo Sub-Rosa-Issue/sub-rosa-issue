@@ -1,12 +1,20 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, test } from "node:test";
 
 import type { BidState, Round } from "@sub-rosa/sdk";
+import { createFakeTime } from "@sub-rosa/time";
 
+import { KeeperCheckpointStore } from "./checkpoint.js";
 import {
+  DRY_RUN_PHASE_STEP,
   buildKeeperDryRunSummary,
   decideKeeperDryRunAction,
   parseKeeperRunConfig,
+  planDryRunCheckpoint,
   type KeeperDryRunReader,
 } from "./dry-run.js";
 
@@ -90,6 +98,29 @@ describe("parseKeeperRunConfig", () => {
         }),
       /MAX_WAIT_SECONDS must be a non-negative finite number/,
     );
+  });
+
+  test("rejects credential-bearing RPC_URL values without echoing credentials", () => {
+    for (const rpcUrl of [
+      "https://keeper-user:keeper-pass@rpc.example.com",
+      "https://keeper-user@rpc.example.com",
+      "https://:keeper-pass@rpc.example.com",
+    ]) {
+      assert.throws(
+        () =>
+          parseKeeperRunConfig({
+            ROUND_CONTRACT_ID: CONTRACT_ID,
+            KEEPER_DRY_RUN: "true",
+            RPC_URL: rpcUrl,
+          }),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.match(err.message, /RPC_URL: must not contain credentials/);
+          assert.doesNotMatch(err.message, /keeper-user|keeper-pass/);
+          return true;
+        },
+      );
+    }
   });
 });
 
@@ -203,6 +234,12 @@ describe("buildKeeperDryRunSummary", () => {
       sdk as KeeperDryRunReader,
       7n,
       500,
+      {
+        checkpointPath: "/tmp/dry-run-checkpoint.json",
+        network: "Test SDF Network ; September 2015",
+        contractId: CONTRACT_ID,
+        nowIso: "2026-09-30T00:00:00.000Z",
+      },
     );
 
     assert.deepEqual(summary, {
@@ -215,6 +252,29 @@ describe("buildKeeperDryRunSummary", () => {
       currentPhase: "revealing",
       nextAction: "reveal 1 pending bidder",
       transactionsSubmitted: 0,
+      checkpoint: {
+        path: "/tmp/dry-run-checkpoint.json",
+        network: "Test SDF Network ; September 2015",
+        contractId: CONTRACT_ID,
+        proposedStep: "reveal",
+        mismatch: null,
+        filesWritten: 0,
+        proposedFile: {
+          version: 1,
+          network: "Test SDF Network ; September 2015",
+          contractId: CONTRACT_ID,
+          rounds: {
+            "7": {
+              roundId: "7",
+              completedSteps: ["reveal"],
+              lastCompletedStep: "reveal",
+              lastTransactionHash: null,
+              stepHashes: {},
+              updatedAt: "2026-09-30T00:00:00.000Z",
+            },
+          },
+        },
+      },
     });
     assert.deepEqual(reads, ["round:7", "bid:7:G1", "bid:7:G2"]);
     assert.equal(mutations, 0);
@@ -242,5 +302,118 @@ describe("buildKeeperDryRunSummary", () => {
       "inspect bidder states and reveal pending bids",
     );
     assert.equal(summary.transactionsSubmitted, 0);
+  });
+});
+
+describe("dry-run checkpoint preview", () => {
+  test("writes nothing to the checkpoint path and submits nothing", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "keeper-dry-run-"));
+    const checkpointPath = path.join(dir, "checkpoint.json");
+    const mutations: string[] = [];
+    const reader = {
+      async getRound() {
+        return { ...baseRound, status: { tag: "Cleared", values: undefined } };
+      },
+      async getBidState() {
+        return bidState(true);
+      },
+      async settle() {
+        mutations.push("settle");
+      },
+      async clear() {
+        mutations.push("clear");
+      },
+    } as unknown as KeeperDryRunReader;
+
+    try {
+      const summary = await buildKeeperDryRunSummary(reader, 3n, 5_000, {
+        checkpointPath,
+        network: "Test SDF Network ; September 2015",
+        contractId: CONTRACT_ID,
+        nowIso: "2026-09-30T00:00:00.000Z",
+      });
+
+      assert.equal(summary.checkpoint.proposedStep, "settle");
+      assert.equal(summary.checkpoint.filesWritten, 0);
+      assert.equal(summary.transactionsSubmitted, 0);
+      assert.equal(fs.existsSync(checkpointPath), false, "dry-run must not create the file");
+      assert.deepEqual(mutations, []);
+      assert.deepEqual(fs.readdirSync(dir), []);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("proposes the same file content the live keeper store would write", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "keeper-dry-run-"));
+    const checkpointPath = path.join(dir, "checkpoint.json");
+    const options = {
+      checkpointPath,
+      network: "Test SDF Network ; September 2015",
+      contractId: CONTRACT_ID,
+      nowIso: "2026-09-30T00:00:00.000Z",
+    };
+
+    try {
+      const preview = planDryRunCheckpoint(5n, "clear", options);
+
+      const store = new KeeperCheckpointStore({
+        path: checkpointPath,
+        network: options.network,
+        contractId: options.contractId,
+        clock: createFakeTime(Date.parse(options.nowIso)).clock,
+      });
+      store.markComplete(5n, "clear");
+
+      assert.deepEqual(preview.proposedFile, store.snapshot());
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("reports a binding conflict that would stop a live keeper", () => {
+    const current = {
+      version: 1 as const,
+      network: "Public Global Stellar Network ; September 2015",
+      contractId: CONTRACT_ID,
+      rounds: {},
+    };
+
+    assert.equal(
+      planDryRunCheckpoint(1n, "settle", {
+        network: "Test SDF Network ; September 2015",
+        contractId: CONTRACT_ID,
+        currentCheckpoint: current,
+      }).mismatch,
+      "network",
+    );
+    assert.equal(
+      planDryRunCheckpoint(1n, "settle", {
+        network: current.network,
+        contractId: "CDIFFERENT",
+        currentCheckpoint: current,
+      }).mismatch,
+      "contractId",
+    );
+    assert.equal(
+      planDryRunCheckpoint(1n, "settle", {
+        network: current.network,
+        contractId: current.contractId,
+        currentCheckpoint: current,
+      }).mismatch,
+      null,
+    );
+  });
+
+  test("proposes no checkpoint change for terminal phases", () => {
+    for (const phase of ["awaiting-clear", "complete"] as const) {
+      assert.equal(DRY_RUN_PHASE_STEP[phase], null);
+      const preview = planDryRunCheckpoint(1n, DRY_RUN_PHASE_STEP[phase], {
+        network: "Test SDF Network ; September 2015",
+        contractId: CONTRACT_ID,
+      });
+      assert.equal(preview.proposedStep, null);
+      assert.deepEqual(preview.proposedFile.rounds, {});
+    }
   });
 });

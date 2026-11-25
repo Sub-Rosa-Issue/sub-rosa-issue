@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import react from "@vitejs/plugin-react";
 import inject from "@rollup/plugin-inject";
 import { createRequire } from "node:module";

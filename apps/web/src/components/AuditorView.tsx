@@ -1,7 +1,10 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
 import { useMemo, useState } from "react";
 import type { DemoTrace } from "../demo/trace";
 import { shortAddr } from "../lib/format";
 import { hexToBytes } from "../lib/hex";
+import { useRevealPhase } from "../lib/use-reveal-phase";
 
 interface DecryptedRow {
   label: string;
@@ -17,6 +20,11 @@ export function AuditorView({ trace }: { trace: DemoTrace }) {
   const [bidDemo, setBidDemo] = useState<{ value: string; round: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Same shared phase helper as the observer and dashboard: the live bid
+  // decrypt demo refuses to open (or format) a preimage while the reveal
+  // round is still sealed.
+  const { revealed } = useRevealPhase({ trace });
 
   const blobRows = useMemo(
     () =>
@@ -52,19 +60,23 @@ export function AuditorView({ trace }: { trace: DemoTrace }) {
             label,
             address,
             identity: null,
-            error: e instanceof Error ? e.message : String(e),
+            error: publicErrorMessage(e),
           };
         }
       });
       setRows(decoded);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(publicErrorMessage(e));
     } finally {
       setBusy(false);
     }
   }
 
   async function runBidDecryptDemo() {
+    if (!revealed) {
+      setErr("Reveal round has not opened — bid values stay sealed until Drand R.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     setBidDemo(null);
@@ -79,7 +91,7 @@ export function AuditorView({ trace }: { trace: DemoTrace }) {
       if (opened.value !== value) throw new Error("opened value mismatch");
       setBidDemo({ value: (Number(value) / 1e7).toFixed(2), round });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(publicErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -134,12 +146,20 @@ export function AuditorView({ trace }: { trace: DemoTrace }) {
         <article className="card">
           <h3>Bid tlock decrypt (live)</h3>
           <p>
-            Uses quicknet against recorded R={trace.meta.revealRound.toLocaleString()} (already
-            published). Seals a sample bid to R, then immediately opens it — same path the keeper
+            Uses quicknet against recorded R={trace.meta.revealRound.toLocaleString()}
+            {revealed
+              ? " (already published). Seals a sample bid to R, then immediately opens it — same path the keeper"
+              : " (not yet published). The decrypt demo unlocks once the shared round phase says reveal has opened — same path the keeper"}{" "}
             uses after <code>open_reveal</code>.
           </p>
-          <button type="button" className="btn" disabled={busy} onClick={() => void runBidDecryptDemo()}>
-            Run live bid decrypt
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || !revealed}
+            title={revealed ? undefined : "Sealed until Drand R publishes"}
+            onClick={() => void runBidDecryptDemo()}
+          >
+            {revealed ? "Run live bid decrypt" : "Sealed until Drand R"}
           </button>
           {bidDemo && (
             <p className="accent">

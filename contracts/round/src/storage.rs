@@ -1,6 +1,6 @@
-use soroban_sdk::{Address, Env, Vec};
+use soroban_sdk::{xdr::ToXdr, Address, Bytes, Env, Vec};
 
-use crate::types::{BidState, DataKey, Error, GlobalConfig, Round, Seal};
+use crate::types::{BidState, DataKey, Error, EscrowLedger, GlobalConfig, Round, Seal};
 
 // TTL policy. Ledger close time on Stellar is ~5s, so these are generous for a
 // hackathon-scale round while keeping ephemeral seal data short-lived.
@@ -130,4 +130,16 @@ pub fn extend_round_seals(env: &Env, round_id: u64, bidders: &Vec<Address>, reve
             extend_seal_ttl(env, &key, reveal_deadline);
         }
     }
+}
+
+pub fn try_get_ledger(env: &Env, round_id: u64) -> Option<EscrowLedger> {
+    env.storage().persistent().get(&DataKey::Escrow(round_id))
+}
+
+pub fn set_ledger(env: &Env, round_id: u64, ledger: &EscrowLedger) {
+    let key = DataKey::Escrow(round_id);
+    env.storage().persistent().set(&key, ledger);
+    env.storage()
+        .persistent()
+        .extend_ttl(&key, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
 }

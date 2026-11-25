@@ -1,13 +1,18 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { quicknet, currentRound } from "./quicknet.js";
 import { sealBid, openBid, generateNonce } from "./seal.js";
 import { commitment, toHex } from "./commitment.js";
-import { generateAuditorKeypair, openIdentity } from "./auditor.js";
+import { generateAuditorKeypair, openIdentityForBidder } from "./auditor.js";
+import { openPayload, payloadCommitment, sealPayload } from "./payload.js";
 
 // These tests hit the live Drand quicknet network (no mock).
 const NET_TIMEOUT = 30_000;
+
+const validContractId = "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM";
+const validBidderId = "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY";
 
 test(
   "seal then open against a real quicknet round recovers value+nonce; H matches",
@@ -23,9 +28,12 @@ test(
     const identity = new TextEncoder().encode("GBIDDER...alice");
 
     const sealed = await sealBid({
+      contractId: validContractId,
+      bidderId: validBidderId,
       value,
       nonce,
       round,
+      revealRound: round,
       client,
       identity,
       auditorPublicKey: auditor.publicKey,
@@ -42,8 +50,58 @@ test(
     // reveal — i.e. this reveal would be accepted on-chain.
     assert.equal(toHex(commitment(opened.value, opened.nonce)), toHex(sealed.commitment));
 
-    // Auditor (and only the auditor) recovers the identity.
-    assert.deepEqual([...openIdentity(sealed.auditorBlob, auditor.secretKey)], [...identity]);
+    // Auditor (and only the auditor) recovers the identity. The blob is bound to
+    // this bid's round and commitment, so recovery also proves the identity
+    // belongs to this seal rather than a swapped blob (issue #382).
+    const openedIdentity = openIdentityForBidder(sealed.auditorBlob, {
+      auditorSecretKey: auditor.secretKey,
+      round,
+      commitment: sealed.commitment,
+    });
+    assert.deepEqual([...openedIdentity.identity], [...identity]);
+    assert.equal(openedIdentity.round, round);
+  },
+);
+
+test(
+  "structured proposal payload seals and opens against a real quicknet round",
+  { timeout: NET_TIMEOUT },
+  async () => {
+    const client = quicknet();
+    const round = (await currentRound(client)) - 5;
+    const amount = 12_000_0000000n;
+    const nonce = generateNonce();
+    const payload = new TextEncoder().encode(
+      '{"price":"12000 USDC","timeline":"4 weeks","approach":"manual Soroban review"}',
+    );
+    const auditor = generateAuditorKeypair();
+    const identity = new TextEncoder().encode("GPROVIDER...alice");
+
+    const sealed = await sealPayload({
+      contractId: validContractId,
+      bidderId: validBidderId,
+      amount,
+      nonce,
+      payload,
+      round,
+      revealRound: round,
+      client,
+      identity,
+      auditorPublicKey: auditor.publicKey,
+    });
+    const opened = await openPayload(sealed.ciphertext, client);
+
+    assert.ok(sealed.ciphertext.length <= 4096, `ciphertext ${sealed.ciphertext.length}B`);
+    assert.equal(opened.amount, amount);
+    assert.deepEqual(opened.nonce, nonce);
+    assert.deepEqual(opened.payload, payload);
+    assert.equal(toHex(payloadCommitment(opened)), toHex(sealed.commitment));
+    const payloadOpened = openIdentityForBidder(sealed.auditorBlob, {
+      auditorSecretKey: auditor.secretKey,
+      round,
+      commitment: sealed.commitment,
+    });
+    assert.deepEqual([...payloadOpened.identity], [...identity]);
   },
 );
 
@@ -55,7 +113,7 @@ test(
     const round = (await currentRound(client)) - 5;
     const value = 555n;
     const nonce = generateNonce();
-    const sealed = await sealBid({ value, nonce, round, client });
+    const sealed = await sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round, client });
     const opened = await openBid(sealed.ciphertext, client);
 
     const wrongNonce = new Uint8Array(32).fill(0x42);
@@ -63,6 +121,24 @@ test(
     assert.notEqual(toHex(commitment(opened.value + 1n, opened.nonce)), toHex(sealed.commitment));
   },
 );
+
+test("sealBid rejects a non-positive Drand round", async () => {
+  const client = quicknet();
+  for (const round of [0, -1, -100]) {
+    await assert.rejects(
+      sealBid({ contractId: validContractId, bidderId: validBidderId, value: 1n, nonce: generateNonce(), round, client }),
+      /round must be a positive integer/,
+    );
+  }
+});
+
+test("openBid rejects an empty ciphertext", async () => {
+  const client = quicknet();
+  await assert.rejects(
+    openBid(new Uint8Array(0), client),
+    /ciphertext must not be empty/,
+  );
+});
 
 test(
   "a bid sealed to a future round cannot be opened — the seal holds",
@@ -72,11 +148,122 @@ test(
     // Far in the future: its signature does not exist yet.
     const futureRound = (await currentRound(client)) + 1_000_000;
     const sealed = await sealBid({
+      contractId: validContractId,
+      bidderId: validBidderId,
       value: 999n,
       nonce: generateNonce(),
       round: futureRound,
+      revealRound: futureRound,
       client,
     });
     await assert.rejects(openBid(sealed.ciphertext, client));
   },
 );
+
+test("sealBid rejects non-positive or non-integer round numbers", async () => {
+  const client = quicknet();
+  const nonce = generateNonce();
+  const value = 100n;
+
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 0, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: -5, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 1.5, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: NaN, client }),
+    (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
+  );
+});
+
+test("sealBid rejects invalid nonce lengths", async () => {
+  const client = quicknet();
+  const value = 100n;
+  const round = 1000;
+
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(16), round, client }),
+    /nonce must be 32 bytes/,
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(31), round, client }),
+    /nonce must be 32 bytes/,
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce: new Uint8Array(33), round, client }),
+    /nonce must be 32 bytes/,
+  );
+});
+
+test("openBid rejects empty ciphertext", async () => {
+  const client = quicknet();
+  await assert.rejects(
+    () => openBid(new Uint8Array(0), client),
+    /ciphertext is empty/,
+  );
+});
+
+test("sealBid rejects malformed contractId and bidderId", async () => {
+  const client = quicknet();
+  const value = 100n;
+  const round = 1000;
+  const nonce = generateNonce();
+
+  await assert.rejects(
+    () => sealBid({ contractId: "", bidderId: validBidderId, value, nonce, round, client }),
+    /contractId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: "   ", bidderId: validBidderId, value, nonce, round, client }),
+    /contractId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: "not-a-contract-id", bidderId: validBidderId, value, nonce, round, client }),
+    /contractId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM!", bidderId: validBidderId, value, nonce, round, client }),
+    /contractId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: "C123", bidderId: validBidderId, value, nonce, round, client }),
+    /contractId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY", bidderId: validBidderId, value, nonce, round, client }),
+    /contractId/
+  );
+
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: "", value, nonce, round, client }),
+    /bidderId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: "   ", value, nonce, round, client }),
+    /bidderId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: "not-a-bidder-id", value, nonce, round, client }),
+    /bidderId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: "GA3AD2G2SGYLMYVV2F6G5BIFU4X2XZIGA44ZF32ZZ645P4LT4N4EKQHY!", value, nonce, round, client }),
+    /bidderId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: "G123", value, nonce, round, client }),
+    /bidderId/
+  );
+  await assert.rejects(
+    () => sealBid({ contractId: validContractId, bidderId: "CDAZ5AJPVCJ6R3BQUPYISBSWV77HZ52T7YFWZGTVEEEFW5FVHZAK2JIM", value, nonce, round, client }),
+    /bidderId/
+  );
+});
+

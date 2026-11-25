@@ -1,3 +1,6 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
+import { createLogger } from '@sub-rosa/logging';
+const diagnostics = createLogger("packages.sdk.scripts.mainnet-micro");
 // Optional mainnet micro commit on an EXISTING deployed Round contract.
 //
 // Default: checklist + dry-run only — no transactions.
@@ -8,18 +11,15 @@ import { randomBytes } from "node:crypto";
 import { Keypair } from "@stellar/stellar-sdk";
 
 import { SubRosaClient } from "../src/client.js";
+import { MAINNET_ARTIFACTS } from "../src/mainnet-artifacts.js";
 import {
-  MAINNET_ARTIFACTS,
-  MAINNET_MICRO_MAX_ESCROW,
-} from "../src/mainnet-artifacts.js";
-import {
-  assertMainnetConfirmed,
-  assertMicroAmounts,
-  assertReadinessForExecute,
   defaultMainnetReadinessInput,
+  parseMicroStroops,
   runMainnetReadiness,
+  runMicroRunnerGate,
 } from "../src/mainnet-readiness.js";
 import { generateAuditorKeypair, generateNonce, quicknet, sealBid } from "@sub-rosa/tlock";
+import { systemClock } from "@sub-rosa/time";
 
 const DRAND_GENESIS = 1_692_803_367;
 const DRAND_PERIOD = 3;
@@ -33,50 +33,178 @@ function reqEnv(name: string): string {
   return v;
 }
 
-function parseStroops(name: string, fallback: bigint): bigint {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const v = BigInt(raw);
-  if (v <= 0n) throw new Error(`${name} must be positive`);
-  if (v > MAINNET_MICRO_MAX_ESCROW) {
-    throw new Error(`${name}=${v} exceeds MAINNET_MICRO_MAX_ESCROW (${MAINNET_MICRO_MAX_ESCROW})`);
-  }
-  return v;
+function microConfig() {
+  return {
+    contractId: process.env.ROUND_CONTRACT_ID ?? MAINNET_ARTIFACTS.contractId,
+    rpcUrl: process.env.RPC_URL ?? MAINNET_ARTIFACTS.rpcUrl,
+    network: process.env.NETWORK_PASSPHRASE ?? MAINNET_ARTIFACTS.networkPassphrase,
+  };
+}
+
+// Only called on the send path, after the confirm phrase is validated, so a
+// dry-run never asks for (or parses) a secret.
+function readMicroSigners() {
+  const operatorSecret = reqEnv("OPERATOR_SECRET");
+  const bidderSecret = reqEnv("BIDDER_SECRET");
+  return {
+    operatorSecret,
+    bidderSecret,
+    operatorKp: Keypair.fromSecret(operatorSecret),
+    bidderKp: Keypair.fromSecret(bidderSecret),
+  };
 }
 
 function printChecklist(bid: bigint, escrow: bigint, execute: boolean) {
-  console.log("Sub Rosa — mainnet micro runner\n");
-  console.log("Contract (existing):", process.env.ROUND_CONTRACT_ID ?? MAINNET_ARTIFACTS.contractId);
-  console.log("Token:               native XLM SAC");
-  console.log("Bid (stroops):      ", bid.toString(), `(${(Number(bid) / 1e7).toFixed(7)} XLM)`);
-  console.log("Escrow (stroops):   ", escrow.toString(), `(${(Number(escrow) / 1e7).toFixed(7)} XLM)`);
-  console.log("");
-  console.log("Checklist:");
-  console.log("  [ ] ROUND_CONTRACT_ID points at deployed mainnet Round");
-  console.log("  [ ] OPERATOR_SECRET + BIDDER_SECRET funded with XLM for fees");
-  console.log("  [ ] Amounts are micro (never testnet 700/459 USDC demo sizes)");
-  console.log("  [ ] Round 1 settled proof already verified via pnpm mainnet:verify");
+  diagnostics.info("sub-rosa-mainnet-micro-runner", "Sub Rosa — mainnet micro runner\n");
+  diagnostics.info("contract-existing", "Contract (existing):", { "value1_0": process.env.ROUND_CONTRACT_ID ?? MAINNET_ARTIFACTS.contractId });
+  diagnostics.info("token-native-xlm-sac", "Token:               native XLM SAC");
+  diagnostics.info("bid-stroops", "Bid (stroops):      ", { "value1_0": bid.toString(), "value2_1": `(${(Number(bid) / 1e7).toFixed(7)} XLM)` });
+  diagnostics.info("escrow-stroops", "Escrow (stroops):   ", { "value1_0": escrow.toString(), "value2_1": `(${(Number(escrow) / 1e7).toFixed(7)} XLM)` });
+  diagnostics.info("progress", "");
+  diagnostics.info("checklist", "Checklist:");
+  diagnostics.info("round-contract-id-points-at-deployed-mainnet-round", "  [ ] ROUND_CONTRACT_ID points at deployed mainnet Round");
+  diagnostics.info("operator-secret-bidder-secret-funded-with-xlm-for-fees", "  [ ] OPERATOR_SECRET + BIDDER_SECRET funded with XLM for fees");
+  diagnostics.info("amounts-are-micro-never-testnet-700-459-usdc-demo-sizes", "  [ ] Amounts are micro (never testnet 700/459 USDC demo sizes)");
+  diagnostics.info("round-1-settled-proof-already-verified-via-pnpm-mainnet", "  [ ] Round 1 settled proof already verified via pnpm mainnet:verify");
   if (execute) {
-    console.log("  [ ] MAINNET_CONFIRM=SUB_ROSA_MAINNET is set");
-    console.log("  [ ] --execute flag passed");
+    diagnostics.info("mainnet-confirm-sub-rosa-mainnet-is-set", "  [ ] MAINNET_CONFIRM=SUB_ROSA_MAINNET is set");
+    diagnostics.info("execute-flag-passed", "  [ ] --execute flag passed");
   } else {
-    console.log("  [ ] Dry-run only — no transactions will be sent");
+    diagnostics.info("dry-run-only-no-transactions-will-be-sent", "  [ ] Dry-run only — no transactions will be sent");
   }
-  console.log("");
+  diagnostics.info("progress-2", "");
 }
 
 async function main() {
   const execute = process.argv.includes("--execute");
-  const bid = parseStroops("MICRO_BID_STROOPS", DEFAULT_BID);
-  const escrow = parseStroops("MICRO_ESCROW_STROOPS", DEFAULT_ESCROW);
-  assertMicroAmounts(bid, escrow);
+  const bid = parseMicroStroops(
+    "MICRO_BID_STROOPS",
+    process.env.MICRO_BID_STROOPS,
+    DEFAULT_BID,
+  );
+  const escrow = parseMicroStroops(
+    "MICRO_ESCROW_STROOPS",
+    process.env.MICRO_ESCROW_STROOPS,
+    DEFAULT_ESCROW,
+  );
 
   printChecklist(bid, escrow, execute);
 
-  if (!execute) {
-    console.log("DRY-RUN complete. To send txs:");
-    console.log("  MAINNET_CONFIRM=SUB_ROSA_MAINNET OPERATOR_SECRET=S… BIDDER_SECRET=S… \\");
-    console.log("    pnpm mainnet:micro -- --execute");
+  // Every precondition (amounts, confirm phrase, strict readiness) lives in the
+  // gate, ordered before any transaction is built. Dry-run never reaches the
+  // readiness or submit closures, so it stays offline and needs no secret.
+  const decision = await runMicroRunnerGate({
+    execute,
+    bidStroops: bid,
+    escrowStroops: escrow,
+    runReadiness: async () => {
+      const { contractId, rpcUrl, network } = microConfig();
+      const { operatorKp, bidderKp } = readMicroSigners();
+
+      const reader = new SubRosaClient({
+        rpcUrl,
+        networkPassphrase: network,
+        contractId,
+        publicKey: operatorKp.publicKey(),
+      });
+
+      const readiness = await runMainnetReadiness(
+        defaultMainnetReadinessInput({
+          rpcUrl,
+          networkPassphrase: network,
+          contractId,
+          withBalances: true,
+          operatorAccount: operatorKp.publicKey(),
+          bidderAccount: bidderKp.publicKey(),
+        }),
+        { reader },
+      );
+      return readiness.checks;
+    },
+    submit: async () => {
+      const { contractId, rpcUrl, network } = microConfig();
+      const { operatorSecret, bidderSecret, operatorKp, bidderKp } = readMicroSigners();
+
+      const reader = new SubRosaClient({
+        rpcUrl,
+        networkPassphrase: network,
+        contractId,
+        publicKey: operatorKp.publicKey(),
+      });
+
+      // Pick next round id: max existing + 1 (probe up to 32).
+      let nextRound = 1n;
+      for (let id = 1n; id <= 32n; id++) {
+        try {
+          await reader.getRound(id);
+          nextRound = id + 1n;
+        } catch {
+          break;
+        }
+      }
+
+      const now = systemClock.nowSeconds();
+      const revealRound = Math.ceil((now + 300 - DRAND_GENESIS) / DRAND_PERIOD);
+      const commitDeadline = now + 120;
+      const revealDeadline = DRAND_GENESIS + DRAND_PERIOD * revealRound + 180;
+      const auditor = generateAuditorKeypair();
+
+      diagnostics.info("createround-id", `→ createRound id≈${nextRound} R=${revealRound}…`);
+      const operator = new SubRosaClient({
+        rpcUrl,
+        networkPassphrase: network,
+        contractId,
+        secretKey: operatorSecret,
+      });
+      const roundId = await operator.createRound({
+        itemRef: randomBytes(32),
+        revealRound,
+        commitDeadline,
+        revealDeadline,
+        auditorPubkey: auditor.publicKey,
+        clearingRule: "HighestBid",
+      });
+
+      const drand = quicknet();
+      const nonce = generateNonce();
+      const sealed = await sealBid({
+        contractId,
+        bidderId: bidderKp.publicKey(),
+        value: bid,
+        nonce,
+        round: revealRound,
+        client: drand,
+        identity: new TextEncoder().encode(`micro:${bidderKp.publicKey()}`),
+        auditorPublicKey: auditor.publicKey,
+      });
+
+      diagnostics.info("commit-micro-sealed-bid", "→ commit micro sealed bid…");
+      const bidder = new SubRosaClient({
+        rpcUrl,
+        networkPassphrase: network,
+        contractId,
+        secretKey: bidderSecret,
+      });
+      await bidder.commit({ roundId, sealed, escrow });
+
+      diagnostics.info("mainnet-micro-commit-sent", "\n✅ MAINNET MICRO COMMIT SENT");
+      diagnostics.info("contract", "   contract:", { "contractId_0": contractId });
+      diagnostics.info("round", "   round:   ", { "value1_0": roundId.toString() });
+      diagnostics.info("r", "   R:       ", { "revealRound_0": revealRound });
+      diagnostics.info("bid", "   bid:     ", { "value1_0": (Number(bid) / 1e7).toFixed(7), "value2_1": "XLM" });
+      diagnostics.info("escrow", "   escrow:  ", { "value1_0": (Number(escrow) / 1e7).toFixed(7), "value2_1": "XLM" });
+      diagnostics.info("next-wait-for-r-then-pnpm-mainnet-settle-with-round-id", "\nNext: wait for R, then pnpm mainnet:settle with ROUND_ID=", { "value1_0": roundId.toString() });
+    },
+  });
+
+  if (decision.action === "dry-run") {
+    diagnostics.info(
+      "dry-run-decision",
+      `Decision: DRY-RUN — submit nothing (bid ${(Number(decision.bidStroops) / 1e7).toFixed(7)} XLM, escrow ${(Number(decision.escrowStroops) / 1e7).toFixed(7)} XLM)`,
+    );
+    diagnostics.info("dry-run-complete-to-send-txs", "DRY-RUN complete. To send txs:");
+    diagnostics.info("mainnet-confirm-sub-rosa-mainnet-operator-secret-s-bidd", "  MAINNET_CONFIRM=SUB_ROSA_MAINNET OPERATOR_SECRET=S… BIDDER_SECRET=S… \\");
+    diagnostics.info("pnpm-mainnet-micro-execute", "    pnpm mainnet:micro -- --execute");
     return;
   }
 
@@ -125,13 +253,13 @@ async function main() {
     }
   }
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = systemClock.nowSeconds();
   const revealRound = Math.ceil((now + 300 - DRAND_GENESIS) / DRAND_PERIOD);
   const commitDeadline = now + 120;
   const revealDeadline = DRAND_GENESIS + DRAND_PERIOD * revealRound + 180;
   const auditor = generateAuditorKeypair();
 
-  console.log(`→ createRound id≈${nextRound} R=${revealRound}…`);
+  diagnostics.info("createround-id", `→ createRound id≈${nextRound} R=${revealRound}…`);
   const operator = new SubRosaClient({
     rpcUrl,
     networkPassphrase: network,
@@ -150,15 +278,18 @@ async function main() {
   const drand = quicknet();
   const nonce = generateNonce();
   const sealed = await sealBid({
+    contractId,
+    bidderId: bidderKp.publicKey(),
     value: bid,
     nonce,
     round: revealRound,
+    revealRound,
     client: drand,
     identity: new TextEncoder().encode(`micro:${bidderKp.publicKey()}`),
     auditorPublicKey: auditor.publicKey,
   });
 
-  console.log("→ commit micro sealed bid…");
+  diagnostics.info("commit-micro-sealed-bid", "→ commit micro sealed bid…");
   const bidder = new SubRosaClient({
     rpcUrl,
     networkPassphrase: network,
@@ -167,17 +298,17 @@ async function main() {
   });
   await bidder.commit({ roundId, sealed, escrow });
 
-  console.log("\n✅ MAINNET MICRO COMMIT SENT");
-  console.log("   contract:", contractId);
-  console.log("   round:   ", roundId.toString());
-  console.log("   R:       ", revealRound);
-  console.log("   bid:     ", (Number(bid) / 1e7).toFixed(7), "XLM");
-  console.log("   escrow:  ", (Number(escrow) / 1e7).toFixed(7), "XLM");
-  console.log("\nNext: wait for R, then pnpm mainnet:settle with ROUND_ID=", roundId.toString());
+  diagnostics.info("mainnet-micro-commit-sent", "\n✅ MAINNET MICRO COMMIT SENT");
+  diagnostics.info("contract", "   contract:", { "contractId_0": contractId });
+  diagnostics.info("round", "   round:   ", { "value1_0": roundId.toString() });
+  diagnostics.info("r", "   R:       ", { "revealRound_0": revealRound });
+  diagnostics.info("bid", "   bid:     ", { "value1_0": (Number(bid) / 1e7).toFixed(7), "value2_1": "XLM" });
+  diagnostics.info("escrow", "   escrow:  ", { "value1_0": (Number(escrow) / 1e7).toFixed(7), "value2_1": "XLM" });
+  diagnostics.info("next-wait-for-r-then-pnpm-mainnet-settle-with-round-id", "\nNext: wait for R, then pnpm mainnet:settle with ROUND_ID=", { "value1_0": roundId.toString() });
 }
 
 main().catch((err) => {
-  console.error("\n❌ MAINNET MICRO FAILED");
-  console.error(err);
+  diagnostics.error("mainnet-micro-failed", "\n❌ MAINNET MICRO FAILED");
+  diagnostics.error("progress-3", normalizeError(err));
   process.exit(1);
 });

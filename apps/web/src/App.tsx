@@ -1,18 +1,30 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
+import { MotionConfig } from "framer-motion";
 import { getUseCase } from "./config/useCases";
 import type { UseCaseId } from "./config/useCases";
 import { hashFor, routeFromHash, type RouteState } from "./config/routing";
 import { ArchitecturePage } from "./pages/ArchitecturePage";
 import { ConfigBanner } from "./components/ConfigBanner";
+import { SkipLink } from "./components/SkipLink";
+import { gateDemoActions } from "./lib/config";
+import { PUBLIC_ENV, SDK_CLIENT_IDENTITY } from "./lib/chain";
+import { DashboardPage } from "./pages/DashboardPage";
 import { DemoPage } from "./pages/DemoPage";
 import { LandingPage } from "./pages/LandingPage";
 import { ToastProvider } from "./ui/Toast";
+import { TimeProvider } from "./lib/time";
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>(routeFromHash);
 
   useEffect(() => {
-    const onHash = () => setRoute(routeFromHash());
+    const onHash = () => {
+      if (window.location.hash === "#main-content") {
+        return;
+      }
+      setRoute(routeFromHash());
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -25,15 +37,20 @@ export default function App() {
   const active = getUseCase(route.useCase);
 
   return (
-    <ToastProvider>
+    <MotionConfig reducedMotion="user">
+    <TimeProvider>
+      <ToastProvider>
+      <SkipLink />
       {route.page === "landing" ? (
         <LandingPage
-          onDemo={() => navigate("demo", "grants")}
+          onDemo={() => navigate("demo", "auction")}
           onCase={(id) => navigate("demo", id)}
         />
+      ) : route.page === "dashboard" ? (
+        <DashboardPage goHome={() => navigate("landing")} />
       ) : (
         <>
-          <ConfigBanner />
+          <ConfigBanner gate={gateDemoActions(SDK_CLIENT_IDENTITY, PUBLIC_ENV)} />
           {route.page === "architecture" ? (
             <ArchitecturePage goHome={() => navigate("landing")} />
           ) : (
@@ -45,6 +62,8 @@ export default function App() {
           )}
         </>
       )}
-    </ToastProvider>
+      </ToastProvider>
+    </TimeProvider>
+    </MotionConfig>
   );
 }

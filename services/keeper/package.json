@@ -4,17 +4,24 @@
   "private": true,
   "type": "module",
   "description": "Permissionless reveal keeper: waits for Drand round R, opens the reveal window with R's real signature, then decrypts and reveals every sealed bid. Idempotent; no relayer, no agent, no mock.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sub-Rosa-Issue/sub-rosa-issue.git",
+    "directory": "services/keeper"
+  },
   "main": "src/index.ts",
   "scripts": {
     "start": "node --import tsx src/run.ts",
     "watch": "node --import tsx src/watch.ts",
     "serve": "node --import tsx src/serve.ts",
     "queue": "node --import tsx src/queue.ts",
-    "test": "node --import tsx --test src/dry-run.test.ts src/keeper.test.ts src/watch.test.ts src/store.test.ts src/watch-queue.test.ts src/settlement-guard.test.ts src/status.test.ts src/status-server.test.ts",
+    "test": "node --import tsx --test src/dry-run.test.ts src/keeper.test.ts src/watch.test.ts src/store.test.ts src/queue-cli.test.ts src/watch-queue.test.ts src/settlement-guard.test.ts src/status.test.ts src/status-server.test.ts src/queue-replay.test.ts scripts/mainnet-settle.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@sub-rosa/logging": "workspace:*",
     "@sub-rosa/sdk": "workspace:*",
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/tlock": "workspace:*"
   },
   "devDependencies": {

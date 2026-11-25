@@ -60,5 +60,67 @@
   },
   "winner": "GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
   "winningValue": "100",
-  "status": "Settled"
+  "status": "Settled",
+  "events": [
+    {
+      "name": "created",
+      "topics": [
+        "symbol_short",
+        "u64"
+      ],
+      "roundId": "1",
+      "ledger": 1728000,
+      "phase": "round-created"
+    },
+    {
+      "name": "commit",
+      "topics": [
+        "symbol_short",
+        "u64"
+      ],
+      "roundId": "1",
+      "ledger": 1728001,
+      "phase": "bid-commit"
+    },
+    {
+      "name": "revealing",
+      "topics": [
+        "symbol_short",
+        "u64"
+      ],
+      "roundId": "1",
+      "ledger": 1728002,
+      "phase": "reveal-opened"
+    },
+    {
+      "name": "reveal",
+      "topics": [
+        "symbol_short",
+        "u64"
+      ],
+      "roundId": "1",
+      "ledger": 1728003,
+      "phase": "bid-reveal"
+    },
+    {
+      "name": "cleared",
+      "topics": [
+        "symbol_short",
+        "u64"
+      ],
+      "roundId": "1",
+      "ledger": 1728004,
+      "phase": "round-cleared"
+    },
+    {
+      "name": "settled",
+      "topics": [
+        "symbol_short",
+        "u64"
+      ],
+      "roundId": "1",
+      "ledger": 1728005,
+      "phase": "round-finalized"
+    }
+  ]
 }

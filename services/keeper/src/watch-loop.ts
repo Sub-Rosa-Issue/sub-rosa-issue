@@ -1,3 +1,5 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
 // Shared watch loop. Keeps in-flight rounds moving through
 // void-if-stale → keep → close, persisting status into the KeeperStore and
 // emitting lightweight logs. Independent of how the loop is started
@@ -10,6 +12,7 @@
 
 import type { SubRosaClient } from "@sub-rosa/sdk";
 import type { DrandClient } from "@sub-rosa/tlock";
+import { resolveTimeContext, systemTime, type PartialTimeContext, type Scheduler } from "@sub-rosa/time";
 
 import {
   discoverRoundIds,
@@ -21,6 +24,10 @@ import {
 import type { SettlementGuard } from "./settlement-guard.js";
 import type { KeeperLogger } from "./keeper.js";
 import { KeeperStore } from "./store.js";
+import type {
+  ResumableCheckpoint,
+  TransactionHashVerifier,
+} from "./checkpoint.js";
 
 export interface RunWatchLoopParams {
   sdk: SubRosaClient;
@@ -32,9 +39,15 @@ export interface RunWatchLoopParams {
   store: KeeperStore;
   settlementGuard: SettlementGuard;
   isStopping: () => boolean;
+  /** Durable watch cursor. When omitted the loop still runs, just without a cursor. */
+  checkpoint?: ResumableCheckpoint;
+  /** Optional transaction-hash lookup used to confirm recorded cursor steps. */
+  verifyTransaction?: TransactionHashVerifier;
+  /** Injectable wall clock and scheduler. Default: systemTime. */
+  time?: PartialTimeContext;
+  queue?: KeeperQueue;
+  shutdownTimeoutMs?: number;
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const bigintReplacer = (_k: string, v: unknown): unknown =>
   typeof v === "bigint" ? v.toString() : v;
@@ -60,6 +73,57 @@ async function resolveRoundIds(reader: SubRosaClient): Promise<bigint[]> {
   });
 }
 
+export interface ResumeCheckpointParams {
+  checkpoint?: ResumableCheckpoint;
+  sdk: Pick<SubRosaClient, "getRound">;
+  log: KeeperLogger;
+  verifyTransaction?: TransactionHashVerifier;
+}
+
+/**
+ * Startup resume gate for the watch cursor.
+ *
+ * 1. Re-check every recorded transaction hash. A hash that is not `confirmed`
+ *    is rolled back so the step is retried.
+ * 2. Reconcile the remaining (hashless) cursor entries against the on-chain
+ *    status. If the chain cannot prove a step happened, drop it rather than
+ *    stranding the round.
+ */
+export async function resumeCheckpoint(
+  params: ResumeCheckpointParams,
+): Promise<void> {
+  const { checkpoint, sdk, log, verifyTransaction } = params;
+  if (!checkpoint) return;
+
+  for (const verification of await checkpoint.verifyHashes(verifyTransaction)) {
+    log(
+      `checkpoint ${verification.retained ? "confirmed" : "rolled back"} ` +
+        `${verification.step} for round ${verification.roundId} ` +
+        `(tx ${verification.transactionHash}: ${verification.status})`,
+    );
+  }
+
+  for (const roundId of checkpoint.listRoundIds()) {
+    let status: string;
+    try {
+      status = (await sdk.getRound(roundId)).status.tag;
+    } catch (e) {
+      // An unreadable round is not proof of anything — keep the cursor and retry
+      // reconciliation on the next tick.
+      log(
+        `checkpoint: could not read round ${roundId} to reconcile: ${normalizeError(e).message}`,
+      );
+      continue;
+    }
+    const dropped = checkpoint.reconcile(roundId, status);
+    if (dropped.length > 0) {
+      log(
+        `checkpoint: round ${roundId} is ${status}; retrying ${dropped.join(", ")}`,
+      );
+    }
+  }
+}
+
 export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
   const {
     sdk,
@@ -71,44 +135,63 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
     store,
     settlementGuard,
     isStopping,
+    checkpoint,
+    verifyTransaction,
+    time,
+    owner: explicitOwner,
+    leaseMs,
   } = params;
 
-  const deps: KeeperDeps = { sdk, drand, log };
+  // Load the checkpoint / stored rounds and validate before claiming work
+  const storedRounds = store.listRounds();
+  validateStoredCheckpoint(storedRounds, { contractId, network });
 
-  while (!isStopping()) {
-    const started = Date.now();
+  const resolvedTime = resolveTimeContext(systemTime, time);
+  const { clock, scheduler } = resolvedTime;
+  const deps: KeeperDeps = { sdk, drand, log, time: resolvedTime, checkpoint };
+
+  await resumeCheckpoint({ checkpoint, sdk, log, verifyTransaction });
+
+  while (!shouldStop()) {
+    const started = clock.nowMs();
     let discoveredIds: bigint[] = [];
     try {
       discoveredIds = await resolveRoundIds(sdk);
       for (const id of discoveredIds) {
-        store.addRound(id, { contractId, network });
+        queue.enqueue(id, { contractId, network });
       }
     } catch (e) {
-      log(`watch: failed to list/discover rounds: ${e instanceof Error ? e.message : String(e)}`);
+      log(`watch: failed to list/discover rounds: ${normalizeError(e).message}`);
     }
 
-    const activeRounds = store.listRounds().filter((r) => {
-      if (r.contractId && r.contractId !== contractId) return false;
-      if (r.network && r.network !== network) return false;
-      if (r.lastStatus === "Settled" || r.lastStatus === "Voided") return false;
-      return true;
-    });
+    queue.syncWithStore();
 
-    if (activeRounds.length === 0) {
+    if (queue.size() === 0 && queue.inFlightCount() === 0) {
       log("no active rounds found in queue — waiting");
     }
 
-    for (const storedRound of activeRounds) {
+    const batchSize = queue.size();
+    for (let i = 0; i < batchSize; i++) {
+      if (shouldStop()) break;
+
+      const storedRound = queue.claim();
+      if (!storedRound) break;
+
       const roundId = BigInt(storedRound.roundId);
-      if (isStopping()) break;
       try {
         const canSettleCheck = settlementGuard.canSettle(roundId);
         if (!canSettleCheck.allowed) {
-          // Settlement already in-flight or terminal; skip the close phase.
-          // The keep phase may still open/reveal; we let watchRound proceed but
-          // settle manipulation is avoided by the guard's skip marker.
+          // Settlement already in-flight or terminal; close phase handled by guard
         }
-        const tick = await watchRound(deps, roundId);
+
+        const tickPromise = watchRound(deps, roundId);
+        const tick = await waitForInFlight(tickPromise, {
+          isStopping: shouldStop,
+          scheduler,
+          timeoutMs: shutdownTimeoutMs,
+          roundId,
+        });
+
         const active =
           tick.finalStatus !== "Settled" && tick.finalStatus !== "Voided";
         const acted =
@@ -124,12 +207,18 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
           settlementGuard.markTerminal(roundId, "voided on-chain");
         }
 
-        store.updateRound(roundId, {
+        queue.complete(roundId, {
           lastStatus: tick.finalStatus,
           retryCount: 0,
           lastError: undefined,
           lastAction: acted ? summarizeTick(tick) : storedRound.lastAction,
         });
+
+        if (!active) {
+          // Terminal success: the step is done, so the round goes back to the
+          // queue instead of waiting out the lease.
+          store.releaseLease(roundId, { owner, contractId, network });
+        }
 
         if (active || acted) {
           log(
@@ -138,22 +227,39 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
           );
         }
       } catch (e) {
-        log(`[round ${roundId}] tick failed: ${e instanceof Error ? e.message : String(e)}`);
+        log(`[round ${roundId}] tick failed: ${normalizeError(e).message}`);
         settlementGuard.markRetryable(
           roundId,
-          e instanceof Error ? e.message : String(e),
+          normalizeError(e).message,
         );
         const stored = store.getRound(roundId);
-        store.updateRound(roundId, {
+        queue.release(roundId, {
           retryCount: (stored?.retryCount ?? 0) + 1,
-          lastError: e instanceof Error ? e.message : String(e),
+          lastError: normalizeError(e).message,
         });
+        if (isDefinitiveContractFailure(e)) {
+          store.releaseLease(roundId, { owner, contractId, network });
+          log(`[round ${roundId}] lease released after definitive contract failure`);
+        } else {
+          log(
+            `[round ${roundId}] lease kept until ` +
+              `${clock.toISOString(claim.lease.expiresAtMs)} — ${normalizeError(e).message}`,
+          );
+        }
       }
     }
 
-    if (isStopping()) break;
-    const elapsed = Date.now() - started;
+    if (shouldStop()) break;
+    const elapsed = clock.nowMs() - started;
     const wait = Math.max(0, pollMs - elapsed);
-    if (wait > 0) await sleep(wait);
+    if (wait > 0) {
+      const step = Math.min(wait, 250);
+      let waited = 0;
+      while (waited < wait && !shouldStop()) {
+        const toSleep = Math.min(step, wait - waited);
+        await scheduler.sleep(toSleep);
+        waited += toSleep;
+      }
+    }
   }
 }

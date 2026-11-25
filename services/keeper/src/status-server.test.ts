@@ -1,9 +1,12 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createFakeTime } from "@sub-rosa/time";
 
 import http from "node:http";
+import { Readable } from "node:stream";
 
-import { createStatusServer } from "./status-server.js";
+import { createStatusHandler, createStatusServer } from "./status-server.js";
 import type { BuildStatusSource } from "./status.js";
 import type { WatchedRound } from "./store.js";
 
@@ -38,7 +41,7 @@ async function get(
 }
 
 function makeSource(overrides: Partial<BuildStatusSource> = {}): BuildStatusSource {
-  const now = Math.floor(Date.now() / 1000);
+  const now = createFakeTime(1_700_000_000_000).clock.nowSeconds();
   const fullRound = (extra: Partial<import("@sub-rosa/sdk").Round> = {}): import("@sub-rosa/sdk").Round =>
     ({
       status: { tag: "Open" as const },
@@ -82,6 +85,37 @@ function makeSource(overrides: Partial<BuildStatusSource> = {}): BuildStatusSour
   };
 }
 
+async function invokeHandler(
+  source: BuildStatusSource,
+  path: string,
+  method = "GET",
+): Promise<{ status: number; headers: Record<string, string>; body: unknown }> {
+  const handler = createStatusHandler(source);
+  const req = Object.assign(Readable.from([]), {
+    method,
+    url: path,
+    headers: { host: "localhost" },
+  });
+  return new Promise((resolve) => {
+    const response = {
+      statusCode: 0,
+      headers: {} as Record<string, string>,
+      writeHead(status: number, headers: Record<string, string>) {
+        this.statusCode = status;
+        this.headers = headers;
+      },
+      end(payload: string) {
+        resolve({
+          status: this.statusCode,
+          headers: this.headers,
+          body: JSON.parse(payload),
+        });
+      },
+    };
+    handler(req as http.IncomingMessage, response as unknown as http.ServerResponse);
+  });
+}
+
 async function withServer(
   source: BuildStatusSource,
   fn: (server: http.Server) => Promise<void>,
@@ -123,6 +157,45 @@ test("GET /status returns a full status response", async () => {
     assert.equal(rounds[0].roundId, "1");
     assert.equal(rounds[0].status, "Open");
   });
+});
+
+test("status handler reads the live checkpoint and disables caching", async () => {
+  let cursor = 4;
+  const source = makeSource({
+    storeRounds: () => [{
+      roundId: "1",
+      lastStatus: "Open",
+      retryCount: 0,
+      phase: "awaiting-drand",
+      cursor,
+      lastHash: "hash-abc",
+    }],
+  });
+
+  const first = await invokeHandler(source, "/status");
+  cursor = 5;
+  const second = await invokeHandler(source, "/status");
+
+  assert.equal(first.headers["cache-control"], "no-store");
+  assert.equal((first.body as { rounds: Array<Record<string, unknown>> }).rounds[0].cursor, 4);
+  assert.equal((second.body as { rounds: Array<Record<string, unknown>> }).rounds[0].cursor, 5);
+  assert.equal((second.body as { rounds: Array<Record<string, unknown>> }).rounds[0].roundId, "1");
+  assert.equal((second.body as { rounds: Array<Record<string, unknown>> }).rounds[0].phase, "awaiting-drand");
+  assert.equal((second.body as { rounds: Array<Record<string, unknown>> }).rounds[0].lastHash, "hash-abc");
+});
+
+test("status handler does not expose upstream error details", async () => {
+  const secretRpc = "https://user:password@rpc.example.internal/?api_key=secret-token";
+  const res = await invokeHandler(makeSource({
+    drand: {
+      chain: () => ({
+        info: async () => { throw new Error(`upstream failed at ${secretRpc}`); },
+      }),
+    } as never,
+  }), "/healthz");
+
+  assert.equal(res.status, 503);
+  assert.doesNotMatch(JSON.stringify(res.body), /rpc\.example\.internal|password|secret-token/);
 });
 
 test("GET /status/rounds/:id returns a single round", async () => {
@@ -179,6 +252,38 @@ test("GET /healthz returns 503 when drand is down", async () => {
       assert.equal(res.status, 503);
       const body = res.body as Record<string, unknown>;
       assert.equal(body.ok, false);
+      assert.equal(body.reason, "health check failed");
+      assert.doesNotMatch(JSON.stringify(body), /drand down/);
+    },
+  );
+});
+
+test("GET /healthz redacts secret-bearing upstream errors from the response body", async () => {
+  const secretRpc = "https://rpc.example.internal/secret-token-abc123";
+  await withServer(
+    makeSource({
+      reader: {
+        getRound: async () => {
+          throw new Error(`connection refused to ${secretRpc}`);
+        },
+        getBidState: async () => ({ revealed_value: null }) as never,
+      },
+      drand: {
+        chain: () => ({
+          info: async () => {
+            throw new Error(`connection refused to ${secretRpc}`);
+          },
+        }),
+      } as never,
+    }),
+    async (server) => {
+      const res = await get(server, "/healthz");
+      assert.equal(res.status, 503);
+      const body = res.body as Record<string, unknown>;
+      assert.equal(body.reason, "health check failed");
+      const serialized = JSON.stringify(body);
+      assert.doesNotMatch(serialized, /secret-token-abc123/);
+      assert.doesNotMatch(serialized, /rpc\.example\.internal/);
     },
   );
 });
@@ -218,5 +323,64 @@ test("GET /status/health returns health shape", async () => {
     const health = body.health as Record<string, unknown>;
     assert.ok(["ok", "degraded", "down"].includes(health.rpc as string));
     assert.ok(["ok", "degraded", "down"].includes(health.drand as string));
+  });
+});
+
+test("rejects non-GET methods with 405 and Allow: GET at the server boundary", async () => {
+  const source = makeSource({
+    reader: {
+      getRound: async () => {
+        throw new Error("reader should not be called on non-GET requests");
+      },
+      getBidState: async () => {
+        throw new Error("reader should not be called on non-GET requests");
+      },
+    },
+  });
+
+  for (const method of ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]) {
+    const direct = await invokeHandler(source, "/status", method);
+    assert.equal(direct.status, 405);
+    assert.equal(direct.headers["allow"], "GET");
+    assert.equal(direct.headers["content-type"], "application/json");
+    assert.equal(direct.headers["cache-control"], "no-store");
+    assert.equal(direct.headers["x-content-type-options"], "nosniff");
+    assert.equal(direct.headers["x-frame-options"], "DENY");
+    assert.equal(direct.headers["content-security-policy"], "frame-ancestors 'none'");
+    const directBody = direct.body as Record<string, unknown>;
+    assert.equal(directBody.error, "method not allowed");
+    assert.equal(directBody.method, method);
+    assert.deepEqual(directBody.allow, ["GET"]);
+  }
+
+  await withServer(source, async (server) => {
+    const addr = server.address();
+    assert.ok(addr && typeof addr === "object");
+    const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+    for (const [method, path] of [
+      ["POST", "/status"],
+      ["PUT", "/status/rounds/1"],
+      ["DELETE", "/healthz"],
+      ["PATCH", "/status/health"],
+      ["POST", "/"],
+    ] as const) {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: method === "DELETE" ? undefined : JSON.stringify({ probe: true }),
+      });
+      assert.equal(res.status, 405, `expected 405 for ${method} ${path}`);
+      assert.equal(res.headers.get("allow"), "GET");
+      assert.equal(res.headers.get("content-type"), "application/json");
+      assert.equal(res.headers.get("cache-control"), "no-store");
+      assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(res.headers.get("x-frame-options"), "DENY");
+      assert.equal(res.headers.get("content-security-policy"), "frame-ancestors 'none'");
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.equal(body.error, "method not allowed");
+      assert.equal(body.method, method);
+      assert.deepEqual(body.allow, ["GET"]);
+    }
   });
 });

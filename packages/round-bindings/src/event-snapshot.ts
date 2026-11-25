@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Round contract event snapshot.
 //
 // Generated Soroban bindings (`@sub-rosa/round-bindings`) expose the contract's
@@ -190,6 +191,100 @@ export const ROUND_EVENT_BY_NAME: Readonly<
   }
   return out;
 })();
+
+// ── Round lifecycle ordering ────────────────────────────────────────────
+
+/** The fixed lifecycle order, as event names: every healthy settled round
+ *  emits exactly these events, in exactly this ledger order.
+ *
+ *  This is the ordering the on-chain event log must agree with: a receipt (or
+ *  any event-derived artifact) that lists the round's events out of this
+ *  order is inconsistent with the ledger and must be rejected. `voided` is
+ *  deliberately absent — it is a settle-phase *alternative*, not a fixed
+ *  stage (see {@link RoundEventPhase}). */
+export type RoundEventLedgerPhase = Exclude<RoundEventName, "voided">;
+
+export const ROUND_EVENT_LIFECYCLE_ORDER: readonly RoundEventLedgerPhase[] = [
+  "created",
+  "commit",
+  "revealing",
+  "reveal",
+  "cleared",
+  "settled",
+] as const;
+
+/** Which lifecycle stage an event kind belongs to. Events sharing a phase are
+ *  interchangeable in order (bidders commit and reveal individually, so
+ *  per-bidder events may interleave); events in different phases must appear
+ *  in {@link ROUND_EVENT_LIFECYCLE_ORDER} sequence. */
+export type RoundEventPhase =
+  | "round-created"
+  | "bid-commit"
+  | "reveal-opened"
+  | "bid-reveal"
+  | "round-cleared"
+  | "round-finalized"
+  | "inapplicable";
+
+/** Event name → lifecycle phase. */
+export const ROUND_EVENT_PHASE_BY_NAME: Readonly<
+  Record<RoundEventName, RoundEventPhase>
+> = Object.freeze({
+  created: "round-created",
+  commit: "bid-commit",
+  revealing: "reveal-opened",
+  reveal: "bid-reveal",
+  cleared: "round-cleared",
+  settled: "round-finalized",
+  voided: "round-finalized",
+});
+
+/** Map: phase → its rank in the lifecycle, derived from
+ *  {@link ROUND_EVENT_LIFECYCLE_ORDER} (the rank of a phase is the position of
+ *  the first lifecycle event carrying it). "inapplicable" events carry no
+ *  rank and sort below everything, so ordering checks can ignore them. */
+export const ROUND_EVENT_PHASE_RANK: Readonly<
+  Record<RoundEventPhase, number>
+> = (() => {
+  const out = {} as Record<RoundEventPhase, number>;
+  ROUND_EVENT_LIFECYCLE_ORDER.forEach((name, i) => {
+    const phase = ROUND_EVENT_PHASE_BY_NAME[name];
+    if (out[phase] !== undefined) {
+      throw new Error(
+        `ROUND_EVENT_LIFECYCLE_ORDER maps two events to phase "${phase}"; ` +
+          `this is a snapshot authoring bug, not a contract bug.`,
+      );
+    }
+    out[phase] = i;
+  });
+  out.inapplicable = -1;
+  // Completeness: every phase declared by the union must carry a rank.
+  const declared: RoundEventPhase[] = [
+    "round-created",
+    "bid-commit",
+    "reveal-opened",
+    "bid-reveal",
+    "round-cleared",
+    "round-finalized",
+    "inapplicable",
+  ];
+  for (const phase of declared) {
+    if (out[phase] === undefined) {
+      throw new Error(`ROUND_EVENT_PHASE_RANK is missing the "${phase}" phase`);
+    }
+  }
+  return Object.freeze(out);
+})();
+
+/** The expected event sequence for a single round: the full snapshot surface
+ *  minus the `voided` alternative (emitted only when a round is voided in
+ *  place of `settled`). A healthy settled round emits exactly this list, in
+ *  exactly this order. */
+export function expectedRoundEventSequence(
+  roundId: bigint,
+): Array<{ name: RoundEventName; roundId: bigint }> {
+  return ROUND_EVENT_LIFECYCLE_ORDER.map((name) => ({ name, roundId }));
+}
 
 // ── Topic + data decoders (deterministic, no RPC) ─────────────────────────
 //

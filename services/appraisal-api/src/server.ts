@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Sub Rosa contributors
+import { createLogger } from "@sub-rosa/logging";
+const diagnostics = createLogger("appraisal-api.server");
+import { normalizeError, publicErrorMessage } from "@sub-rosa/logging/errors";
 // x402-gated appraisal API.
 //
 // `POST /appraise` is payment-protected. An agent that calls it without payment
@@ -33,18 +37,58 @@ import {
 import { ExactStellarScheme as FacilitatorStellarScheme } from "@x402/stellar/exact/facilitator";
 import { ExactStellarScheme as ServerStellarScheme } from "@x402/stellar/exact/server";
 
-import { appraise, AppraisalInputError, parseAppraisalRequest } from "./appraisal.js";
+import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_BYTES, parseAppraisalRequest } from "./appraisal.js";
+import { takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
+import {
+  appraisalQuoteRateKey,
+  createMemoryQuoteRateLimiter,
+  DEVELOPMENT_QUOTE_RATE_LIMIT,
+  type QuoteRateLimitDecision,
+  type QuoteRateLimiter,
+} from "./quote-rate-limit.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
 
-function readBody(req: http.IncomingMessage): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c as Buffer));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
+/** Non-cacheable security headers applied to appraisal quotes and paid responses. */
+export const APPRAISAL_RESPONSE_SECURITY_HEADERS: Readonly<Record<string, string>> =
+  Object.freeze({
+    "cache-control": "no-store",
+    pragma: "no-cache",
+    expires: "0",
+    "x-content-type-options": "nosniff",
   });
+
+/**
+ * Merge response headers with mandatory non-cacheable security headers.
+ * Case-insensitively prevents upstream headers from re-enabling response caching.
+ */
+export function withNonCacheableHeaders(
+  headers: Record<string, string> = {},
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    normalized[key.toLowerCase()] = value;
+  }
+  return {
+    ...normalized,
+    ...APPRAISAL_RESPONSE_SECURITY_HEADERS,
+  };
+}
+
+export interface AppraisalServerOptions {
+  /** Optional custom facilitator client (used by deterministic unit tests). */
+  facilitatorClient?: FacilitatorClient;
+  /** Optional wall-clock override returning Unix seconds. */
+  nowSeconds?: () => number;
+  /**
+   * Quote-creation limiter. Defaults to the bounded in-memory development
+   * adapter. Production should pass a shared-store implementation of
+   * {@link QuoteRateLimiter}.
+   */
+  quoteRateLimiter?: QuoteRateLimiter;
+  /** Client key for the quote limiter. Defaults to the socket address. */
+  quoteRateKey?: (req: http.IncomingMessage) => string;
 }
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
@@ -77,7 +121,10 @@ function send(
 ) {
   const payload =
     typeof body === "string" ? body : JSON.stringify(body ?? {}, null, 2);
-  res.writeHead(status, { "content-type": "application/json", ...headers });
+  res.writeHead(status, {
+    "content-type": "application/json",
+    ...withNonCacheableHeaders(headers),
+  });
   res.end(payload);
 }
 
@@ -88,7 +135,7 @@ function writeInstructions(res: http.ServerResponse, i: HTTPResponseInstructions
       : JSON.stringify(i.body ?? {}, null, 2);
   res.writeHead(i.status, {
     "content-type": i.isHtml ? "text/html" : "application/json",
-    ...i.headers,
+    ...withNonCacheableHeaders(i.headers),
   });
   res.end(body ?? "");
 }
@@ -96,24 +143,29 @@ function writeInstructions(res: http.ServerResponse, i: HTTPResponseInstructions
 /** Build (and initialize) the x402-gated appraisal HTTP server. */
 export async function buildAppraisalServer(
   config: AppraisalServerConfig,
+  options: AppraisalServerOptions = {},
 ): Promise<http.Server> {
   const rpcConfig = config.rpcUrl ? { url: config.rpcUrl } : undefined;
 
-  // In-process facilitator: verifies + settles on-chain (sponsors fees, submits).
-  const facilitatorSigner = createEd25519Signer(config.facilitatorSecret, config.network);
-  const facilitator = new x402Facilitator().register(
-    config.network,
-    new FacilitatorStellarScheme([facilitatorSigner], { rpcConfig }),
-  );
-  // x402Facilitator already exposes verify/settle/getSupported; adapt the
-  // synchronous getSupported() to the async FacilitatorClient contract so we can
-  // wire it straight into the resource server with no HTTP hop.
-  const facilitatorClient: FacilitatorClient = {
-    verify: (payload, requirements) => facilitator.verify(payload, requirements),
-    settle: (payload, requirements) => facilitator.settle(payload, requirements),
-    getSupported: async (): Promise<SupportedResponse> =>
-      facilitator.getSupported() as unknown as SupportedResponse,
-  };
+  const facilitatorClient: FacilitatorClient =
+    options.facilitatorClient ??
+    (() => {
+      // In-process facilitator: verifies + settles on-chain (sponsors fees, submits).
+      const facilitatorSigner = createEd25519Signer(config.facilitatorSecret, config.network);
+      const facilitator = new x402Facilitator().register(
+        config.network,
+        new FacilitatorStellarScheme([facilitatorSigner], { rpcConfig }),
+      );
+      // x402Facilitator already exposes verify/settle/getSupported; adapt the
+      // synchronous getSupported() to the async FacilitatorClient contract so we can
+      // wire it straight into the resource server with no HTTP hop.
+      return {
+        verify: (payload, requirements) => facilitator.verify(payload, requirements),
+        settle: (payload, requirements) => facilitator.settle(payload, requirements),
+        getSupported: async (): Promise<SupportedResponse> =>
+          facilitator.getSupported() as unknown as SupportedResponse,
+      };
+    })();
 
   // Resource server: builds payment requirements and orchestrates verify/settle.
   const serverScheme = new ServerStellarScheme().registerMoneyParser(async (amount) => ({
@@ -142,6 +194,9 @@ export async function buildAppraisalServer(
 
   const httpServer = new x402HTTPResourceServer(resourceServer, routes);
   await httpServer.initialize();
+  const quoteLimiter =
+    options.quoteRateLimiter ?? createMemoryQuoteRateLimiter(DEVELOPMENT_QUOTE_RATE_LIMIT);
+  const quoteRateKey = options.quoteRateKey ?? appraisalQuoteRateKey;
 
   return http.createServer(async (req, res) => {
     try {
@@ -161,7 +216,14 @@ export async function buildAppraisalServer(
         });
       }
 
-      const rawBody = await readBody(req);
+      const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);
+      if ("status" in taken) {
+        // Fail closed before JSON parsing and before any payment offer.
+        send(res, taken.status, {}, taken.body);
+        res.on("finish", () => req.destroy());
+        return;
+      }
+      const rawBody = taken.raw;
       let parsedBody: unknown = undefined;
       if (rawBody.length > 0) {
         try {
@@ -169,6 +231,9 @@ export async function buildAppraisalServer(
         } catch {
           return send(res, 400, {}, { error: "invalid JSON body" });
         }
+      } else if (method === "POST" && url.pathname === "/appraise") {
+        // Empty POST bodies are a stable 400 — never a 402, never a settlement.
+        return send(res, 400, {}, { error: "Invalid appraisal request" });
       }
 
       const adapter = makeAdapter(req, url, parsedBody);
@@ -190,13 +255,44 @@ export async function buildAppraisalServer(
 
       // result.type === "payment-verified": funds are authorized but not yet
       // captured. Produce the resource; only settle on a valid request so a
-      // malformed body never costs the caller.
+      // malformed body never costs the caller. A rate-limited quote is not
+      // built and the authorized payment is not settled.
+      const nowMs = options.nowSeconds
+        ? options.nowSeconds() * 1000
+        : globalThis.Date.now();
+      let quoteDecision: QuoteRateLimitDecision;
+      try {
+        quoteDecision = quoteLimiter.take(quoteRateKey(req), nowMs);
+      } catch {
+        quoteDecision = { allowed: false, retryAfterMs: DEVELOPMENT_QUOTE_RATE_LIMIT.windowMs };
+      }
+      if (!quoteDecision.allowed) {
+        const retryAfterSeconds = Math.max(1, Math.ceil(quoteDecision.retryAfterMs / 1000));
+        return send(
+          res,
+          429,
+          { "retry-after": String(retryAfterSeconds) },
+          { error: "appraisal quote rate limit exceeded" },
+        );
+      }
+
       let body: unknown;
       try {
-        body = { appraisal: appraise(parseAppraisalRequest(parsedBody)) };
+        const nowSeconds = options.nowSeconds
+          ? options.nowSeconds()
+          : Math.floor(globalThis.Date.now() / 1000);
+        body = {
+          appraisal: appraise(parseAppraisalRequest(parsedBody)),
+          quote: buildAppraisalQuote({
+            asset: config.asset,
+            price: config.price,
+            destination: config.payTo,
+            nowSeconds,
+          }),
+        };
       } catch (e) {
         if (e instanceof AppraisalInputError) {
-          return send(res, 400, {}, { error: e.message });
+          return send(res, 400, {}, { error: "Invalid appraisal request" });
         }
         throw e;
       }
@@ -206,7 +302,7 @@ export async function buildAppraisalServer(
         result.paymentPayload as PaymentPayload,
         result.paymentRequirements as PaymentRequirements,
         result.declaredExtensions,
-        { request: ctx, responseBody, responseHeaders: {} },
+        { request: ctx, responseBody, responseHeaders: withNonCacheableHeaders() },
       );
 
       if (!settle.success) {
@@ -226,7 +322,8 @@ export async function buildAppraisalServer(
         },
       );
     } catch (err) {
-      send(res, 500, {}, { error: err instanceof Error ? err.message : String(err) });
+      diagnostics.error("request-failed", normalizeError(err));
+      send(res, 500, {}, { error: publicErrorMessage(err) });
     }
   });
 }

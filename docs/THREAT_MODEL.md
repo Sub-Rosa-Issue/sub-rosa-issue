@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa — Threat Model
 
 ## Assets
@@ -45,7 +46,7 @@
 | --- | --- | --- |
 | Winner doesn't pay | Escrow locked at commit; settle pulls from escrow | Requires valid reveal |
 | Drand never delivers R | `void` after grace refunds all escrow | Grace window must be configured |
-| Double settle | Idempotent settle skips settled bids | Proven in e2e |
+| Double settle | Idempotent settle skips settled bids; keeper watch checkpoint records completed steps (hash-verified on startup) so a restart cannot rebroadcast | Proven in e2e |
 
 ### Identity privacy
 

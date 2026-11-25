@@ -1,6 +1,12 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Deploy & environment variables
 
 Sub Rosa **does not require a committed `.env` file**. Secrets stay out of git; you inject them where each layer runs.
+
+CI runs `node scripts/check-env-examples.mjs` on the root and web `.env.example`
+files. It rejects duplicate active names within either file and populated
+secret-shaped values; keep credential fields empty or use clear placeholders.
+Run `node --test scripts/check-env-examples.test.mjs` for the focused tests.
 
 ## Three layers
 
@@ -191,19 +197,44 @@ Deploying new contract round?
 
 ```bash
 pnpm mainnet:ready -- --strict       # consolidated read-only readiness
+pnpm mainnet:ready -- --fixture packages/sdk/fixtures/mainnet-readiness.json   --strict                           # CI-safe: recorded deployment, no mainnet RPC
 pnpm mainnet:verify              # read-only — no secrets
 pnpm mainnet:micro               # dry-run checklist
 MAINNET_CONFIRM=SUB_ROSA_MAINNET OPERATOR_SECRET=S… BIDDER_SECRET=S… \
   pnpm mainnet:micro -- --execute   # optional micro commit (≤1 XLM escrow)
+pnpm mainnet:settle                 # readiness + capped, read-only dry-run
 MAINNET_CONFIRM=SUB_ROSA_MAINNET KEEPER_SECRET=S… ROUND_CONTRACT_ID=C… \
-  pnpm mainnet:settle               # keeper settle (requires readiness + confirm)
+  pnpm mainnet:settle -- --execute  # keeper settle (requires readiness + confirm)
 ```
+
+### What readiness pins
+
+`pnpm mainnet:ready` and `pnpm mainnet:verify` load the committed manifest
+(`packages/sdk/mainnet-artifacts.json`) and compare the live deployment with it
+through the read-only client. Four fields must agree, and each one blocks on its
+own:
+
+| manifest field      | live value it is compared against                    |
+| ------------------- | --------------------------------------------------- |
+| `contractId`        | the contract the client is bound to                 |
+| `networkPassphrase` | the passphrase the RPC reports                      |
+| `wasmHash`          | the executable hash in the contract ledger entry      |
+| `tokenContract`     | `usdc` in the deployed `GlobalConfig` (escrow SAC)   |
+
+A field that cannot be read blocks too, and the report names the disagreeing
+field. Passphrases are printed as a short fingerprint, never in full, so logs
+stay shareable. The manifest is a committed file on purpose: editing readiness,
+the manifest, and the verify script in one review is what keeps a green check
+honest.
+
+Neither command needs a secret key. Balance checks take public keys:
+`OPERATOR_PUBLIC_KEY`, `KEEPER_PUBLIC_KEY`, `BIDDER_PUBLIC_KEY`.
 
 ### Mainnet launch checklist
 
 1. Run `pnpm mainnet:ready -- --strict` (no secrets required for baseline checks).
 2. Run `pnpm mainnet:verify` to confirm settled round 1 matches frozen artifacts.
-3. Optional balance review: `pnpm mainnet:ready -- --with-balances` with funded operator/keeper secrets in env.
+3. Optional balance review: `pnpm mainnet:ready -- --with-balances` with funded operator/keeper **public** keys in env.
 4. For value-moving commands, set `MAINNET_CONFIRM=SUB_ROSA_MAINNET` and re-run readiness implicitly via deploy/micro/settle guards.
 5. After settlement, confirm contract native XLM SAC balance is **0** (settle script enforces this).
 
@@ -212,3 +243,33 @@ MAINNET_CONFIRM=SUB_ROSA_MAINNET KEEPER_SECRET=S… ROUND_CONTRACT_ID=C… \
 - **Never** commit `.env` with secrets (already in `.gitignore`).
 - **Never** put `S…` secret keys in `VITE_*` — they end up in public JS.
 - Rotate any key that was pasted in chat or logs.
+
+## Support log redaction & troubleshooting
+
+Before attaching terminal transcripts, container logs, or browser exports to an
+issue, pull request, or support channel, strip every credential, bearer token,
+and pre-reveal secret listed below. Structured logger output from
+`@sub-rosa/logging` automatically scrubs common secret keys (`secret`, `token`,
+`password`, `privateKey`, `credential`, `cookie`, `authorization`, `apiKey`,
+`mnemonic`, `seedPhrase`), `S…` Stellar secret seeds, PEM blocks, `Bearer` /
+`Basic` headers, and URL credentials to `[REDACTED]`, but raw shell command
+lines, unhandled crash dumps, and DevTools HAR files can still include them:
+
+- **Keeper logs (`services/keeper`):** Remove `KEEPER_SECRET`, `OPERATOR_SECRET`,
+  and `BIDDER_SECRET` (`S…` Stellar secret seeds), provider-authenticated
+  `RPC_URL` or `STELLAR_RPC_URL` strings (basic-auth userinfo
+  `https://user:pass@…` or query parameters such as `?api_key=…` / `?token=…`),
+  and any unrevealed bid `value` or `nonce` prior to Drand round `R`.
+- **Appraisal API logs (`services/appraisal-api`):** Remove
+  `FACILITATOR_SECRET`, `Authorization` (`Bearer` / `Basic`) headers, x402
+  payment headers (`X-Payment` / signed XDR payloads), and provider-keyed
+  `RPC_URL` endpoints.
+- **SDK & relayer logs (`packages/sdk`):** Remove `STELLAR_SECRET_KEY`,
+  `OZ_CHANNELS_API_KEY`, session Ed25519 private keys, round auditor secret
+  keys, and unrevealed bid plaintext (`value`, `nonce`) before `open_reveal`
+  succeeds on-chain.
+- **Browser & DevTools logs (`apps/web`):** Remove passkey/session key material
+  in `localStorage` or `sessionStorage`, `Cookie` and `Authorization` headers in
+  Network HAR exports, wallet seed phrases or `S…` secret keys, and local
+  unrevealed bid values/nonces before the round enters `Revealing`.
+

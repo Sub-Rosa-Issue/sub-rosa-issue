@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Receipt verification tests with golden and tampered fixtures.
 
 import { test } from "node:test";
@@ -23,6 +24,71 @@ test("golden fixture passes verification", () => {
   assert.equal(result.valid, true);
   assert.equal(result.computedWinner.address, receipt.winner);
   assert.equal(result.computedWinner.value?.toString(), receipt.winningValue);
+});
+
+// ── Ordered on-chain event verification (issue #379) ─────────────────────
+
+test("receipt missing the settle event fails verification", () => {
+  const receipt = loadFixture("tampered-events.json");
+  const result = verifyReceipt(receipt);
+  assert.equal(result.valid, false);
+  const missing = result.issues.filter((i) => i.code === "missing_events_required");
+  assert.equal(missing.length, 1);
+  assert.match(missing[0].message, /"settled"/);
+});
+
+test("reordered events fail verification", () => {
+  // Take the golden log and move "cleared" before "commit" — a sequence the
+  // ledger cannot produce.
+  const receipt = loadFixture("golden.json");
+  const commitIdx = receipt.events.findIndex((e) => e.name === "commit");
+  const clearedIdx = receipt.events.findIndex((e) => e.name === "cleared");
+  const tmp = receipt.events[commitIdx];
+  receipt.events[commitIdx] = receipt.events[clearedIdx];
+  receipt.events[clearedIdx] = tmp;
+  const result = verifyReceipt(receipt);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((i) => i.code === "event_not_in_ledger_order"));
+});
+
+test("a receipt from another contract fails verification", () => {
+  const receipt = loadFixture("golden.json");
+  const result = verifyReceipt(receipt, {
+    expectedContractId: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  });
+  assert.equal(result.valid, false);
+  const mismatch = result.issues.filter((i) => i.code === "event_contract_mismatch");
+  assert.equal(mismatch.length, 1);
+});
+
+test("a receipt from another network fails verification", () => {
+  const receipt = loadFixture("golden.json");
+  const result = verifyReceipt(receipt, {
+    expectedNetworkPassphrase: "Main SDF Network ; March 2025",
+  });
+  assert.equal(result.valid, false);
+  const mismatch = result.issues.filter((i) => i.code === "event_network_mismatch");
+  assert.equal(mismatch.length, 1);
+});
+
+test("duplicate settle events fail verification", () => {
+  const receipt = loadFixture("golden.json");
+  const settled = receipt.events.find((e) => e.name === "settled");
+  assert.ok(settled, "golden fixture must contain a settled event");
+  receipt.events.push({ ...settled, ledger: 999999 });
+  const result = verifyReceipt(receipt);
+  assert.equal(result.valid, false);
+  const dup = result.issues.filter((i) => i.code === "duplicate_settle_event");
+  assert.equal(dup.length, 1);
+});
+
+test("events still verify without any caller-supplied context", () => {
+  // The event checks are offline and context-free by default; contract id and
+  // network pinning only activate when the caller passes them.
+  const receipt = loadFixture("golden.json");
+  const result = verifyReceipt(receipt);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.issues, []);
 });
 
 test("tampered winner: wrong winner address fails", () => {
@@ -136,14 +202,26 @@ test("JSON mode: invalid receipt includes error codes in errors array", () => {
   const result = verifyReceipt(receipt);
   const out = buildJsonOutput(receipt, result, null);
   assert.equal(out.valid, false);
-  assert.equal(typeof out.receiptId, "string");
-  assert.equal(out.roundId, receipt.roundId);
+  // Fail closed: an invalid receipt must not expose a receipt identity.
+  assert.equal(out.receiptId, null);
+  assert.equal(out.roundId, null);
   assert.ok(out.errors.some((e) => e.code === "winner_mismatch"));
   assert.equal(out.warnings.length, 0);
 });
 
+test("JSON mode: event errors surface in the errors array", () => {
+  const receipt = loadFixture("tampered-events.json");
+  const result = verifyReceipt(receipt);
+  const out = buildJsonOutput(receipt, result, null);
+  assert.equal(out.valid, false);
+  assert.ok(out.errors.some((e) => e.code === "missing_events_required"));
+});
+
 test("JSON mode: malformed input produces parse_error with null ids", () => {
-  const out = buildJsonOutput(null, null, "SyntaxError: Unexpected token < in JSON");
+  const out = buildJsonOutput(null, null, {
+    code: "parse_error",
+    message: "SyntaxError: Unexpected token < in JSON",
+  });
   assert.equal(out.valid, false);
   assert.equal(out.receiptId, null);
   assert.equal(out.roundId, null);

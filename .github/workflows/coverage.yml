@@ -1,0 +1,67 @@
+name: TypeScript coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  # Los cuatro workflows solo leen el repo: clonan, instalan y corren
+  # tests. Ninguno hace push, ni comenta, ni publica, ni toca secrets.
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Read-only workflow: downstream steps do not push
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test direct time access guard
+        run: pnpm time:guard:test
+
+      - name: Check direct time access
+        run: pnpm time:guard
+
+      - name: Validate structured logging
+        run: pnpm logging:test && pnpm logging:check
+
+      - name: Validate error normalization
+        run: pnpm errors:normalize:test && pnpm errors:normalize:check
+      - name: Validate workflow pnpm version matches packageManager
+        run: pnpm ci:pnpm-version:test && pnpm ci:pnpm-version:check
+      - name: Validate Node version file, engines, and workflows
+        run: pnpm ci:node-version:test && pnpm ci:node-version:check
+
+      - name: Validate pinned Rust toolchain alignment
+        run: pnpm ci:rust-toolchain:test && pnpm ci:rust-toolchain:check
+
+      - name: Mainnet readiness matches the committed manifest (recorded fixture, no RPC, no secrets)
+        run: |
+          pnpm --filter @sub-rosa/sdk exec tsx scripts/mainnet-ready.ts --strict --fixture
+          pnpm --filter @sub-rosa/sdk exec tsx scripts/mainnet-verify.ts --fixture
+
+      - name: Run coverage gate
+        run: pnpm coverage:test
+
+      - name: Assert all workflow checkout steps disable credential persistence
+        run: pnpm wf-creds:check
