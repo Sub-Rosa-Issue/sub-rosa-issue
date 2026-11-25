@@ -1,7 +1,17 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import type { DemoTrace } from "../demo/trace";
 import { usdc } from "../lib/format";
+import type { VerifiedSettlement } from "../lib/verified-settlement";
+import { VerifiedSettlementSummary } from "./VerifiedSettlementSummary";
 
-export function SettlementRail({ trace }: { trace: DemoTrace }) {
+export function SettlementRail({
+  trace,
+  settlement,
+}: {
+  trace: DemoTrace;
+  /** Receipt-verified settlement; when supplied, prize amounts come only from it. */
+  settlement?: VerifiedSettlement;
+}) {
   return (
     <section className="panel settlement-panel">
       <header className="panel-head">
@@ -39,10 +49,12 @@ export function SettlementRail({ trace }: { trace: DemoTrace }) {
               <strong>Who pays</strong>
               <span>Winner escrow → operator; losers refunded</span>
             </li>
-            <li>
-              <strong>Amount</strong>
-              <span>{usdc(trace.settlement.operatorReceivedUsdc)} USDC to operator</span>
-            </li>
+            {!settlement && (
+              <li>
+                <strong>Amount</strong>
+                <span>{usdc(trace.settlement.operatorReceivedUsdc)} USDC to operator</span>
+              </li>
+            )}
             <li>
               <strong>Mechanism</strong>
               <span>Round contract <code>settle()</code> — native SAC transfer, not HTTP 402</span>
@@ -52,6 +64,7 @@ export function SettlementRail({ trace }: { trace: DemoTrace }) {
               <span>USDC Stellar Asset Contract (SEP-41) as x402; different authorization path</span>
             </li>
           </ul>
+          {settlement && <VerifiedSettlementSummary settlement={settlement} />}
         </article>
       </div>
 

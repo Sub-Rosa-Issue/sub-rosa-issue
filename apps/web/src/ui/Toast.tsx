@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import {
   createContext,
   useCallback,
@@ -7,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motionEnabled } from "../lib/reduced-motion";
+import { useTime } from "../lib/time";
 
 export type ToastTone = "info" | "working" | "success" | "error";
 
@@ -54,6 +57,7 @@ const TONE_DURATION: Record<ToastTone, number> = {
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const { scheduler } = useTime();
   const [items, setItems] = useState<ToastItem[]>([]);
   const seq = useRef(0);
 
@@ -66,13 +70,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const id = `toast-${++seq.current}`;
       setItems((prev) => [{ id, tone, title, detail }, ...prev].slice(0, 4));
       const ttl = TONE_DURATION[tone];
-      if (ttl > 0) window.setTimeout(() => dismiss(id), ttl);
+      if (ttl > 0) scheduler.setTimeout(() => dismiss(id), ttl);
       return id;
     },
-    [dismiss],
+    [dismiss, scheduler],
   );
 
   const value = useMemo(() => ({ push, dismiss }), [push, dismiss]);
+  const decorativeMotion = motionEnabled("nonessential", useReducedMotion());
+  const toastTransition = decorativeMotion
+    ? { type: "spring" as const, stiffness: 420, damping: 32 }
+    : { duration: 0 };
 
   return (
     <ToastContext.Provider value={value}>
@@ -83,10 +91,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <motion.div
               key={item.id}
               layout
-              initial={{ opacity: 0, y: 24, scale: 0.9 }}
+              initial={decorativeMotion ? { opacity: 0, y: 24, scale: 0.9 } : false}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.95, transition: { duration: 0.18 } }}
-              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+              exit={
+                decorativeMotion
+                  ? { opacity: 0, y: 12, scale: 0.95, transition: { duration: 0.18 } }
+                  : { opacity: 1, transition: { duration: 0 } }
+              }
+              transition={toastTransition}
               className={`toast toast-${item.tone}`}
             >
               <span className="toast-icon" aria-hidden="true">
@@ -99,7 +111,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 className="toast-close"
-                aria-label="Dismiss"
+                aria-label={`Dismiss: ${item.title}`}
                 onClick={() => dismiss(item.id)}
               >
                 ×
@@ -110,7 +122,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   className="toast-bar"
                   initial={{ scaleX: 1 }}
                   animate={{ scaleX: 0 }}
-                  transition={{ duration: TONE_DURATION[item.tone] / 1000, ease: "linear" }}
+                  transition={
+                    decorativeMotion
+                      ? { duration: TONE_DURATION[item.tone] / 1000, ease: "linear" }
+                      : { duration: 0 }
+                  }
                 />
               ) : (
                 <i className="toast-bar toast-bar-indeterminate" />

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Sub Rosa — Architecture
 
 High-level map of the monorepo: components, trust boundaries, round lifecycle, and where each proof runs. For crypto and settlement detail see [docs/TECH_DESIGN.md](./docs/TECH_DESIGN.md).
@@ -233,7 +234,7 @@ pnpm agents:e2e
 
 Other proofs: `pnpm lifecycle:e2e`, `pnpm appraisal:e2e`, `pnpm mainnet:verify`. See README **Proof at a glance**.
 
-The web UI is **read-mostly**: embedded trace + optional live RPC poll. No wallet connect in the jury demo.
+The web UI is **read-mostly**: embedded trace + optional live RPC poll. No wallet connect in the jury demo. Each route renders a focus-visible skip link (`a.skip-link`) targeting a single `<main id="main-content">` landmark placed after page navigation.
 
 ---
 

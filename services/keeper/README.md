@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Keeper Service
 
 The Sub Rosa keeper service is a permissionless TypeScript node application that can run single-shot lifecycle operations or run in watch mode to automatically monitor and drive in-flight rounds to completion. A built-in status HTTP API exposes keeper-observed round state for pilots and dashboards.
@@ -19,6 +20,8 @@ pnpm --filter @sub-rosa/keeper run watch
 | `npm run queue add N` | Add a round to the persisted watch queue |
 | `npm run queue list` | List tracked rounds and their latest status |
 | `npm run queue remove N` | Remove a round from the queue |
+| `npm run queue claim N` | Take the exclusive lease on a round |
+| `npm run queue release N` | Give back a lease this owner holds |
 
 ## Status HTTP API
 
@@ -33,6 +36,10 @@ The status API is served by `npm run serve` (or any process that calls `createSt
 | `GET` | `/status/health` | Health only (RPC + Drand) |
 | `GET` | `/healthz` | Liveness probe — cheap, suitable for load balancers |
 | `GET` | `/` | Service info + endpoint list |
+
+Every status response, including `405` and `404`, sends `content-type: application/json`, `cache-control: no-store`, `x-content-type-options: nosniff`, `x-frame-options: DENY`, and `content-security-policy: frame-ancestors 'none'`. These headers are fixed in `KEEPER_STATUS_RESPONSE_HEADERS`.
+
+All endpoints only accept `GET` requests. Any non-`GET` method (`POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, etc.) is rejected at the server boundary with HTTP `405 Method Not Allowed`, an `Allow: GET` response header, and a JSON `{ "error": "method not allowed", "method": "<VERB>", "allow": ["GET"], "available": [...] }` body without invoking RPC or Drand readers.
 
 ### Configuration
 
@@ -75,6 +82,8 @@ Response shape (typed in `@sub-rosa/sdk` as `KeeperStatusResponse`):
       "winningValue": null,
       "clearingRule": "HighestBid",
       "settlement": "none",
+      "guardSkip": null,
+      "guardSkipIndicator": null,
       "lastKeeperAction": null,
       "lastError": null,
       "retryCount": 0,
@@ -95,6 +104,8 @@ Response shape (typed in `@sub-rosa/sdk` as `KeeperStatusResponse`):
 - `voidableAfter`: unix seconds after which a still-Open round can be voided (reveal_deadline + 3600s grace).
 - `bidderCount`, `revealedCount`: from the on-chain bidder index / bid states; `null` when unreachable.
 - `settlement`: `pending | submitted | terminal | none` — reflects the in-memory settlement guard.
+- `guardSkip`: the typed reason the settlement guard last refused a submission for this round, or `null`. Shape: `{ action, reason, detail, at }` where `reason` is one of `already_settled | round_voided | not_cleared | missing_winner | bidder_page_incomplete | refund_missing | winner_mismatch | void_not_open | void_grace_not_elapsed`. It is set only when the keeper looked at a settle or a void and did **not** submit it because the round contract would have rejected the transaction (or the local view could not prove the refund set).
+- `guardSkipIndicator`: `"<action> refused: <reason>"` — the same refusal, flattened for logs and dashboards.
 - `lastKeeperAction`: human-readable summary of the last mutation the keeper performed for this round.
 - `lastError`, `retryCount`: tick failure tracking.
 
@@ -112,6 +123,53 @@ Response shape (typed in `@sub-rosa/sdk` as `KeeperStatusResponse`):
 5. **The status API does not require `KEEPER_SECRET`.** It only reads on-chain state. If you run the keeper in a separate process from the status API, give the status process a read-only `SubRosaClient` (no `secretKey`).
 6. **Failure states are visible, not hidden.** A round whose on-chain lookup fails is surfaced with `status: "Unknown"` or `status: "NotFound"` and the `lastError` field populated. The process does not crash on upstream errors.
 7. **Secrets in responses: none.** The status API never emits secret keys, signed transactions, or bidder private data. Bidder *addresses* (public on-chain identifiers) are included so dashboards can show bidder counts.
+
+## Watch Checkpoint (restart safety)
+
+The in-memory settlement guard is lost on restart. The **watch checkpoint** is the durable version: a small local JSON file (default `.keeper-checkpoint.json`, override with `KEEPER_CHECKPOINT_PATH`) that records how far each round got, so a crash after a confirmed reveal, clear, or settle does not broadcast that step again.
+
+### Checkpoint format
+
+```json
+{
+  "version": 1,
+  "network": "Test SDF Network ; September 2015",
+  "contractId": "C...",
+  "rounds": {
+    "1": {
+      "roundId": "1",
+      "completedSteps": ["open-reveal", "reveal", "clear", "settle"],
+      "lastCompletedStep": "settle",
+      "lastTransactionHash": "0x…",
+      "stepHashes": { "settle": "0x…" },
+      "updatedAt": "2026-09-30T00:00:00.000Z"
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `network` / `contractId` | The deployment the cursor was recorded for. |
+| `completedSteps` | Steps observed complete, in completion order. |
+| `lastCompletedStep` | The cursor position — the last step this process finished. |
+| `lastTransactionHash` | Transaction hash of the last step, when the SDK exposes one. |
+| `stepHashes` | Per-step hashes, re-verified on every startup. |
+| `updatedAt` | ISO-8601 timestamp of the last write. |
+
+Steps tracked: `open-reveal`, `reveal`, `clear`, `settle`, `void`.
+
+### Startup validation
+
+1. **Binding.** If `network` or `contractId` on disk does not match the process configuration, the keeper refuses to start (`KeeperCheckpointMismatchError`) instead of replaying a cursor from another deployment. Point `KEEPER_CHECKPOINT_PATH` at a per-deployment file, or delete the file when you switch networks.
+2. **Hash verification.** Every recorded `stepHashes` entry is re-checked (when a verifier is wired in). A hash that comes back `failed` or `missing` is rolled back so the step is retried; a `confirmed` hash is trusted even if the RPC replica still reports the pre-step status.
+3. **Chain reconciliation.** Cursor entries with no hash to verify are checked against the on-chain status. If the chain cannot prove the step happened, the entry is dropped rather than stranding the round.
+
+`open-reveal` is recorded but never used to skip work: whether the reveal window is open is already authoritative on-chain, and trusting the cursor there could strand an Open round. An unreadable or corrupted checkpoint file is backed up (`*.corrupted.<ts>`) and the keeper starts from a fresh cursor rather than guessing.
+
+### Dry-run
+
+`KEEPER_DRY_RUN=true npm run start` prints the checkpoint it *would* write — path, binding, proposed step, and the exact file content — inside the dry-run summary. It submits no transactions (`transactionsSubmitted: 0`) and writes nothing (`checkpoint.filesWritten: 0`). If the existing checkpoint would block a live run, the summary reports it as `checkpoint.mismatch` (`network` or `contractId`).
 
 ## Persisted Queue / Store
 
@@ -153,7 +211,7 @@ import { KeeperStatusClient } from "@sub-rosa/sdk";
 const client = new KeeperStatusClient({ baseURL: "http://127.0.0.1:8090" });
 const status = await client.getStatus();
 for (const round of status.rounds) {
-  console.log(round.roundId, round.status, round.phase);
+  logger.info("round-status", "round status", { roundId: round.roundId.toString(), status: round.status, phase: round.phase });
 }
 ```
 
@@ -170,9 +228,49 @@ You can manage the queue explicitly via the included CLI:
 # Add a round to watch (inherits contract and network from ENV)
 npm run queue add 42
 
-# List all watched rounds, their statuses, and retry metrics
+# List all watched rounds, their statuses, retry metrics, and any lease
 npm run queue list
 
 # Stop watching a round and delete it from the store
 npm run queue remove 42
+
+# Take the round's lease (owner comes from KEEPER_OWNER, default queue-cli-<pid>)
+npm run queue claim 42
+
+# Give the round back (only the owning KEEPER_OWNER may release it)
+npm run queue release 42
 ```
+
+## Exclusive round leases
+
+Two keeper processes pointed at the same `KEEPER_STORE_PATH` must never reveal
+or settle the same round at the same time. Before it ticks a round, the watch
+loop claims an exclusive lease that is persisted in the store next to the
+queue:
+
+```json
+{
+  "owner": "keeper-4242-1f0d…",
+  "roundId": "42",
+  "network": "Test SDF Network ; September 2015",
+  "contractId": "C…",
+  "expiresAtMs": 1788060000000
+}
+```
+
+- A claim is refused while a **live** lease for the same round, contract, and
+  network is held by a different owner; the losing watcher skips the tick
+  instead of submitting alongside the winner. A lease recorded for one contract
+  id never blocks another contract's round.
+- The lease is released only when the step reaches a terminal success
+  (`Settled` / `Voided`) or a definitive contract failure. A transient failure
+  — a dropped RPC connection, a timeout — keeps the lease so the same owner
+  retries the round on the next tick.
+- Leases expire on the injected clock, so a crashed owner stops locking the
+  round after `KEEPER_LEASE_MS`. The expired lease can then be claimed again,
+  once, by the next watcher.
+
+| Env var | Default | Description |
+|---------|---------|-------------|
+| `KEEPER_OWNER` | generated per run | Lease owner id for this process. Set it to a stable value when you run the queue CLI against a live watcher's store. |
+| `KEEPER_LEASE_MS` | `120000` | Round lease duration in milliseconds. |

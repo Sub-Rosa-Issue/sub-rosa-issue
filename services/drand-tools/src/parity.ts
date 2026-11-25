@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Off-chain replica of the contract's BLS verification, run against a real
 // quicknet beacon. This confirms the exact message construction and DST the
 // on-chain `verify_round` must use — independent of point serialization.

@@ -1,3 +1,5 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
 import { Buffer } from "buffer";
 import { Keypair } from "@stellar/stellar-sdk";
 import {
@@ -6,7 +8,7 @@ import {
   createSessionMandate,
   MandateCapError,
   usdcToStroops,
-} from "@sub-rosa/agent";
+} from "@sub-rosa/agent/mandate";
 import {
   commitment,
   currentRound,
@@ -16,10 +18,22 @@ import {
   sealBid,
   openBid,
 } from "@sub-rosa/tlock";
-
 import type { AttackStep, CapDemoResult } from "./demoTypes";
+import { systemClock } from "@sub-rosa/time";
+import { DEMO_ACTIONS, type DemoAction, type DemoActionGate } from "./config";
 
 export type { AttackStep, CapDemoResult };
+
+// Demo actions must never submit a commit/reveal/settle into the wrong
+// network. Re-export the guard so demo flows share one implementation.
+export {
+  assertDemoNetworkMatch,
+  demoNetworkMismatch,
+  DemoNetworkMismatchError,
+  type DemoActionName,
+  type DemoNetworkCheck,
+} from "./network-guard";
+
 export function runCapSafetyDemos(): CapDemoResult[] {
   const results: CapDemoResult[] = [];
   const principal = Keypair.random();
@@ -36,7 +50,7 @@ export function runCapSafetyDemos(): CapDemoResult[] {
       maxEscrowStroops: usdcToStroops(100),
       maxAppraisalSpendStroops: usdcToStroops(0.5),
       appraisalPriceStroops: usdcToStroops(0.1),
-      commitDeadline: Math.floor(Date.now() / 1000) + 3600,
+      commitDeadline: systemClock.nowSeconds() + 3600,
     });
     assertAppraisalSpendAllowed(mandate, usdcToStroops(0.2));
     results.push({
@@ -53,7 +67,7 @@ export function runCapSafetyDemos(): CapDemoResult[] {
       title: "Appraisal price above mandate (0.20 > cap 0.10)",
       layer: "agent (off-chain)",
       expected: "reject",
-      outcome: e instanceof MandateCapError ? e.message : String(e),
+      outcome: publicErrorMessage(e),
       pass: e instanceof MandateCapError,
     });
   }
@@ -69,7 +83,7 @@ export function runCapSafetyDemos(): CapDemoResult[] {
     maxEscrowStroops: usdcToStroops(100),
     maxAppraisalSpendStroops: usdcToStroops(1),
     appraisalPriceStroops: usdcToStroops(0.1),
-    commitDeadline: Math.floor(Date.now() / 1000) + 3600,
+    commitDeadline: systemClock.nowSeconds() + 3600,
   });
   const { bidValue } = bidFromAppraisal(999, m2);
   results.push({
@@ -97,6 +111,38 @@ export function runCapSafetyDemos(): CapDemoResult[] {
   return results;
 }
 
+/** The base64 "broken seal" used by the seal-off (leaky) attack column. */
+export function sealOffCipher(value: bigint, nonce: Uint8Array): string {
+  const plaintext = encodeBidPreimage(value, nonce);
+  return Buffer.from(plaintext).toString("base64");
+}
+
+/** The early read the broken baseline allows. Returns the recovered value, or
+ *  throws when the read path is sealed (i.e. safe). */
+export async function earlyReadBid(
+  fakeCipher: string,
+  client: ReturnType<typeof quicknet>,
+): Promise<bigint> {
+  const decoded = Buffer.from(fakeCipher, "base64");
+  if (decoded.length === 0) throw new Error("empty ciphertext");
+  // With the seal off, the preimage is recoverable without Drand R — that is
+  // the bug this demo teaches. The tlock path (seal on) must fail here; the
+  // caller records that failure instead of ever formatting a value.
+  const clientAny = client as unknown as { __sealedEarlyRead?: () => never };
+  if (typeof clientAny.__sealedEarlyRead === "function") {
+    clientAny.__sealedEarlyRead();
+  }
+  return decodeFirstValue(decoded);
+}
+
+function decodeFirstValue(decoded: Buffer): bigint {
+  let v = 0n;
+  for (let i = 0; i < 16; i++) {
+    v = (v << 8n) | BigInt(decoded[i] ?? 0);
+  }
+  return v;
+}
+
 /** Live tlock seal-on vs plaintext seal-off comparison using quicknet. */
 export async function runSealAttackDemo(): Promise<{
   sealOff: AttackStep[];
@@ -112,19 +158,18 @@ export async function runSealAttackDemo(): Promise<{
   const sealOn: AttackStep[] = [];
 
   // ── Seal OFF: plaintext / operator-readable "encryption" ───────────────
-  const plaintext = encodeBidPreimage(value, nonce);
-  const fakeCipher = Buffer.from(plaintext).toString("base64");
+  const fakeCipher = sealOffCipher(value, nonce);
   sealOff.push({
     label: "Bid stored as reversible encoding (no tlock)",
     ok: true,
     detail: `Observer decodes bid immediately: ${Number(value) / 1e7} USDC equivalent`,
   });
   try {
-    const decoded = Buffer.from(fakeCipher, "base64");
+    await earlyReadBid(fakeCipher, client);
     sealOff.push({
       label: "Early read succeeds before Drand R",
       ok: true,
-      detail: `Plaintext preimage recovered (${decoded.length} bytes) — front-running / selective abort possible`,
+      detail: "Plaintext preimage recovered — front-running / selective abort possible",
     });
   } catch {
     sealOff.push({ label: "Early read", ok: false, detail: "unexpected failure" });

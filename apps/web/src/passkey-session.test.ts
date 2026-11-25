@@ -1,0 +1,172 @@
+// Copyright (c) 2026 Sub Rosa contributors
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { Keypair, StrKey } from "@stellar/stellar-sdk";
+import { systemClock } from "@sub-rosa/time";
+import {
+  SubRosaClient,
+  SubRosaNetworkMismatchError,
+  SubRosaSessionMismatchError,
+} from "@sub-rosa/sdk";
+import {
+  createPasskeySession,
+  commitWithPasskeySession,
+  type PasskeySession,
+} from "./passkey-config";
+
+describe("Passkey session binding fixture test", () => {
+  const fixtureKeypair = Keypair.random();
+  const FIXTURE_SEED = fixtureKeypair.secret();
+  const FIXTURE_PUBLIC = fixtureKeypair.publicKey();
+
+  const FIXTURE_CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32, 7));
+  const SWAPPED_CONTRACT_ID = StrKey.encodeContract(Buffer.alloc(32, 9));
+  const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
+  const PUBLIC_PASSPHRASE = "Public Global Stellar Network ; September 2015";
+
+  it("records the session creation time", () => {
+    const before = systemClock.nowMs();
+    const session = createPasskeySession({
+      contractId: FIXTURE_CONTRACT_ID,
+      networkPassphrase: TESTNET_PASSPHRASE,
+      account: FIXTURE_PUBLIC,
+    });
+    const createdAt = Date.parse(session.createdAt!);
+    assert.ok(createdAt >= before && createdAt <= systemClock.nowMs());
+  });
+
+  const FAKE_COMMIT_PARAMS = {
+    roundId: 1,
+    sealed: {
+      commitment: new Uint8Array(32),
+      ciphertext: new Uint8Array([0x61, 0x67, 0x65]),
+      auditorBlob: new Uint8Array(1),
+    },
+    escrow: 100_000n,
+    bidder: FIXTURE_PUBLIC,
+  };
+
+  function createFixtureClient(options: {
+    contractId?: string;
+    networkPassphrase?: string;
+  } = {}) {
+    const contractId = options.contractId ?? FIXTURE_CONTRACT_ID;
+    const networkPassphrase = options.networkPassphrase ?? TESTNET_PASSPHRASE;
+    let submitted = false;
+
+    const client = new SubRosaClient({
+      rpcUrl: "https://soroban-testnet.stellar.org",
+      networkPassphrase,
+      contractId,
+      secretKey: FIXTURE_SEED,
+      _server: {
+        getNetwork: async () => ({
+          passphrase: networkPassphrase,
+          protocolVersion: "23",
+        }),
+        getLedgerEntries: async () => ({
+          entries: [{}],
+          latestLedger: 123,
+        }),
+      } as never,
+    });
+
+    // Mock contract commit to detect submission
+    Object.defineProperty(client.contract, "commit", {
+      configurable: true,
+      value: async () => {
+        submitted = true;
+        return {
+          signAndSend: async () => ({
+            result: { unwrap: () => ({}) },
+          }),
+        };
+      },
+    });
+
+    return { client, hasSubmitted: () => submitted };
+  }
+
+  it("A matching session can commit in the fixture test", async () => {
+    const { client, hasSubmitted } = createFixtureClient();
+
+    const matchingSession = createPasskeySession({
+      contractId: FIXTURE_CONTRACT_ID,
+      networkPassphrase: TESTNET_PASSPHRASE,
+      account: FIXTURE_PUBLIC,
+    });
+
+    await commitWithPasskeySession(matchingSession, client, FAKE_COMMIT_PARAMS);
+    assert.equal(hasSubmitted(), true, "matching session should have submitted commit");
+  });
+
+  it("A swapped contract id does not submit", async () => {
+    const { client, hasSubmitted } = createFixtureClient();
+
+    const swappedSession: PasskeySession = {
+      contractId: SWAPPED_CONTRACT_ID,
+      networkPassphrase: TESTNET_PASSPHRASE,
+      account: FIXTURE_PUBLIC,
+    };
+
+    await assert.rejects(
+      commitWithPasskeySession(swappedSession, client, FAKE_COMMIT_PARAMS),
+      (error: unknown) => {
+        assert.ok(error instanceof SubRosaNetworkMismatchError);
+        assert.ok(error instanceof SubRosaSessionMismatchError);
+        assert.equal((error as SubRosaNetworkMismatchError).reason, "contract_mismatch");
+        return true;
+      },
+    );
+
+    assert.equal(hasSubmitted(), false, "swapped contract id must not submit to contract");
+  });
+
+  it("A swapped passphrase does not submit", async () => {
+    const { client, hasSubmitted } = createFixtureClient();
+
+    const swappedSession: PasskeySession = {
+      contractId: FIXTURE_CONTRACT_ID,
+      networkPassphrase: PUBLIC_PASSPHRASE,
+      account: FIXTURE_PUBLIC,
+    };
+
+    await assert.rejects(
+      commitWithPasskeySession(swappedSession, client, FAKE_COMMIT_PARAMS),
+      (error: unknown) => {
+        assert.ok(error instanceof SubRosaNetworkMismatchError);
+        assert.ok(error instanceof SubRosaSessionMismatchError);
+        assert.equal((error as SubRosaNetworkMismatchError).reason, "session_mismatch");
+        return true;
+      },
+    );
+
+    assert.equal(hasSubmitted(), false, "swapped network passphrase must not submit to contract");
+  });
+
+  it("The error text does not contain the fixture seed", async () => {
+    const { client } = createFixtureClient();
+
+    const swappedSession: PasskeySession = {
+      contractId: SWAPPED_CONTRACT_ID,
+      networkPassphrase: PUBLIC_PASSPHRASE,
+      account: FIXTURE_PUBLIC,
+    };
+
+    try {
+      await commitWithPasskeySession(swappedSession, client, FAKE_COMMIT_PARAMS);
+      assert.fail("commitWithPasskeySession should have failed");
+    } catch (e: unknown) {
+      assert.ok(e instanceof Error);
+      const errorText = e.message;
+      assert.ok(
+        !errorText.includes(FIXTURE_SEED),
+        "Error message must not include fixture secret seed",
+      );
+      assert.ok(
+        !/\bS[A-Z2-7]{55}\b/.test(errorText),
+        "Error message must not match secret seed pattern",
+      );
+    }
+  });
+});

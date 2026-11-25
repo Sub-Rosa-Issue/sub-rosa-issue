@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT -->
 # Round Receipts
 
 A **round receipt** is a portable JSON document that captures the final state of a Sub Rosa auction round. Receipts can be exported from any live contract and verified offline — no RPC, no secrets, no Stellar dependency.
@@ -24,6 +25,7 @@ A **round receipt** is a portable JSON document that captures the final state of
 | `winner` | `string` (G… address) or `null` | Declared winner (may be null if voided or no valid bids) |
 | `winningValue` | `string` (decimal) or `null` | Declared winning bid value |
 | `status` | `"Open"` / `"Revealing"` / `"Cleared"` / `"Settled"` / `"Voided"` | Round status |
+| `events` | `RoundReceiptEvent[]` | The ordered on-chain event log for the round, in ledger order (see below) |
 
 ### `BidReceiptEntry`
 
@@ -40,6 +42,27 @@ A **round receipt** is a portable JSON document that captures the final state of
 
 Expired Temporary storage (`ciphertext`, `auditorBlob`) is marked honestly as `null`.
 
+### `RoundReceiptEvent`
+
+Each entry records one round-contract event, in ledger order. The event names,
+their lifecycle ordering, and the topic shape are all sourced from the
+generated bindings' event snapshot (`packages/round-bindings/src/event-snapshot.ts`),
+so the receipt verifier and the contract cannot drift apart silently.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Event name (`symbol_short`): `created`, `commit`, `revealing`, `reveal`, `cleared`, `settled`, or `voided` |
+| `topics` | `["symbol_short", "u64"]` | Topic list: topic[0] is the event name, topic[1] the u64 round id |
+| `roundId` | `string` (decimal u64) | The round id carried by topic[1] — must equal the receipt's `roundId` |
+| `ledger` | `number` | Ledger sequence the event was included in (ascending in a healthy log) |
+| `phase` | `string` | Lifecycle phase derived from the name: `round-created`, `bid-commit`, `reveal-opened`, `bid-reveal`, `round-cleared`, `round-finalized` |
+
+A receipt whose event log omits a required lifecycle event (for a `Settled`
+round: `created`, `commit`, `revealing`, `reveal`, `cleared`, `settled`),
+scrambles the ledger order, carries a topic round id different from the
+receipt's `roundId`, or records more than one settle-phase event (`settled`
+XOR `voided`) is rejected.
+
 ### Serialization format
 
 Receipts use **canonical JSON** — keys are deep-sorted lexicographically. BigInt values are serialized as decimal strings (not numbers) to preserve precision. Byte strings (commitments, nonces, evidence) are lowercase hex.
@@ -54,10 +77,18 @@ The `verifyReceipt` function in `@sub-rosa/sdk` performs **stateless, offline** 
 | Network fingerprint | `networkFingerprint` does not match `sha256(utf8(network))` — detects a tampered passphrase without caller context | `network_mismatch` |
 | Network metadata | Missing or malformed fields | `missing_network`, `invalid_contract_id`, etc. |
 | Clearing rule | Invalid or missing rule | `invalid_clearing_rule` |
+| **Ordered event log** | **Missing lifecycle events, scrambled ledger order, topic round-id mismatch, duplicate settles, phase/name drift** | **`missing_events`, `missing_events_required`, `event_not_in_ledger_order`, `event_round_id_mismatch`, `duplicate_settle_event`, `event_phase_mismatch`, `unknown_event_name`, `invalid_event_topics`** |
+| **Expected contract id** (optional `VerifyOptions.expectedContractId`) | **Receipt exported from a different contract than the caller expects** | **`event_contract_mismatch`** |
+| **Expected network** (optional `VerifyOptions.expectedNetworkPassphrase`) | **Receipt whose `network` + `networkFingerprint` were rewritten together — invisible to the fingerprint check alone** | **`event_network_mismatch`** |
 | Bidder list consistency | Duplicates, missing bid entries, orphan entries | `duplicate_bidder`, `missing_bid_entry`, `orphan_bid_entry` |
 | Commitment binding | For each revealed bid **where `nonce` is present**, recomputes `sha256(be16(value) || nonce)` and compares to stored commitment. Skipped when `nonce` is null (on-chain export; contract already verified on-chain). | `commitment_mismatch` |
 | Winner selection | Recomputes the winner from valid revealed bids and compares to declared winner | `winner_mismatch` |
 | Evidence hex format | Ciphertext/auditorBlob not valid hex | `invalid_evidence_hex` (warning) |
+
+The ordered-event checks need **no RPC endpoint**: the event log travels inside
+the receipt and is validated against the lifecycle derived from the generated
+bindings. Callers that know which contract and network they expected can pin
+them via `verifyReceipt(receipt, { expectedContractId, expectedNetworkPassphrase })`.
 
 ### What the verifier cannot check
 
@@ -103,20 +134,79 @@ console.log(result.valid ? "✓ Receipt valid" : "✗ Receipt invalid");
 console.table(result.issues);
 ```
 
+## Redaction for public demos
+
+The SDK ships a pure `redactReceipt` helper that produces a public-safe copy of any round receipt. The original receipt is never mutated.
+
+### Usage
+
+```ts
+import { redactReceipt, serializeReceipt, parseReceipt } from "@sub-rosa/sdk";
+import { readFileSync, writeFileSync } from "node:fs";
+
+const receipt = parseReceipt(readFileSync("round-1-receipt.json", "utf-8"));
+const redacted = redactReceipt(receipt);
+writeFileSync("round-1-receipt.redacted.json", serializeReceipt(redacted), "utf-8");
+```
+
+### CLI
+
+```bash
+pnpm --filter @sub-rosa/receipt-cli receipt redact round-1-receipt.json
+```
+
+This writes `round-1-receipt.redacted.json` next to the source file.
+
+### What gets redacted
+
+By default the following fields are replaced with `<redacted>` or indexed placeholders:
+
+- `operator`, `winner`, `contractId`, `roundId`, `itemRef`, `revealRound`
+- `bidders` array (replaced with `<redacted:0>`, `<redacted:1>`, …)
+- `bids` object keys (replaced with the same `<redacted:N>` placeholders)
+- `evidence.ciphertext` and `evidence.auditorBlob`
+- Any other field whose name matches a sensitive key such as `memo`, `txHash`, `accountId`, etc.
+
+**Non-sensitive proof metadata is preserved** so reviewers can still inspect the cryptographic binding inside each bid: `commitment`, `escrow`, `revealedValue`, `nonce`, `hashValid`, `valid`, `settled`, and round-level metadata such as `network`, `networkFingerprint`, `version`, `clearingRule`, and `status`.
+
+### Keep-list
+
+Use `keep` to preserve specific fields for review or partial verification:
+
+```ts
+const redacted = redactReceipt(receipt, {
+  keep: [
+    "bidders",
+    "winner",
+    "bids.GA4GN2X7YQKQJF5Y5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3X5X3",
+  ],
+});
+```
+
+- `keep: ["bidders"]` preserves the entire bidder list.
+- `keep: ["bids"]` preserves the entire bids object with original keys.
+- `keep: ["bids.GA4..."]` preserves a single bid entry and its nested evidence.
+- `keep: ["bids.GA4... .commitment"]` preserves just the commitment field.
+
+### Determinism
+
+`redactReceipt` is fully deterministic: calling it repeatedly on the same receipt yields identical serialised output. This makes it safe to use in automated demo pipelines and snapshot tests.
+
 ## Fixtures
 
 Test fixtures live in `services/receipt-cli/src/fixtures/`:
 
 | Fixture | Expectation |
 | --- | --- |
-| `golden.json` | 3 bidders, HighestBid, bidder 2 wins with 250 — passes all checks |
-| `testnet-proof.json` | 2 bidders, round 42 — passes all checks (represents a real testnet export) |
+| `golden.json` | 3 bidders, HighestBid, bidder 2 wins with 250, full ordered event log — passes all checks |
+| `testnet-proof.json` | 2 bidders, round 42, full ordered event log — passes all checks (represents a real testnet export) |
 | `tampered-winner.json` | Declared winner differs from computed winner — `winner_mismatch` |
 | `tampered-values.json` | Revealed values swapped so commitments don't bind — `commitment_mismatch` |
 | `tampered-commitment.json` | One commitment hash replaced with garbage — `commitment_mismatch` |
 | `tampered-network.json` | Passphrase changed to mainnet but `networkFingerprint` kept as testnet — always fails with `network_mismatch` |
 | `tampered-order.json` | Tied bids, bidders reordered so winner changes — `winner_mismatch` |
 | `tampered-evidence.json` | Invalid hex in evidence ciphertext — `invalid_evidence_hex` |
+| `tampered-events.json` | Golden receipt with the `settled` event stripped from the event log — `missing_events_required` |
 
 Run fixture tests:
 

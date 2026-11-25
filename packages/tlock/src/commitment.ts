@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Commitment byte encoding — byte-for-byte identical to the Round contract.
 //
 // The contract computes H = sha256(value.to_be_bytes() ‖ nonce.to_array()),
@@ -10,6 +11,8 @@ import { sha256 } from "@noble/hashes/sha2.js";
 export const VALUE_BYTES = 16;
 export const NONCE_BYTES = 32;
 export const PREIMAGE_BYTES = VALUE_BYTES + NONCE_BYTES;
+/// H is a sha256 digest — the width the contract declares as BytesN<32>.
+export const COMMITMENT_BYTES = 32;
 
 const I128_MAX = (1n << 127n) - 1n;
 const I128_MIN = -(1n << 127n);
@@ -71,15 +74,53 @@ export function commitment(value: bigint, nonce: Uint8Array): Uint8Array {
   return sha256(encodeBidPreimage(value, nonce));
 }
 
+/// True when `expected` is the commitment for this value and nonce.
+///
+/// The one acceptance rule for "is this commitment the seal of this bid". The
+/// sealer derives H with `commitment` and the contract re-derives it at reveal;
+/// every off-chain check that has to answer the same question — the SDK's
+/// pre-commit gate, the receipt verifier — goes through here so no caller can
+/// drift onto a different hash. Returns false for a wrong-width `expected`
+/// rather than throwing, so a malformed commitment is just a mismatch.
+export function commitmentMatches(
+  value: bigint,
+  nonce: Uint8Array,
+  expected: Uint8Array,
+): boolean {
+  if (expected.length !== COMMITMENT_BYTES) return false;
+  if (nonce.length !== NONCE_BYTES) return false;
+  const actual = commitment(value, nonce);
+  let diff = 0;
+  for (let i = 0; i < COMMITMENT_BYTES; i++) diff |= actual[i] ^ expected[i];
+  return diff === 0;
+}
+
 export function toHex(bytes: Uint8Array): string {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
+const HEX_RE = /^[0-9a-fA-F]*$/;
+
+/**
+ * Returns true if `hex` (optionally `0x` or `0X` prefixed) is a valid, even-length hexadecimal string.
+ */
+export function isValidHex(hex: string): boolean {
+  if (typeof hex !== "string") return false;
+  const clean = hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
+  return clean.length % 2 === 0 && HEX_RE.test(clean);
+}
+
 export function fromHex(hex: string): Uint8Array {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  if (typeof hex !== "string") {
+    throw new Error("hex must be a string");
+  }
+  const clean = hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
   if (clean.length % 2 !== 0) throw new Error("odd hex length");
+  if (!HEX_RE.test(clean)) {
+    throw new Error("invalid hex characters");
+  }
   const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) {
     out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);

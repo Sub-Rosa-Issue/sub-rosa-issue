@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Snapshot tests for the Round contract event surface.
 //
 // These tests are the single source of truth — for the TypeScript code in
@@ -25,11 +26,16 @@ import { fileURLToPath } from "node:url";
 import {
   ALL_ROUND_EVENT_NAMES,
   ROUND_EVENT_BY_NAME,
+  ROUND_EVENT_LIFECYCLE_ORDER,
+  ROUND_EVENT_PHASE_BY_NAME,
+  ROUND_EVENT_PHASE_RANK,
   ROUND_EVENT_SNAPSHOT,
   decodeRoundEvent,
   decodeEventTopic,
+  expectedRoundEventSequence,
   normalizeEventData,
   type RoundEventName,
+  type RoundEventPhase,
   type TopicElement,
   type DataField,
 } from "./event-snapshot.js";
@@ -580,4 +586,103 @@ test("drift: swapping voided discriminator meanings is caught by the validator",
     /event\[6\]\.singleDiscriminator\.values mismatch for "voided"/,
     "the validator must reject a swapped discriminator meaning",
   );
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Group 5: lifecycle ordering — the bridge between the raw event snapshot and
+// the ordered event set the SDK receipt verifier demands (issue #379).
+// ---------------------------------------------------------------------------
+
+test("lifecycle: phase order covers every non-voided snapshot event exactly once", () => {
+  // The expected sequence is the full snapshot surface minus the `voided`
+  // alternative — that is the definition the SDK receipt verifier relies on,
+  // so it must be tied to the snapshot here rather than restated by hand.
+  const expectedFromSnapshot = ROUND_EVENT_SNAPSHOT
+    .map((d) => d.name)
+    .filter((n) => n !== "voided");
+  assert.deepEqual(
+    [...ROUND_EVENT_LIFECYCLE_ORDER],
+    expectedFromSnapshot,
+    "ROUND_EVENT_LIFECYCLE_ORDER must be the snapshot order minus 'voided'",
+  );
+
+  const seen = new Set(ROUND_EVENT_LIFECYCLE_ORDER);
+  assert.equal(seen.size, ROUND_EVENT_LIFECYCLE_ORDER.length, "no phase may repeat");
+  for (const name of ALL_ROUND_EVENT_NAMES) {
+    if (name === "voided") continue;
+    assert.ok(seen.has(name), `lifecycle order is missing "${name}"`);
+  }
+});
+
+test("lifecycle: every event name maps to a phase, voided shares the settled phase", () => {
+  for (const name of ALL_ROUND_EVENT_NAMES) {
+    assert.ok(ROUND_EVENT_PHASE_BY_NAME[name], `phase missing for "${name}"`);
+  }
+  assert.equal(ROUND_EVENT_PHASE_BY_NAME.voided, "round-finalized");
+  assert.equal(ROUND_EVENT_PHASE_BY_NAME.settled, "round-finalized");
+  // voided substitutes for settled, never for cleared.
+  assert.notEqual(ROUND_EVENT_PHASE_BY_NAME.voided, ROUND_EVENT_PHASE_BY_NAME.cleared);
+});
+
+test("lifecycle: phase ranks ascend strictly in lifecycle order", () => {
+  for (let i = 1; i < ROUND_EVENT_LIFECYCLE_ORDER.length; i++) {
+    const prevPhase = ROUND_EVENT_PHASE_BY_NAME[ROUND_EVENT_LIFECYCLE_ORDER[i - 1]!];
+    const currPhase = ROUND_EVENT_PHASE_BY_NAME[ROUND_EVENT_LIFECYCLE_ORDER[i]!];
+    const prev = ROUND_EVENT_PHASE_RANK[prevPhase];
+    const curr = ROUND_EVENT_PHASE_RANK[currPhase];
+    assert.ok(prev < curr, "phase ranks must strictly ascend");
+  }
+  const distinct = new Set(Object.values(ROUND_EVENT_PHASE_RANK));
+  assert.equal(distinct.size, 7, "seven distinct ranks including inapplicable");
+});
+
+test("expectedRoundEventSequence matches snapshot names in lifecycle order", () => {
+  const rid = 9n;
+  const seq = expectedRoundEventSequence(rid);
+  assert.equal(seq.length, 6);
+  assert.deepEqual(
+    seq.map((e) => e.name),
+    [...ROUND_EVENT_LIFECYCLE_ORDER],
+  );
+  for (const e of seq) {
+    assert.equal(e.roundId, rid, "every entry carries the requested round id");
+    // Every emitted name must be a real snapshot event with a descriptor.
+    assert.equal(ROUND_EVENT_BY_NAME[e.name].name, e.name);
+  }
+});
+
+test("expectedRoundEventSequence is the healthy settled lifecycle", () => {
+  const [created, commit, revealing, reveal, cleared, settled] =
+    expectedRoundEventSequence(1n).map((e) => e.name);
+  assert.equal(created, "created");
+  assert.equal(commit, "commit");
+  assert.equal(revealing, "revealing");
+  assert.equal(reveal, "reveal");
+  assert.equal(cleared, "cleared");
+  assert.equal(settled, "settled");
+});
+
+test("expectedRoundEventSequence roundId accepts bigint only at the boundary", () => {
+  // The function signature is (roundId: bigint) — non-bigints must surface as
+  // a type error at compile time. Runtime sanity: negative and zero round ids
+  // are passed through untouched (validation belongs to callers).
+  assert.deepEqual(expectedRoundEventSequence(0n).map((e) => e.roundId), [0n, 0n, 0n, 0n, 0n, 0n]);
+});
+
+test("lifecycle: phases are exported names of the union type", () => {
+  const phases: RoundEventPhase[] = [
+    "round-created",
+    "bid-commit",
+    "reveal-opened",
+    "bid-reveal",
+    "round-cleared",
+    "round-finalized",
+    "inapplicable",
+  ];
+  const used = new Set(Object.values(ROUND_EVENT_PHASE_BY_NAME));
+  for (const p of phases) {
+    if (p === "inapplicable") continue; // reserved; no snapshot event uses it
+    assert.ok(used.has(p), `phase "${p}" is declared but never used`);
+  }
+  assert.equal(used.size, 6, "exactly six phases are in use");
 });

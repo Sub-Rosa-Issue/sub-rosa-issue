@@ -1,11 +1,17 @@
+import { normalizeError, publicErrorMessage } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
+import { createLogger, type Logger } from '@sub-rosa/logging';
+const diagnostics = createLogger("services.keeper.src.status-server");
 import http from "node:http";
 
 import type { DrandClient } from "@sub-rosa/tlock";
+import { resolveTimeContext, systemClock, systemScheduler, systemTime } from "@sub-rosa/time";
 
 import type { StatusReader } from "./status.js";
 import { buildKeeperStatus, type BuildStatusSource } from "./status.js";
 
 export interface StatusServerConfig {
+  logger?: Logger;
   host?: string;
   port?: number;
   contractId: string;
@@ -14,6 +20,8 @@ export interface StatusServerConfig {
   drand: DrandClient;
   storeRounds: () => import("./store.js").WatchedRound[];
   settleIndicator?: (roundId: bigint) => import("./status.js").SettlementIndicator;
+  /** Typed settlement-guard refusal for a round, if the guard held it back. */
+  guardSkip?: (roundId: bigint) => import("./settlement-guard.js").GuardSkipRecord | null;
   epochMs?: number;
 }
 
@@ -26,15 +34,33 @@ interface Route {
   ) => Promise<{ status: number; body: unknown }>;
 }
 
-const JSON_CONTENT = { "content-type": "application/json" };
+/**
+ * Headers on every keeper status response, including errors.
+ * JSON content type, no-store, nosniff, and frame denial (X-Frame-Options
+ * plus CSP frame-ancestors). There is no separate production header adapter:
+ * these values are fixed so a proxy cannot weaken them by omission.
+ */
+export const KEEPER_STATUS_RESPONSE_HEADERS = {
+  "content-type": "application/json",
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "content-security-policy": "frame-ancestors 'none'",
+} as const;
+
+const JSON_CONTENT = KEEPER_STATUS_RESPONSE_HEADERS;
 
 function send(
   res: http.ServerResponse,
   status: number,
   body: unknown,
+  extraHeaders?: Record<string, string>,
 ): void {
   const payload = JSON.stringify(body, bigintReplacer, 2);
-  res.writeHead(status, JSON_CONTENT);
+  res.writeHead(
+    status,
+    extraHeaders ? { ...JSON_CONTENT, ...extraHeaders } : JSON_CONTENT,
+  );
   res.end(payload);
 }
 
@@ -54,6 +80,7 @@ function makeRoutes(src: BuildStatusSource): Route[] {
     network: src.network,
     epochMs: src.epochMs,
     settleIndicator: src.settleIndicator,
+    guardSkip: src.guardSkip,
   });
 
   return [
@@ -119,6 +146,7 @@ function makeRoutes(src: BuildStatusSource): Route[] {
 function healthzHandler(
   src: BuildStatusSource,
 ): (url: URL) => Promise<{ status: number; body: unknown }> {
+  const { clock } = resolveTimeContext(systemTime, src.time);
   return async () => {
     try {
       const info = await src.drand.chain().info();
@@ -133,45 +161,70 @@ function healthzHandler(
           },
           contractId: src.contractId,
           network: src.network,
-          now: new Date().toISOString(),
+          now: clock.toISOString(),
         },
       };
     } catch (e) {
+      const detail = normalizeError(e).message;
+      (src.logger ?? diagnostics).error("keeper-healthz-health-check-failed", "[keeper-healthz] health check failed:", { "detail_0": detail });
       return {
         status: 503,
         body: {
           ok: false,
-          reason: e instanceof Error ? e.message : String(e),
-          now: new Date().toISOString(),
+          reason: "health check failed",
+          now: clock.toISOString(),
         },
       };
     }
   };
 }
 
-export function createStatusServer(config: StatusServerConfig): http.Server {
+export function createStatusHandler(config: StatusServerConfig): http.RequestListener {
   const host = config.host ?? process.env.KEEPER_STATUS_HOST ?? "127.0.0.1";
   const port = config.port ?? Number(process.env.KEEPER_STATUS_PORT ?? "8090");
 
   const source: BuildStatusSource = {
+    logger: config.logger,
     reader: config.reader,
     drand: config.drand,
     storeRounds: config.storeRounds,
     contractId: config.contractId,
     network: config.network,
     settleIndicator: config.settleIndicator,
-    epochMs: config.epochMs ?? Date.now(),
+    guardSkip: config.guardSkip,
+    epochMs: config.epochMs ?? systemClock.nowMs(),
   };
 
   const dynamic = makeRoutes(source);
   const fastHealth = healthzHandler(source);
 
-  const server = http.createServer((req, res) => {
+  return (req, res) => {
     try {
       const baseHost = req.headers.host ?? `${host}:${port}`;
       const url = new URL(req.url ?? "/", `http://${baseHost}`);
 
-      if (req.method === "GET" && url.pathname === "/healthz") {
+      if (req.method !== "GET") {
+        req.resume?.();
+        send(
+          res,
+          405,
+          {
+            error: "method not allowed",
+            method: req.method ?? "UNKNOWN",
+            allow: ["GET"],
+            available: [
+              "GET /status",
+              "GET /status/rounds/:id",
+              "GET /healthz",
+              "GET /status/health",
+            ],
+          },
+          { allow: "GET" },
+        );
+        return;
+      }
+
+      if (url.pathname === "/healthz") {
         void fastHealth(url).then((r) => send(res, r.status, r.body));
         return;
       }
@@ -192,12 +245,20 @@ export function createStatusServer(config: StatusServerConfig): http.Server {
         .then((body) => match.handler(url, body))
         .then((r) => send(res, r.status, r.body))
         .catch((e) => {
-          send(res, 500, { error: e instanceof Error ? e.message : String(e) });
+          (config.logger ?? diagnostics).error("request-failed", normalizeError(e));
+          send(res, 500, { error: publicErrorMessage(e) });
         });
     } catch (e) {
-      send(res, 500, { error: e instanceof Error ? e.message : String(e) });
+      (config.logger ?? diagnostics).error("request-failed", normalizeError(e));
+      send(res, 500, { error: publicErrorMessage(e) });
     }
-  });
+  };
+}
+
+export function createStatusServer(config: StatusServerConfig): http.Server {
+  const host = config.host ?? process.env.KEEPER_STATUS_HOST ?? "127.0.0.1";
+  const port = config.port ?? Number(process.env.KEEPER_STATUS_PORT ?? "8090");
+  const server = http.createServer(createStatusHandler(config));
 
   // Stash socket hints so tests / callers can probe the bound address server-side
   server.once("listening", () => {
@@ -243,7 +304,7 @@ export function withGracefulShutdown(server: http.Server, signals: NodeJS.Signal
     if (stopping) return;
     stopping = true;
     server.close(() => process.exit(0));
-    setTimeout(() => process.exit(1), 5000).unref();
+    systemScheduler.setTimeout(() => process.exit(1), 5000);
   };
   for (const sig of signals) process.on(sig, onSig);
 

@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Offline binding-encoding tests.
 //
 // These exercise the real correctness surface of a contract-binding SDK: the
@@ -68,9 +69,16 @@ test("create_round encodes Address, u64, BytesN<32>, Bytes and the enum", () => 
     commit_deadline: 1_000n,
     reveal_deadline: 2_000n,
     auditor_pubkey: Buffer.from(u8(96, 4)),
+    asset_config: {
+      asset_type: "sac",
+      contract_id: "CCXXXXXXDEMOCONTRACTIDXXXXXXXXXXXXXXXXXXXXXXX",
+      code: "USDC",
+      decimals: 7,
+      issuer: "",
+    },
   });
 
-  assert.equal(args.length, 7);
+  assert.equal(args.length, 8);
   assert.equal(scValToNative(args[0]), operator);
   assert.deepEqual(new Uint8Array(scValToNative(args[1])), u8(32, 3));
   assert.equal(scValToNative(args[2]), 19_283_746n);
@@ -79,6 +87,13 @@ test("create_round encodes Address, u64, BytesN<32>, Bytes and the enum", () => 
   assert.equal(scValToNative(args[4]), 1_000n);
   assert.equal(scValToNative(args[5]), 2_000n);
   assert.deepEqual(new Uint8Array(scValToNative(args[6])), u8(96, 4));
+  assert.deepEqual(scValToNative(args[7]), {
+    asset_type: "sac",
+    contract_id: "CCXXXXXXDEMOCONTRACTIDXXXXXXXXXXXXXXXXXXXXXXX",
+    code: "USDC",
+    decimals: 7,
+    issuer: "",
+  });
 });
 
 test("open_reveal enforces the 96-byte BLS signature width", () => {
@@ -139,6 +154,7 @@ test("a tlock SealedBid encodes byte-for-byte into commit", () => {
     commitment: h,
     ciphertext: new TextEncoder().encode("age-armored"),
     auditorBlob: new Uint8Array(0),
+    sealRound: 9,
   };
 
   const args = c.spec.funcArgsToScVals("commit", {
@@ -156,16 +172,16 @@ test("a tlock SealedBid encodes byte-for-byte into commit", () => {
   assert.equal(scValToNative(args[4]), value);
 });
 
-test("get_bidders_page encodes u64 round_id, u32 cursor, u32 limit", () => {
+test("get_bidders_page encodes u64 round_id, optional bytes cursor, u32 limit", () => {
   const c = newClient();
   const args = c.spec.funcArgsToScVals("get_bidders_page", {
     round_id: 5n,
-    cursor: 10,
+    cursor: Buffer.alloc(41, 1),
     limit: 50,
   });
   assert.equal(args.length, 3);
   assert.equal(scValToNative(args[0]), 5n);
-  assert.equal(scValToNative(args[1]), 10);
+  assert.deepEqual(Buffer.from(scValToNative(args[1])), Buffer.alloc(41, 1));
   assert.equal(scValToNative(args[2]), 50);
 });
 
@@ -174,7 +190,7 @@ test("get_bidders_page rejects limit 0 (contract enforces 1-100)", () => {
   // The spec type is u32, so limit=0 should encode fine; the contract rejects it.
   const args = c.spec.funcArgsToScVals("get_bidders_page", {
     round_id: 1n,
-    cursor: 0,
+    cursor: undefined,
     limit: 0,
   });
   assert.equal(args.length, 3);
@@ -185,7 +201,7 @@ test("get_bidders_page rejects limit > 100 (contract enforces 1-100)", () => {
   const c = newClient();
   const args = c.spec.funcArgsToScVals("get_bidders_page", {
     round_id: 1n,
-    cursor: 0,
+    cursor: undefined,
     limit: 101,
   });
   assert.equal(args.length, 3);
@@ -201,6 +217,13 @@ test("ClearingRule selects the correct variant for both tags", () => {
     commit_deadline: 1_000n,
     reveal_deadline: 2_000n,
     auditor_pubkey: Buffer.from(u8(96, 4)),
+    asset_config: {
+      asset_type: "native",
+      contract_id: "",
+      code: "XLM",
+      decimals: 7,
+      issuer: "",
+    },
   };
   for (const tag of ["HighestBid", "LowestBid"] as const) {
     const args = c.spec.funcArgsToScVals("create_round", {

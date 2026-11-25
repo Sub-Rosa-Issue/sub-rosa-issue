@@ -1,0 +1,20 @@
+{
+  "networkPassphrase": "Public Global Stellar Network ; September 2015",
+  "contractId": "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+  "wasmHash": "353915ad440965ea5f8d92fdb8d93cb2e309fb365e68e6762bca7fd6762b30c7",
+  "tokenContract": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
+  "ledger": 61753153,
+  "contractBalance": "0",
+  "round": {
+    "roundId": "1",
+    "status": "Settled",
+    "revealRound": "29174905",
+    "bidders": ["GB6IO4Z9ASMSL7A7Y5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X5X3"],
+    "bid": {
+      "escrow": "50000000",
+      "revealedValue": "10000000",
+      "valid": true,
+      "settled": true
+    }
+  }
+}

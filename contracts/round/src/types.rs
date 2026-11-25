@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Bytes, BytesN, Vec};
+use soroban_sdk::{contracterror, contracttype, String, Address, Bytes, BytesN, Vec};
 
 /// Contract error codes. Every failure state from the PRD has a defined code —
 /// there is no undefined behavior and no silent fallback.
@@ -35,6 +35,8 @@ pub enum Error {
     NoValidBids = 37,
     RoundFull = 38,
     InvalidLimit = 39,
+    // Escrow accounting
+    EscrowNotConserved = 40,
 }
 
 /// Round lifecycle. Mirrors the state machine in PRD §6.
@@ -75,6 +77,22 @@ pub struct GlobalConfig {
     pub usdc: Address,
 }
 
+/// Asset configuration for the round.
+#[contracttype]
+#[derive(Clone)]
+pub struct RoundAssetConfig {
+    /// Asset type: "native" (XLM) or "sac"
+    pub asset_type: String,
+    /// SAC contract ID (empty for native XLM)
+    pub contract_id: String,
+    /// SAC asset code (e.g., "USDC")
+    pub code: String,
+    /// SAC asset decimals
+    pub decimals: u32,
+    /// SAC asset issuer (empty for native XLM)
+    pub issuer: String,
+}
+
 /// Per-round record (Persistent). Survives until the round is explicitly closed.
 #[contracttype]
 #[derive(Clone)]
@@ -96,6 +114,9 @@ pub struct Round {
     pub bidders: Vec<Address>,
     pub winner: Option<Address>,
     pub winning_bid: i128,
+    /// Expected asset config for this round. Used by the SDK to validate
+    /// that bidders are locking the correct asset.
+    pub asset_config: RoundAssetConfig,
 }
 
 /// Per-bid durable state (Persistent). Holds everything required to clear and
@@ -133,10 +154,38 @@ pub struct Seal {
 pub struct BiddersPage {
     /// Page of bidder addresses.
     pub data: Vec<Address>,
-    /// Cursor for the next page (0 if no more pages).
-    pub next_cursor: u32,
-    /// Total number of bidders in the round.
+    /// Opaque continuation token; None at exhaustion.
+    pub next_cursor: Option<Bytes>,
+    pub has_more: bool,
+    /// Number of bidders in the enumeration snapshot.
     pub total: u32,
+}
+
+/// Per-round escrow accounting (Persistent). One ledger, written by every path
+/// that moves tokens, holding the three cumulative flows the conservation
+/// predicate is proved against:
+///
+/// `committed == payout + refunds + locked`
+///
+/// `committed` is cumulative and never decreases: it counts every escrow ever
+/// locked for the round, including escrow later returned by an
+/// overwrite-before-close. `payout` and `refunds` count every token that has
+/// left the contract for this round. `locked` is the balance still held on
+/// behalf of the round's bids, and is maintained as an independent accumulator
+/// rather than derived, so an arithmetic slip in any transfer path is caught
+/// instead of cancelled out.
+#[contracttype]
+#[derive(Clone)]
+pub struct EscrowLedger {
+    /// Cumulative escrow received for this round (Σ of every commit).
+    pub committed: i128,
+    /// Cumulative tokens transferred to the round operator as the settled bid.
+    pub payout: i128,
+    /// Cumulative tokens transferred back to bidders (overwrite refunds,
+    /// winner surplus, loser refunds, and void refunds).
+    pub refunds: i128,
+    /// Escrow still locked for this round.
+    pub locked: i128,
 }
 
 #[contracttype]
@@ -147,4 +196,5 @@ pub enum DataKey {
     Round(u64),
     State(u64, Address),
     Seal(u64, Address),
+    Escrow(u64),
 }

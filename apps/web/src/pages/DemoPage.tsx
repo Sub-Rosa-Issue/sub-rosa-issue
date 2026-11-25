@@ -1,5 +1,7 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import type { RoundStatus } from "@sub-rosa/sdk";
 import { AgentActivity, KeeperPanel, X402Logs } from "../components/AgentPanels";
 import { AttackDemo } from "../components/AttackDemo";
 import { AuditorView } from "../components/AuditorView";
@@ -14,6 +16,8 @@ import { SettlementRail } from "../components/SettlementRail";
 import type { UseCase, UseCaseId } from "../config/useCases";
 import { USE_CASES } from "../config/useCases";
 import { DEMO_TRACE } from "../demo/trace";
+import { transactionStatusAnnouncement } from "../lib/transaction-status";
+import { motionEnabled } from "../lib/reduced-motion";
 import {
   COMMIT_DURATION_PRESETS,
   CONTRACT_ID,
@@ -24,7 +28,12 @@ import {
 } from "../lib/chain";
 import { formatCountdown, useDrandCountdown } from "../hooks/useDrandCountdown";
 import { useRoundSession, type ActionStatus } from "../hooks/useRoundSession";
+import { useTraceHealth } from "../hooks/useTraceHealth";
+import { getRoundStatusInfo } from "../lib/round-status";
+import { useRevealPhase } from "../lib/use-reveal-phase";
 import { shortAddr } from "../lib/format";
+import { RoundStatusBadge } from "../components/RoundStatusBadge";
+import { TransactionStatusAnnouncer } from "../components/TransactionStatusAnnouncer";
 import { LOGO_SRC } from "../lib/chain";
 import { ConfettiBurst } from "../ui/Confetti";
 import { CountUp } from "../ui/CountUp";
@@ -84,6 +93,7 @@ function PhaseGuide(props: {
   revealedCount: number;
   commitSecondsRemaining: number | null;
   commitClosed: boolean;
+  networkMismatch: { chainNetwork: string; sdkNetwork: string } | null;
   drandGate: ReturnType<typeof useDrandCountdown>;
   status: ActionStatus;
   entryValue: number;
@@ -94,6 +104,7 @@ function PhaseGuide(props: {
   commitEntry: () => void;
   openAndReveal: () => void;
   suggestedRoundId: bigint | null;
+  traceHealthy?: boolean;
 }) {
   const {
     useCase,
@@ -104,6 +115,7 @@ function PhaseGuide(props: {
     revealedCount,
     commitSecondsRemaining,
     commitClosed,
+    networkMismatch,
     drandGate,
     status,
     entryValue,
@@ -114,6 +126,7 @@ function PhaseGuide(props: {
     commitEntry,
     openAndReveal,
     suggestedRoundId,
+    traceHealthy = true,
   } = props;
   const [joinId, setJoinId] = useState("");
   const [duration, setDuration] = useState<number>(DEFAULT_COMMIT_DURATION_SECONDS);
@@ -125,6 +138,7 @@ function PhaseGuide(props: {
     return rem === 0 ? `${mins} min` : `${mins}m ${rem}s`;
   }
 
+  const decorativeMotion = motionEnabled("nonessential", useReducedMotion());
   const working = status === "working";
   const commitSeconds = commitSecondsRemaining ?? 0;
   // Use the selected duration (or a sensible fallback) so the progress bar
@@ -168,20 +182,8 @@ function PhaseGuide(props: {
     const dangerThreshold = Math.max(4, Math.min(12, Math.round(duration * 0.25)));
     tone = commitSeconds <= dangerThreshold ? "danger" : "urgent";
     eyebrow = `Step 2 · ${useCase.actorRole} commit`;
-    title =
-      useCase.inputKind === "ballot"
-        ? "Cast your sealed ballot"
-        : useCase.inputKind === "score"
-          ? "Submit your sealed score"
-          : useCase.id === "bounty"
-            ? "Place your sealed bid"
-            : "Submit your sealed allocation";
-    detail =
-      useCase.inputKind === "ballot"
-        ? "Pick an option and seal it before the window closes. Encrypted to Drand R."
-        : useCase.inputKind === "score"
-          ? "Move the slider to your score and seal. Other judges cannot see it until R."
-          : "Choose an amount and seal. The number is encrypted to Drand R until reveal.";
+    title = "Place your sealed bid";
+    detail = "Choose an amount and seal it with escrow. The bid is encrypted to Drand R until reveal.";
     timerLabel = "Time left";
     timerValue = formatCountdown(commitSeconds);
     ctaLabel = useCase.commitCta;
@@ -232,26 +234,68 @@ function PhaseGuide(props: {
     cta = openAndReveal;
   }
 
+  if (networkMismatch) {
+    tone = "danger";
+    eyebrow = "Network mismatch";
+    title = "Wrong wallet network";
+    detail = `Connected wallet is on ${networkMismatch.chainNetwork}, but this demo submits to ${networkMismatch.sdkNetwork}. Switch Freighter to ${networkMismatch.sdkNetwork} and reconnect before committing, revealing, or settling.`;
+    timerLabel = "Wallet";
+    timerValue = networkMismatch.chainNetwork;
+    ctaLabel = "Network mismatch";
+    ctaDisabled = true;
+    showInput = false;
+    showJoin = false;
+  }
+
   if (working) {
     ctaDisabled = true;
     ctaLabel = "Signing…";
   }
 
+  // Trace checksum hard-stop: disable commit, open+reveal, and settle.
+  // Connect and create-round do not depend on the canonical trace so they
+  // are left enabled to allow recovery and inspection.
+  if (!traceHealthy) {
+    const isCommitPhase = roundId != null && !committed && !commitClosed;
+    const isRevealPhase = committed && drandGate.published;
+    if (isCommitPhase || isRevealPhase) {
+      ctaDisabled = true;
+      ctaLabel = "Trace invalid";
+    }
+  }
+
+  const announcement = working && committed && drandGate.published
+    ? transactionStatusAnnouncement("reveal", "working")
+    : working && roundId != null && !committed
+      ? transactionStatusAnnouncement("commit", "working")
+      : status === "error" && revealedCount > 0
+        ? transactionStatusAnnouncement("settle", "error")
+        : status === "error" && committed
+          ? transactionStatusAnnouncement("reveal", "error")
+          : status === "error"
+            ? transactionStatusAnnouncement("commit", "error")
+            : revealedCount > 0
+              ? transactionStatusAnnouncement("settle", "success")
+              : committed
+                ? transactionStatusAnnouncement("commit", "success")
+                : "";
+
   return (
+    <>
+    <TransactionStatusAnnouncer message={announcement} />
     <section
       className={`phase-guide ${tone} ${working ? "working" : ""}`}
       style={{ "--commit-progress": `${commitPercent}%` } as CSSProperties}
-      aria-live="polite"
     >
       <div className="phase-copy">
         <span>{eyebrow}</span>
         <AnimatePresence mode="wait">
           <motion.strong
             key={title}
-            initial={{ opacity: 0, y: 8 }}
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3 }}
+            exit={decorativeMotion ? { opacity: 0, y: -8 } : { opacity: 1 }}
+            transition={{ duration: decorativeMotion ? 0.3 : 0 }}
           >
             {title}
           </motion.strong>
@@ -260,63 +304,14 @@ function PhaseGuide(props: {
 
         {showInput ? (
           <motion.div
-            className={`phase-input phase-input--${useCase.inputKind}`}
-            initial={{ opacity: 0, y: 8 }}
+            className="phase-input phase-input--amount"
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: decorativeMotion ? 0.25 : 0 }}
           >
             <label>{useCase.inputLabel}</label>
 
-            {useCase.inputKind === "ballot" && useCase.options ? (
-              <div className="option-grid" role="radiogroup" aria-label={useCase.inputLabel}>
-                {useCase.options.map((option) => {
-                  const selected = entryValue === option.value;
-                  return (
-                    <button
-                      key={option.label}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      className={`option-card ${option.tone} ${selected ? "selected" : ""}`}
-                      onClick={() => onEntryChange(option.value)}
-                    >
-                      <strong>{option.label}</strong>
-                      <small>{option.helper}</small>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {useCase.inputKind === "score" ? (
-              <div className="score-control">
-                <div className="score-display">
-                  <b>
-                    {entryValue.toLocaleString(undefined, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })}
-                  </b>
-                  <span>{useCase.unit}</span>
-                </div>
-                <input
-                  type="range"
-                  min={useCase.min ?? 0}
-                  max={useCase.max ?? 10}
-                  step={useCase.step ?? 0.5}
-                  value={entryValue}
-                  onChange={(e) => onEntryChange(Number(e.target.value))}
-                />
-                <div className="score-marks" aria-hidden="true">
-                  <span>0</span>
-                  <span>5</span>
-                  <span>10</span>
-                </div>
-              </div>
-            ) : null}
-
-            {useCase.inputKind === "amount" ? (
-              <div className="amount-control">
+            <div className="amount-control">
                 {useCase.presets ? (
                   <div className="preset-chips">
                     {useCase.presets.map((preset) => {
@@ -355,8 +350,7 @@ function PhaseGuide(props: {
                     {useCase.unit ? <span>{useCase.unit}</span> : null}
                   </div>
                 </div>
-              </div>
-            ) : null}
+            </div>
 
             <small>
               Sealed escrow: {formatDemoAmount(toDemoEscrowAmount(entryValue))}
@@ -367,9 +361,9 @@ function PhaseGuide(props: {
         {showJoin ? (
           <motion.div
             className="duration-picker"
-            initial={{ opacity: 0, y: 8 }}
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: decorativeMotion ? 0.25 : 0 }}
           >
             <label>Commit window</label>
             <div className="duration-chips" role="radiogroup" aria-label="Commit window length">
@@ -396,9 +390,9 @@ function PhaseGuide(props: {
         {showJoin ? (
           <motion.div
             className="join-form"
-            initial={{ opacity: 0, y: 8 }}
+            initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, delay: 0.05 }}
+            transition={{ duration: decorativeMotion ? 0.25 : 0, delay: decorativeMotion ? 0.05 : 0 }}
           >
             <div className="join-form-divider" aria-hidden="true">
               <span>or</span>
@@ -445,10 +439,10 @@ function PhaseGuide(props: {
           <AnimatePresence mode="wait">
             <motion.b
               key={timerValue}
-              initial={{ opacity: 0, y: 8 }}
+              initial={decorativeMotion ? { opacity: 0, y: 8 } : false}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.25 }}
+              exit={decorativeMotion ? { opacity: 0, y: -6 } : { opacity: 1 }}
+              transition={{ duration: decorativeMotion ? 0.25 : 0 }}
             >
               {timerValue}
             </motion.b>
@@ -466,6 +460,7 @@ function PhaseGuide(props: {
         </button>
       </div>
     </section>
+    </>
   );
 }
 
@@ -538,10 +533,12 @@ function LivePanel({
   active,
   session,
   onCelebrate,
+  traceHealthy,
 }: {
   active: UseCase;
   session: ReturnType<typeof useRoundSession>;
   onCelebrate: () => void;
+  traceHealthy: boolean;
 }) {
   const {
     address,
@@ -554,6 +551,7 @@ function LivePanel({
     drandGate,
     commitSecondsRemaining,
     commitClosed,
+    networkMismatch,
     revealedCount,
     committed,
     commitValue,
@@ -645,6 +643,7 @@ function LivePanel({
         revealedCount={revealedCount}
         commitSecondsRemaining={commitSecondsRemaining}
         commitClosed={commitClosed}
+        networkMismatch={networkMismatch}
         drandGate={drandGate}
         status={status}
         entryValue={entryValue}
@@ -653,8 +652,9 @@ function LivePanel({
         createRound={(duration) => void createRound(duration)}
         joinRound={(id) => void joinRound(id)}
         suggestedRoundId={DEFAULT_ROUND_ID}
-        commitEntry={() => void commitEntry()}
-        openAndReveal={() => void openAndReveal()}
+        commitEntry={traceHealthy ? () => void commitEntry() : () => {}}
+        openAndReveal={traceHealthy ? () => void openAndReveal() : () => {}}
+        traceHealthy={traceHealthy}
       />
 
       {revealProgress ? (
@@ -712,7 +712,22 @@ function LivePanel({
       <section className="live-state">
         <div>
           <span>Status</span>
-          <strong>{live?.round.status.tag ?? "—"}</strong>
+          {(() => {
+            const info = getRoundStatusInfo({
+              live,
+              error: null,
+              configured: Boolean(roundId),
+              stale: false,
+            });
+            return (
+              <RoundStatusBadge
+                state={live ? "found" : roundId ? "loading" : "empty"}
+                tag={live?.round.status.tag ?? null}
+                message={info.message}
+                onRetry={roundId ? () => void refresh() : undefined}
+              />
+            );
+          })()}
         </div>
         <div>
           <span>Round R</span>
@@ -803,7 +818,20 @@ function ComparisonMini({ useCase, committed }: { useCase: UseCase; committed: b
   );
 }
 
-function EvidencePanel() {
+function EvidencePanel({ errorCode }: { errorCode?: string }) {
+  if (errorCode) {
+    return (
+      <div className="evidence-stack">
+        <p className="evidence-intro evidence-intro--error" role="alert">
+          Trace checksum failed — evidence is unavailable.
+        </p>
+        <pre className="trace-error-code" data-testid="trace-error-code">
+          {errorCode}
+        </pre>
+      </div>
+    );
+  }
+
   return (
     <div className="evidence-stack">
       <p className="evidence-intro">
@@ -811,7 +839,7 @@ function EvidencePanel() {
         demo, agents, and auditor tools.
       </p>
       <MainnetProofCard />
-      <LifecycleView trace={DEMO_TRACE} />
+      <LifecycleView status={DEMO_TRACE.meta.roundStatus as RoundStatus} />
       <AttackDemo />
       <SettlementRail trace={DEMO_TRACE} />
       <AgentActivity trace={DEMO_TRACE} />
@@ -836,6 +864,7 @@ export function DemoPage({
   const [mode, setMode] = useState<DemoMode>("live");
   const [confettiTick, setConfettiTick] = useState(0);
   const session = useRoundSession(active);
+  const traceHealth = useTraceHealth();
   const sidebarDrand =
     mode === "evidence"
       ? { mode: "proof" as const, targetRound: DEMO_TRACE.meta.revealRound }
@@ -844,16 +873,16 @@ export function DemoPage({
         : { mode: "idle" as const, targetRound: null };
 
   return (
-    <main className="app-page">
+    <div className="app-page">
       <ConfettiBurst fire={confettiTick} />
       <section className="app-shell">
-        <aside className="case-nav">
+        <aside className="case-nav" aria-label="Demo navigation">
           <button type="button" className="brand-link" onClick={goHome}>
             <img src={LOGO_SRC} alt="" />
             <span>Sub Rosa</span>
           </button>
 
-          <div className="mode-switch" role="tablist">
+          <div className="mode-switch" role="tablist" aria-label="Demo mode">
             <button
               type="button"
               role="tab"
@@ -880,7 +909,7 @@ export function DemoPage({
 
           {mode === "live" ? (
             <>
-              <div className="case-nav-section-label">Cases</div>
+              <div className="case-nav-section-label">Focus</div>
               {USE_CASES.map((item) => (
                 <button
                   key={item.id}
@@ -898,27 +927,30 @@ export function DemoPage({
           <DrandCountdownChip mode={sidebarDrand.mode} targetRound={sidebarDrand.targetRound} />
         </aside>
 
-        <AnimatePresence mode="wait">
-          <motion.section
-            key={`${mode}-${active.id}`}
-            className="case-workspace"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {mode === "live" ? (
-              <LivePanel
-                active={active}
-                session={session}
-                onCelebrate={() => setConfettiTick((t) => t + 1)}
-              />
-            ) : (
-              <EvidencePanel />
-            )}
-          </motion.section>
-        </AnimatePresence>
+        <main id="main-content" className="case-main" tabIndex={-1}>
+          <AnimatePresence mode="wait">
+            <motion.section
+              key={`${mode}-${active.id}`}
+              className="case-workspace"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {mode === "live" ? (
+                <LivePanel
+                  active={active}
+                  session={session}
+                  onCelebrate={() => setConfettiTick((t) => t + 1)}
+                  traceHealthy={traceHealth.ok}
+                />
+              ) : (
+                <EvidencePanel errorCode={traceHealth.ok ? undefined : traceHealth.errorCode} />
+              )}
+            </motion.section>
+          </AnimatePresence>
+        </main>
       </section>
-    </main>
+    </div>
   );
 }

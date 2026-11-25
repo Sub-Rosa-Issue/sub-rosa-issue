@@ -1,0 +1,43 @@
+name: SDK checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Check SDK CI configuration
+        run: node --test scripts/sdk-ci.test.mjs
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Test SDK
+        run: pnpm sdk:test
+
+      - name: Typecheck SDK
+        run: pnpm sdk:typecheck

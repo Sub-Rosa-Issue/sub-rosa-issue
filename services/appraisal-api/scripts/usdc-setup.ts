@@ -1,3 +1,7 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
+import { createLogger } from '@sub-rosa/logging';
+import { assertUsdcSetupAsset } from '@sub-rosa/sdk/asset-config';
+const diagnostics = createLogger("services.appraisal-api.scripts.usdc-setup");
 // USDC asset provisioning for the x402 e2e (classic ops via Horizon).
 // Trustlines for the payer (client) + resource server, and mint USDC to the
 // payer. The facilitator needs XLM only, so it gets no trustline.
@@ -14,7 +18,7 @@ import {
 } from "@stellar/stellar-sdk";
 
 const HORIZON_URL = process.env.HORIZON_URL ?? "https://horizon-testnet.stellar.org";
-const NETWORK = process.env.NETWORK_PASSPHRASE ?? Networks.TESTNET;
+const NETWORK = process.env.NETWORK_PASSTHRASE ?? Networks.TESTNET;
 const ASSET_CODE = process.env.ASSET_CODE ?? "USDC";
 const MINT_AMOUNT = process.env.MINT_AMOUNT ?? "1000";
 
@@ -28,6 +32,15 @@ async function main() {
   const issuerKp = Keypair.fromSecret(reqEnv("ISSUER_SECRET"));
   const clientKp = Keypair.fromSecret(reqEnv("CLIENT_SECRET"));
   const serverKp = Keypair.fromSecret(reqEnv("SERVER_SECRET"));
+
+  // Refuse mainnet and SAC/decimals mismatches before any transaction is built.
+  assertUsdcSetupAsset({
+    networkPassphrase: NETWORK,
+    sacContractId: process.env.USDK_SAC_CONTRACT_ID,
+    decimals: process.env.USDK_DECIMALS
+      ? Number(process.env.USDK_DECIMALS)
+      : undefined,
+  });
 
   const server = new Horizon.Server(HORIZON_URL);
   const asset = new Asset(ASSET_CODE, issuerKp.publicKey());
@@ -44,16 +57,16 @@ async function main() {
 
   for (const kp of [clientKp, serverKp]) {
     await submit(kp, Operation.changeTrust({ asset }));
-    console.log(`trustline OK: ${kp.publicKey()}`);
+    diagnostics.info("trustline-ok", `trustline OK: ${kp.publicKey()}`);
   }
   await submit(
     issuerKp,
     Operation.payment({ destination: clientKp.publicKey(), asset, amount: MINT_AMOUNT }),
   );
-  console.log(`minted ${MINT_AMOUNT} ${ASSET_CODE} → ${clientKp.publicKey()}`);
+  diagnostics.info("minted", `minted ${MINT_AMOUNT} ${ASSET_CODE} → ${clientKp.publicKey()}`);
 }
 
 main().catch((err) => {
-  console.error("usdc-setup failed:", err?.response?.data ?? err);
+  diagnostics.error("usdc-setup-failed", "usdc-setup failed:", { "value1_0": normalizeError(err) });
   process.exit(1);
 });

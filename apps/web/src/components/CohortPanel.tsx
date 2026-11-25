@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Peer, UseCase } from "../config/useCases";
 import { shortAddr } from "../lib/format";
+import { useTime } from "../lib/time";
 
 type PeerState = "pending" | "sealing" | "sealed" | "revealed";
 
@@ -19,11 +21,27 @@ function peerStateAt(
   return "sealed";
 }
 
+/**
+ * Canonical cohort shape: every bidder appears exactly once, in order, and the
+ * round ends in a single settle. The demo trace checksum and the web health
+ * check share this contract, so the panel must render the same ordered set.
+ */
+export function canonicalCohortOrder(peers: RealPeer[]): RealPeer[] {
+  const seen = new Set<string>();
+  const ordered: RealPeer[] = [];
+  for (const peer of peers) {
+    if (seen.has(peer.address)) continue;
+    seen.add(peer.address);
+    ordered.push(peer);
+  }
+  return ordered;
+}
+
 export interface RealPeer {
   address: string;
   sealed: boolean;
   revealed: boolean;
-  /** raw decoded value (entry-space, e.g. 8.5 for grants score) */
+  /** raw decoded value in the active case's display units */
   value: number | null;
 }
 
@@ -110,14 +128,15 @@ export function CohortPanel({
   realPeers,
   roundId,
 }: CohortPanelProps) {
-  const [now, setNow] = useState(() => Date.now());
+  const { clock, scheduler } = useTime();
+  const [now, setNow] = useState(() => clock.nowMs());
   const useReal = realPeers.length > 0;
 
   useEffect(() => {
     if (useReal || roundCreatedAt == null || revealed) return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [useReal, roundCreatedAt, revealed]);
+    const handle = scheduler.setInterval(() => setNow(clock.nowMs()), 250);
+    return () => scheduler.clear(handle);
+  }, [useReal, roundCreatedAt, revealed, clock, scheduler]);
 
   const simulatedPeers = useCase.cohort;
   const simulatedSealed = simulatedPeers.filter(
@@ -126,7 +145,7 @@ export function CohortPanel({
 
   const totalCount = useReal ? realPeers.length + 1 : simulatedPeers.length + 1;
   const sealedTotal = useReal
-    ? realPeers.filter((p) => p.sealed).length + (userCommitted ? 1 : 0)
+    ? canonicalCohortOrder(realPeers).filter((p) => p.sealed).length + (userCommitted ? 1 : 0)
     : simulatedSealed + (userCommitted ? 1 : 0);
 
   const headerLabel = useReal ? "On-chain cohort" : "Sealed cohort";
@@ -173,7 +192,7 @@ export function CohortPanel({
         </li>
 
         {useReal
-          ? realPeers.map((peer) => {
+          ? canonicalCohortOrder(realPeers).map((peer) => {
               const state: PeerState = peer.revealed
                 ? "revealed"
                 : peer.sealed

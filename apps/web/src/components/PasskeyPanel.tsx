@@ -1,9 +1,16 @@
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
 import { useMemo, useState } from "react";
+import { SubRosaClient, validatePasskeySession } from "@sub-rosa/sdk";
 import { CAP_SAFETY_COPY } from "../demo/trace";
+import { useTime } from "../lib/time";
 import {
+  PASSKEY_CONTRACT_ID,
   PASSKEY_NETWORK_PASSPHRASE,
   PASSKEY_RPC_URL,
+  createPasskeySession,
   resolvePasskeyWalletWasmHash,
+  type PasskeySession,
 } from "../passkey-config";
 
 type PasskeyStatus = "idle" | "loading" | "ready" | "blocked" | "error";
@@ -31,7 +38,18 @@ const LINKS = [
   },
 ];
 
-export function PasskeyPanel() {
+export interface PasskeyPanelProps {
+  client?: SubRosaClient;
+  onCommit?: (session: PasskeySession) => Promise<void>;
+  initialSession?: PasskeySession | null;
+}
+
+export function PasskeyPanel({
+  client: injectedClient,
+  onCommit,
+  initialSession = null,
+}: PasskeyPanelProps = {}) {
+  const { clock } = useTime();
   const [status, setStatus] = useState<PasskeyStatus>("idle");
   const [message, setMessage] = useState<string>(
     "Create a browser passkey (Touch ID / Face ID / security key). Does not change Round agents.",
@@ -41,6 +59,8 @@ export function PasskeyPanel() {
     publicKey?: string;
     contractId?: string;
   } | null>(null);
+  const [session, setSession] = useState<PasskeySession | null>(initialSession);
+  const [panelError, setPanelError] = useState<Error | null>(null);
 
   const walletWasmHash = resolvePasskeyWalletWasmHash();
   const rpId = import.meta.env.VITE_PASSKEY_RP_ID ?? window.location.hostname;
@@ -63,7 +83,7 @@ export function PasskeyPanel() {
 
   function passkeyUserId(): string {
     // passkey-kit builds WebAuthn user.id from `${user}:${time}:${random}` — must decode to ≤64 bytes.
-    return `sr-${Date.now().toString(36)}`;
+    return `sr-${clock.nowMs().toString(36)}`;
   }
 
   async function createDemoKey() {
@@ -74,28 +94,46 @@ export function PasskeyPanel() {
     }
     setStatus("loading");
     setMessage("Opening browser passkey prompt…");
+    setPanelError(null);
     try {
       const { PasskeyKit } = await import("passkey-kit");
       const account = new PasskeyKit(passkeyKitOptions());
       const created = await account.createKey("Sub Rosa", passkeyUserId(), {
         rpId,
       });
+      const keyId = created.keyIdBase64 ?? created.keyId;
+      const publicKey =
+        typeof created.publicKey === "string"
+          ? created.publicKey
+          : Array.from(created.publicKey ?? [])
+              .map((b: number) => b.toString(16).padStart(2, "0"))
+              .join("");
       setWallet({
-        keyId: created.keyIdBase64 ?? created.keyId,
-        publicKey:
-          typeof created.publicKey === "string"
-            ? created.publicKey
-            : Array.from(created.publicKey ?? [])
-                .map((b: number) => b.toString(16).padStart(2, "0"))
-                .join(""),
+        keyId,
+        publicKey,
       });
+
+      // Record contract id, network passphrase, and account when the passkey session starts
+      if (PASSKEY_CONTRACT_ID) {
+        const newSession = createPasskeySession({
+          contractId: PASSKEY_CONTRACT_ID,
+          networkPassphrase: PASSKEY_NETWORK_PASSPHRASE,
+          account: publicKey,
+          keyId,
+          publicKey,
+        });
+        setSession(newSession);
+      }
+
       setStatus("ready");
       setMessage(
         "Passkey registered in this browser. Principal secret never left the secure enclave.",
       );
     } catch (e) {
       setStatus("error");
-      setMessage(e instanceof Error ? e.message : String(e));
+      const err = e instanceof Error ? e : new Error(String(e));
+      setPanelError(err);
+      setMessage(publicErrorMessage(e));
     }
   }
 
@@ -107,24 +145,99 @@ export function PasskeyPanel() {
     }
     setStatus("loading");
     setMessage("Deploying Soroban smart wallet on testnet (passkey + deploy tx)…");
+    setPanelError(null);
     try {
       const { PasskeyKit } = await import("passkey-kit");
       const account = new PasskeyKit(passkeyKitOptions());
       const created = await account.createWallet("Sub Rosa", passkeyUserId(), {
         rpId,
       });
+      const keyId = created.keyIdBase64 ?? created.keyId;
       setWallet({
-        keyId: created.keyIdBase64 ?? created.keyId,
+        keyId,
         contractId: created.contractId,
       });
+
+      // Record contract id, network passphrase, and account when smart wallet session starts
+      if (PASSKEY_CONTRACT_ID) {
+        const newSession = createPasskeySession({
+          contractId: PASSKEY_CONTRACT_ID,
+          networkPassphrase: PASSKEY_NETWORK_PASSPHRASE,
+          account: created.contractId,
+          keyId,
+        });
+        setSession(newSession);
+      }
+
       setStatus("ready");
       setMessage(`Smart wallet deployed on testnet: ${created.contractId}`);
     } catch (e) {
       setStatus("error");
-      const detail = e instanceof Error ? e.message : String(e);
+      const err = e instanceof Error ? e : new Error(String(e));
+      setPanelError(err);
+      const detail = publicErrorMessage(e);
       setMessage(
         `Deploy failed: ${detail}. Try again after refresh; if it persists, sponsor funding on testnet may be missing (Create passkey alone is enough for the demo).`,
       );
+    }
+  }
+
+  async function commitWithPasskey(clientOverride?: SubRosaClient) {
+    if (!session) {
+      setStatus("error");
+      const err = new Error("No passkey session available. Create a passkey first.");
+      setPanelError(err);
+      setMessage(err.message);
+      return;
+    }
+
+    setStatus("loading");
+    setMessage("Validating passkey session binding…");
+    setPanelError(null);
+
+    const client =
+      clientOverride ??
+      injectedClient ??
+      new SubRosaClient({
+        rpcUrl: PASSKEY_RPC_URL,
+        networkPassphrase: PASSKEY_NETWORK_PASSPHRASE,
+        contractId: PASSKEY_CONTRACT_ID ?? "",
+        publicKey: session.account,
+      });
+
+    try {
+      // Refuse a commit when contract id, network passphrase, or account differ from SDK client
+      validatePasskeySession(session, {
+        contractId: client.contractId,
+        networkPassphrase: client.networkPassphrase,
+        account: client.account,
+      });
+
+      if (onCommit) {
+        await onCommit(session);
+      } else {
+        await client.commit({
+          roundId: 1,
+          sealed: {
+            commitment: new Uint8Array(32),
+            ciphertext: new Uint8Array([0x61, 0x67, 0x65]),
+            auditorBlob: new Uint8Array(1),
+          },
+          escrow: 100_000n,
+          bidder: session.account,
+          session,
+        });
+      }
+
+      setStatus("ready");
+      setMessage("Passkey commit submitted successfully.");
+    } catch (e: unknown) {
+      setStatus("error");
+      const err = e instanceof Error ? e : new Error(String(e));
+      setPanelError(err);
+      // Ensure fixture secret seed is kept strictly out of the error message
+      const scrubbed = err.message.replace(/\bS[A-Z2-7]{55}\b/g, "[REDACTED]");
+      setMessage(scrubbed);
     }
   }
 
@@ -196,6 +309,11 @@ export function PasskeyPanel() {
             )}
           </p>
           <p className={`passkey-status ${status}`}>{message}</p>
+          {panelError && (
+            <div className="callout callout-error" role="alert" data-testid="passkey-error">
+              <strong className="error-name">{panelError.name}</strong>: {message}
+            </div>
+          )}
         </div>
         <div className="btn-row">
           <button
@@ -214,10 +332,37 @@ export function PasskeyPanel() {
           >
             Deploy smart wallet (testnet)
           </button>
+          {session && (
+            <button
+              type="button"
+              className="btn secondary"
+              data-testid="passkey-commit-btn"
+              disabled={status === "loading"}
+              onClick={() => void commitWithPasskey()}
+            >
+              Commit bid (passkey)
+            </button>
+          )}
         </div>
-        {wallet && (
+        {(wallet || session) && (
           <dl className="kv">
-            {wallet.keyId && (
+            {session && (
+              <>
+                <dt>session contractId</dt>
+                <dd>
+                  <code className="tiny">{session.contractId}</code>
+                </dd>
+                <dt>session network</dt>
+                <dd>
+                  <code className="tiny">{session.networkPassphrase}</code>
+                </dd>
+                <dt>session account</dt>
+                <dd>
+                  <code className="tiny">{session.account}</code>
+                </dd>
+              </>
+            )}
+            {wallet?.keyId && (
               <>
                 <dt>keyId</dt>
                 <dd>
@@ -225,7 +370,7 @@ export function PasskeyPanel() {
                 </dd>
               </>
             )}
-            {wallet.publicKey && (
+            {wallet?.publicKey && (
               <>
                 <dt>secp256r1 publicKey</dt>
                 <dd>
@@ -233,7 +378,7 @@ export function PasskeyPanel() {
                 </dd>
               </>
             )}
-            {wallet.contractId && (
+            {wallet?.contractId && (
               <>
                 <dt>contractId</dt>
                 <dd>

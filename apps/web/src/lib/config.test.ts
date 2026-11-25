@@ -1,7 +1,8 @@
+// Copyright (c) 2026 Sub Rosa contributors
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { validatePublicConfig } from "./config";
+import { normalizeUrl, validatePublicConfig } from "./config";
 
 const VALID_ENV: Record<string, string> = {
   VITE_RPC_URL: "https://custom-soroban.example.com",
@@ -112,3 +113,163 @@ test("custom config with no optional keys still passes critical check", () => {
   );
   assert.equal(critical.length, 0);
 });
+
+
+// --- URL normalization regression tests ---
+
+test("normalizeUrl strips a single trailing slash", () => {
+  assert.equal(normalizeUrl("https://soroban-testnet.stellar.org/"), "https://soroban-testnet.stellar.org");
+});
+
+test("normalizeUrl strips multiple trailing slashes", () => {
+  assert.equal(normalizeUrl("https://soroban-testnet.stellar.org///"), "https://soroban-testnet.stellar.org");
+});
+
+test("normalizeUrl preserves URL without trailing slash", () => {
+  assert.equal(normalizeUrl("https://soroban-testnet.stellar.org"), "https://soroban-testnet.stellar.org");
+});
+
+test("normalizeUrl trims surrounding whitespace", () => {
+  assert.equal(normalizeUrl("  https://soroban-testnet.stellar.org/  "), "https://soroban-testnet.stellar.org");
+});
+
+test("VITE_RPC_URL with trailing slash is not flagged as invalid", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "https://soroban-testnet.stellar.org/",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  const urlIssues = issues.filter((i) => i.key === "VITE_RPC_URL" && i.message.includes("valid URL"));
+  assert.equal(urlIssues.length, 0);
+});
+
+test("VITE_RPC_URL with trailing slash is still flagged as placeholder default", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "https://soroban-testnet.stellar.org/",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_RPC_URL" &&
+        i.message.includes("default/example value"),
+    ),
+  );
+});
+
+test("invalid VITE_RPC_URL without protocol is reported", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "not-a-valid-url",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_RPC_URL" &&
+        i.message.includes("not a valid URL"),
+    ),
+  );
+});
+
+test("invalid VITE_RPC_URL with non-http protocol is reported", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "ftp://soroban-testnet.stellar.org",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_RPC_URL" &&
+        i.message.includes("not a valid URL"),
+    ),
+  );
+});
+
+test("VITE_RPC_URL with http (not https) passes validation", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "http://localhost:8000",
+    VITE_NETWORK_PASSPHRASE: "Custom Network",
+    VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+  });
+  const urlIssues = issues.filter((i) => i.key === "VITE_RPC_URL" && i.message.includes("valid URL"));
+  assert.equal(urlIssues.length, 0);
+});
+
+test("invalid VITE_RPC_URL error message is actionable", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "garbage",
+    VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    VITE_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  const msg = issues.find((i) => i.key === "VITE_RPC_URL")!.message;
+  assert.ok(msg.includes("must start with http:// or https://"));
+});
+
+test("matching VITE_PASSKEY_CONTRACT_ID and VITE_CONTRACT_ID passes without issue", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "https://custom-soroban.example.com",
+    VITE_NETWORK_PASSPHRASE: "Custom Network",
+    VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+    VITE_PASSKEY_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+    VITE_PASSKEY_NETWORK_PASSPHRASE: "Custom Network",
+  });
+  const passkeyIssues = issues.filter(
+    (i) => i.key === "VITE_PASSKEY_CONTRACT_ID" || i.key === "VITE_PASSKEY_NETWORK_PASSPHRASE",
+  );
+  assert.equal(passkeyIssues.length, 0);
+});
+
+test("swapped VITE_PASSKEY_CONTRACT_ID is reported as configuration mismatch", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "https://custom-soroban.example.com",
+    VITE_NETWORK_PASSPHRASE: "Custom Network",
+    VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+    VITE_PASSKEY_CONTRACT_ID: "CC2QMOXZERI6UOR67YKSORT7QTUHQ5QUGMHQBYVP23YM3NMUNNOEOGZY",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_PASSKEY_CONTRACT_ID" &&
+        i.message.includes("does not match VITE_CONTRACT_ID"),
+    ),
+  );
+});
+
+test("swapped VITE_PASSKEY_NETWORK_PASSPHRASE is reported as configuration mismatch", () => {
+  const issues = validatePublicConfig({
+    VITE_RPC_URL: "https://custom-soroban.example.com",
+    VITE_NETWORK_PASSPHRASE: "Custom Network",
+    VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+    VITE_PASSKEY_NETWORK_PASSPHRASE: "Public Global Stellar Network ; September 2015",
+  });
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.key === "VITE_PASSKEY_NETWORK_PASSPHRASE" &&
+        i.message.includes("does not match VITE_NETWORK_PASSPHRASE"),
+    ),
+  );
+});
+
+test("VITE_RPC_URL with embedded credentials is rejected without echoing credentials", () => {
+  for (const url of [
+    "https://webuser:websecret@custom-soroban.example.com",
+    "https://webuser@custom-soroban.example.com",
+    "https://:websecret@custom-soroban.example.com",
+  ]) {
+    const issues = validatePublicConfig({
+      VITE_RPC_URL: url,
+      VITE_NETWORK_PASSPHRASE: "Custom Network",
+      VITE_CONTRACT_ID: "CA7KSDEYJEPGZEB2ZROTLUWKQQ6GIRIQNGG6Z745MZ34QHP4UJPWODEX",
+    });
+    const credIssue = issues.find(
+      (i) => i.key === "VITE_RPC_URL" && i.message.includes("must not contain credentials"),
+    );
+    assert.ok(credIssue, `expected credential issue for ${url}`);
+    assert.doesNotMatch(credIssue.message, /webuser|websecret/);
+  }
+});
+

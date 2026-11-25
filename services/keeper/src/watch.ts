@@ -1,3 +1,7 @@
+import { normalizeError } from "@sub-rosa/logging/errors";
+// Copyright (c) 2026 Sub Rosa contributors
+import { createLogger } from '@sub-rosa/logging';
+const diagnostics = createLogger("services.keeper.src.watch");
 // Watch-mode keeper — standalone entry. For a combined status-API + watch
 // process, use `serve.ts` instead.
 //
@@ -10,13 +14,17 @@
 //   WATCH_ROUND_IDS     optional explicit list: "1,2,5" or "1-10"
 //   WATCH_FROM          first round id when auto-discovering (default 1)
 //   WATCH_MAX_ROUNDS    max rounds to probe (default 64)
+//   KEEPER_OWNER        optional lease owner id (default: generated per run)
+//   KEEPER_LEASE_MS     round lease duration (default 120000)
 
 import { Keypair } from "@stellar/stellar-sdk";
-import { SubRosaClient } from "@sub-rosa/sdk";
+import { assertNoUrlCredentials, SubRosaClient } from "@sub-rosa/sdk";
 import { quicknet } from "@sub-rosa/tlock";
 
+import { KeeperCheckpointStore } from "./checkpoint.js";
 import { createSettlementGuard } from "./settlement-guard.js";
 import { KeeperStore } from "./store.js";
+import { KeeperQueue } from "./queue.js";
 import { runWatchLoop } from "./watch-loop.js";
 
 function reqEnv(name: string): string {
@@ -29,6 +37,7 @@ async function main() {
   const pollMs = Number(process.env.WATCH_POLL_MS ?? "15000");
   const contractId = reqEnv("ROUND_CONTRACT_ID");
   const rpcUrl = process.env.RPC_URL ?? "https://soroban-testnet.stellar.org";
+  assertNoUrlCredentials(rpcUrl, "RPC_URL");
   const networkPassphrase =
     process.env.NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015";
   const keeperSecret = reqEnv("KEEPER_SECRET");
@@ -40,11 +49,11 @@ async function main() {
     secretKey: keeperSecret,
   });
   const drand = quicknet();
-  const log = (m: string) => console.log(`· ${m}`);
+  const log = (m: string) => diagnostics.info("progress", `· ${m}`);
 
   let stopping = false;
   process.on("SIGINT", () => {
-    console.log("\nwatch: SIGINT — finishing current tick then exit");
+    diagnostics.info("watch-sigint-finishing-current-tick-then-exit", "\nwatch: SIGINT — finishing current tick then exit");
     stopping = true;
   });
   process.on("SIGTERM", () => {
@@ -52,12 +61,16 @@ async function main() {
   });
 
   const store = new KeeperStore();
+  // Durable watch cursor. Refuses to start when the file on disk was recorded
+  // for another network or contract id.
+  const checkpoint = new KeeperCheckpointStore({ network: networkPassphrase, contractId });
   const settlementGuard = createSettlementGuard();
+  const queue = new KeeperQueue(store, { contractId, network: networkPassphrase });
 
-  console.log("Sub Rosa watch-mode keeper");
-  console.log("· contract:", contractId);
-  console.log("· poll:    ", pollMs, "ms");
-  console.log("· Ctrl+C to stop\n");
+  diagnostics.info("sub-rosa-watch-mode-keeper", "Sub Rosa watch-mode keeper");
+  diagnostics.info("contract", "· contract:", { "contractId_0": contractId });
+  diagnostics.info("poll", "· poll:    ", { "pollMs_0": pollMs, "value2_1": "ms" });
+  diagnostics.info("ctrl-c-to-stop", "· Ctrl+C to stop\n");
 
   await runWatchLoop({
     sdk,
@@ -67,14 +80,18 @@ async function main() {
     contractId,
     network: networkPassphrase,
     store,
+    queue,
     settlementGuard,
+    checkpoint,
     isStopping: () => stopping,
+    owner: process.env.KEEPER_OWNER?.trim() || generateLeaseOwner(),
+    leaseMs: parseLeaseMs(process.env.KEEPER_LEASE_MS),
   });
 
-  console.log("watch: stopped");
+  diagnostics.info("watch-stopped", "watch: stopped");
 }
 
 main().catch((err) => {
-  console.error("watch keeper failed:", err);
+  diagnostics.error("watch-keeper-failed", "watch keeper failed:", { "err_0": normalizeError(err) });
   process.exit(1);
 });

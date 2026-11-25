@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Sub Rosa contributors
 // Types for the jury demo trace. Data lives in demo-trace.generated.ts (from agents:e2e).
 
 import { DEMO_TRACE as GENERATED } from "./demo-trace.generated";
@@ -89,6 +90,52 @@ export const DEMO_TRACE = GENERATED as unknown as DemoTrace;
 
 export const isTraceSettled = (trace: DemoTrace = DEMO_TRACE) =>
   trace.meta.roundStatus === "Settled";
+
+export interface CanonicalTraceCheck {
+  ok: boolean;
+  errors: string[];
+}
+
+const SETTLE_PHASE: LifecyclePhase = "settle";
+
+/**
+ * Validate that a demo trace is one canonical ordered trace:
+ * every bidder appears exactly once, and there is exactly one settle record
+ * at the end of the lifecycle.
+ */
+export const checkCanonicalTrace = (
+  trace: DemoTrace = DEMO_TRACE,
+): CanonicalTraceCheck => {
+  const errors: string[] = [];
+
+  const seen = new Set<string>();
+  for (const bidder of trace.bidders) {
+    const id = bidder.address;
+    if (!id) {
+      errors.push("bidder missing address");
+      continue;
+    }
+    if (seen.has(id)) {
+      errors.push(`duplicated bidder: ${id}`);
+      continue;
+    }
+    seen.add(id);
+  }
+
+  const settleIndices = trace.lifecycle
+    .map((entry, index) => (entry.phase === SETTLE_PHASE ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (settleIndices.length === 0) {
+    errors.push("missing settle record");
+  } else if (settleIndices.length > 1) {
+    errors.push(`expected one settle record, found ${settleIndices.length}`);
+  } else if (settleIndices[0] !== trace.lifecycle.length - 1) {
+    errors.push("settle record must be the final lifecycle entry");
+  }
+
+  return { ok: errors.length === 0, errors };
+};
 
 export const CAP_SAFETY_COPY = {
   mandateTitle: "Agent mandate caps (off-chain)",
