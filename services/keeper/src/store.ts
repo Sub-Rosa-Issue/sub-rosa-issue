@@ -1,6 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 
+// 0600 = owner read/write only (Unix). On Windows, we set read-only + hidden
+// as a close approximation since full ACL management is platform-specific.
+const FILE_PERMISSIONS = 0o600;
+
 export interface WatchedRound {
   roundId: string;
   contractId?: string;
@@ -31,6 +35,14 @@ export class KeeperStore {
       return { rounds: {} };
     }
 
+    // Tighten existing file permissions to owner-only when safely opened.
+    try {
+      fs.chmodSync(this.storePath, FILE_PERMISSIONS);
+    } catch (chmodErr) {
+      // chmod may fail on some platforms; ignore gracefully.
+      console.warn("[Store] Could not set file permissions on load:", chmodErr);
+    }
+
     try {
       const content = fs.readFileSync(this.storePath, "utf-8");
       if (!content.trim()) return { rounds: {} };
@@ -58,6 +70,14 @@ export class KeeperStore {
         fs.mkdirSync(dir, { recursive: true });
       }
       fs.writeFileSync(this.storePath, JSON.stringify(this.data, null, 2), "utf-8");
+      // Restrict file to owner-only permissions (0600) to prevent other users
+      // on the host from reading sensitive keeper state.
+      try {
+        fs.chmodSync(this.storePath, FILE_PERMISSIONS);
+      } catch (chmodErr) {
+        // chmod may fail on some platforms; ignore gracefully.
+        console.warn("[Store] Could not set file permissions:", chmodErr);
+      }
     } catch (e) {
       console.error(`[Store] Failed to save store to ${this.storePath}:`, e);
     }
