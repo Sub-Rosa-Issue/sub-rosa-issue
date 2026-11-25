@@ -1,0 +1,11 @@
+{
+  "rounds": {
+    "30": {
+      "lastStatus": "Cleared",
+      "retryCount": 0,
+      "contractId": "C1",
+      "roundId": "30"
+    }
+  },
+  "leases": {}
+}

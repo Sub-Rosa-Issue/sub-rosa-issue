@@ -13,6 +13,8 @@ import { Keypair } from "@stellar/stellar-sdk";
 import { SubRosaClient } from "../src/client.js";
 import { MAINNET_ARTIFACTS } from "../src/mainnet-artifacts.js";
 import {
+  assertMainnetConfirmed,
+  assertReadinessForExecute,
   defaultMainnetReadinessInput,
   parseMicroStroops,
   runMainnetReadiness,
@@ -173,6 +175,7 @@ async function main() {
         value: bid,
         nonce,
         round: revealRound,
+        revealRound,
         client: drand,
         identity: new TextEncoder().encode(`micro:${bidderKp.publicKey()}`),
         auditorPublicKey: auditor.publicKey,
@@ -185,7 +188,7 @@ async function main() {
         contractId,
         secretKey: bidderSecret,
       });
-      await bidder.commit({ roundId, sealed, escrow });
+await bidder.commit({ roundId, sealed, escrow, binding: { value: bid, nonce, round: revealRound } });
 
       diagnostics.info("mainnet-micro-commit-sent", "\n✅ MAINNET MICRO COMMIT SENT");
       diagnostics.info("contract", "   contract:", { "contractId_0": contractId });
@@ -296,7 +299,7 @@ async function main() {
     contractId,
     secretKey: bidderSecret,
   });
-  await bidder.commit({ roundId, sealed, escrow });
+  await bidder.commit({ roundId, sealed, escrow, binding: { value: bid, nonce, round: revealRound } });
 
   diagnostics.info("mainnet-micro-commit-sent", "\n✅ MAINNET MICRO COMMIT SENT");
   diagnostics.info("contract", "   contract:", { "contractId_0": contractId });

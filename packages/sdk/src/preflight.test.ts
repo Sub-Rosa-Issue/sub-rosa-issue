@@ -297,6 +297,7 @@ describe("SubRosaClient preflight helpers", () => {
         sealRound: 1,
       },
       escrow: 1_000_000n,
+      binding: { value: 100n, nonce: new Uint8Array(32), round: 1 },
     });
 
     assert.equal(result.ok, false);
@@ -383,15 +384,20 @@ describe("SubRosaClient escrow conservation preflight", () => {
   ): void {
     Object.defineProperty(client.contract, "get_bidders_page", {
       configurable: true,
-      value: async (args: { cursor: number; limit: number }) =>
-        mockAssembledTransaction<unknown>("settle", {
+      value: async (args: { cursor: Buffer | undefined; limit: number }) => {
+        // Convert Buffer cursor to index (first byte) or 0 if undefined
+        const cursorIndex = args.cursor ? args.cursor[0] : 0;
+        return mockAssembledTransaction<unknown>("settle", {
           parsed: new Ok({
-            data: bidders.slice(args.cursor, args.cursor + args.limit),
+            data: bidders.slice(cursorIndex, cursorIndex + args.limit),
             next_cursor:
-              args.cursor + args.limit >= bidders.length ? 0 : args.cursor + args.limit,
+              cursorIndex + args.limit >= bidders.length
+                ? undefined
+                : new Uint8Array([cursorIndex + args.limit]),
             total: bidders.length,
           }),
-        }),
+        });
+      },
     });
     Object.defineProperty(client.contract, "get_bid_state", {
       configurable: true,
