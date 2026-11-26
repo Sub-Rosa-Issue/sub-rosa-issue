@@ -36,11 +36,11 @@ jobs:
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Reject VS Code tasks that run on folder open
-        run: pnpm vscode-tasks:test && pnpm vscode-tasks:check
+      - name: Test direct time access guard
+        run: pnpm time:guard:test
 
-      - name: Enforce the single root lockfile
-        run: pnpm lockfile:test && pnpm lockfile:check
+      - name: Check direct time access
+        run: pnpm time:guard
 
       - name: Validate structured logging
         run: pnpm logging:test && pnpm logging:check
@@ -49,6 +49,11 @@ jobs:
         run: pnpm errors:normalize:test && pnpm errors:normalize:check
       - name: Validate workflow pnpm version matches packageManager
         run: pnpm ci:pnpm-version:test && pnpm ci:pnpm-version:check
+      - name: Validate Node version file, engines, and workflows
+        run: pnpm ci:node-version:test && pnpm ci:node-version:check
+
+      - name: Validate pinned Rust toolchain alignment
+        run: pnpm ci:rust-toolchain:test && pnpm ci:rust-toolchain:check
 
       - name: Mainnet readiness matches the committed manifest (recorded fixture, no RPC, no secrets)
         run: |

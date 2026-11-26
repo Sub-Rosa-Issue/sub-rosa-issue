@@ -24,9 +24,56 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+The same job runs `pnpm snapshot:check` to require the committed contract
+snapshot categories, while `web:test` checks the generated demo trace and its
+agreement with the dashboard fixture. The contract job regenerates Rust test
+snapshots and fails if tracked snapshots change or new snapshots appear. Run
+`node --test scripts/snapshot-ci.test.mjs` to verify these CI gates.
+
+## SDK checks
+
+The `SDK checks` workflow (`.github/workflows/sdk.yml`) runs on pushes to
+`main` and on pull requests. Its blocking job installs frozen pnpm dependencies
+with lifecycle scripts disabled, then runs `pnpm sdk:test` and
+`pnpm sdk:typecheck`. Run those two commands locally to check `packages/sdk`;
+`node --test scripts/sdk-ci.test.mjs` verifies the CI job configuration.
+
+## Appraisal API checks
+
+The `Appraisal API checks` workflow (`.github/workflows/appraisal.yml`) runs on
+pushes to `main` and on pull requests. Its single blocking job installs locked
+JS dependencies without lifecycle scripts, then runs `pnpm appraisal:test` and
+`pnpm appraisal:typecheck` in order. Run the same two commands locally to check
+`services/appraisal-api`; `node --test scripts/appraisal-ci.test.mjs` verifies
+the CI job configuration.
+
+## Agent checks
+
+The `Agent checks` workflow (`.github/workflows/agent.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm agent:test` and
+`pnpm agent:typecheck` in order. Run the same two commands locally to check
+`services/agent`; `node --test scripts/agent-ci.test.mjs` verifies the CI job
+configuration.
+
+## Keeper checks
+
+The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
+`main` and on every pull request. Its blocking `keeper` job installs locked JS
+dependencies with `--frozen-lockfile --ignore-scripts` and runs
+`pnpm keeper:test` and `pnpm keeper:typecheck` in order
+(`node --test scripts/keeper-ci.test.mjs` verifies the workflow configuration).
+
 Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
 [GITHUB_ACTIONS_SECURITY.md](./GITHUB_ACTIONS_SECURITY.md).
+
+## Direct time access guard
+
+The `TypeScript coverage` workflow runs `pnpm time:guard:test` followed by
+`pnpm time:guard` on pushes to `main` and on pull requests. The guard fails if
+first-party code calls the clock or timer globals outside `@sub-rosa/time`.
+Both commands are blocking CI steps and can be run locally from the root.
 
 ## Test coverage gate
 
@@ -167,39 +214,17 @@ pnpm rust:audit:test
 pnpm rust:audit:check
 ```
 
-## Repository hygiene gates
+## Pinned Rust toolchain check
 
-`.github/workflows/coverage.yml` also runs two checks over the repository itself
-rather than over its TypeScript sources.
-
-### Single root lockfile
-
-`scripts/check-root-lockfile.mjs` fails when the repository root tracks more than
-one lockfile, tracks none, or tracks a lockfile that does not belong to the package
-manager declared in `package.json`. This workspace is installed with
-**pnpm 10.13.1**, so `pnpm-lock.yaml` is the only permitted tracked root lockfile;
-`package-lock.json`, `yarn.lock`, `bun.lock` and `bun.lockb` are gitignored at the
-root. Lockfiles inside a workspace folder are not part of this rule.
+`rust-toolchain.toml` pins an explicit Rust version (`1.85.0` with target
+`wasm32v1-none`), and both contract workflows (`.github/workflows/contract.yml`
+and `.github/workflows/bindings-check.yml`) must use that exact version instead
+of a moving `stable` reference:
 
 ```bash
-pnpm lockfile:test     # unit tests plus CLI fixtures
-pnpm lockfile:check    # the CI step
+pnpm ci:rust-toolchain:test
+pnpm ci:rust-toolchain:check
 ```
 
-### VS Code tasks that run on folder open
-
-`scripts/check-vscode-tasks.mjs` fails when a tracked `.vscode/tasks.json` declares
-`"runOn": "folderOpen"`. That trigger executes a task as soon as the folder is
-opened, before anyone reads what it does. The guard audits tracked manifests only,
-prints the offending path and line without the file contents, and never parses or
-runs a task command.
-
-No `.vscode/` manifest is tracked today, so the check passes on `main` by having
-found nothing to reject; `.gitignore` excludes `.vscode/*`, which means such a file
-can only enter history through an explicit `git add -f`. The gate exists for that
-commit, not for the current tree.
-
-```bash
-pnpm vscode-tasks:test    # unit tests plus CLI fixtures
-pnpm vscode-tasks:check   # the CI step
-```
+Checker source: `scripts/check-rust-toolchain.mjs` (tests in
+`scripts/check-rust-toolchain.test.mjs`).
