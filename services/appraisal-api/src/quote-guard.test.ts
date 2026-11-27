@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { Keypair } from "@stellar/stellar-sdk";
+import { systemClock } from "@sub-rosa/time";
 
 import {
   AppraisalInputError,
@@ -158,6 +159,22 @@ describe("402 quote binding (pure, fixture-driven)", () => {
     assert.throws(
       () => assertPaymentQuoteAllowed(base402, { ...expected, expiresAt: NOW - 1 }),
       (e: unknown) => e instanceof AppraisalQuoteRefusalError && e.code === "QUOTE_EXPIRED",
+    );
+  });
+
+  test("uses the shared clock when no time is supplied", () => {
+    const now = systemClock.nowSeconds();
+    const withoutTime = {
+      asset: ASSET,
+      destination: PAY_TO,
+      maxAmountStroops: 1_000_000n,
+    };
+    assert.throws(
+      () => assertPaymentQuoteAllowed(base402, { ...withoutTime, expiresAt: now - 60 }),
+      (e: unknown) => e instanceof AppraisalQuoteRefusalError && e.code === "QUOTE_EXPIRED",
+    );
+    assert.doesNotThrow(() =>
+      assertPaymentQuoteAllowed(base402, { ...withoutTime, expiresAt: now + 60 }),
     );
   });
 

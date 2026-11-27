@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motionEnabled } from "../lib/reduced-motion";
 import { useTime } from "../lib/time";
 
 const COLORS = ["#6ef5b0", "#3dd68c", "#ffd36a", "#b18cff", "#f6f1e6", "#5be0ff"];
@@ -45,7 +46,7 @@ export function ConfettiBurst({ fire, count = 80 }: { fire: number; count?: numb
   const { scheduler } = useTime();
   const [bursts, setBursts] = useState<Burst[]>([]);
   const seq = useRef(0);
-  const reduce = useReducedMotion();
+  const reduce = !motionEnabled("confetti", useReducedMotion());
 
   useEffect(() => {
     if (fire <= 0 || reduce) return;

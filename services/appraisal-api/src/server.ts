@@ -40,6 +40,13 @@ import { ExactStellarScheme as ServerStellarScheme } from "@x402/stellar/exact/s
 import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_BYTES, parseAppraisalRequest } from "./appraisal.js";
 import { takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
+import {
+  appraisalQuoteRateKey,
+  createMemoryQuoteRateLimiter,
+  DEVELOPMENT_QUOTE_RATE_LIMIT,
+  type QuoteRateLimitDecision,
+  type QuoteRateLimiter,
+} from "./quote-rate-limit.js";
 
 const APPRAISE_ROUTE = "POST /appraise";
 
@@ -74,6 +81,14 @@ export interface AppraisalServerOptions {
   facilitatorClient?: FacilitatorClient;
   /** Optional wall-clock override returning Unix seconds. */
   nowSeconds?: () => number;
+  /**
+   * Quote-creation limiter. Defaults to the bounded in-memory development
+   * adapter. Production should pass a shared-store implementation of
+   * {@link QuoteRateLimiter}.
+   */
+  quoteRateLimiter?: QuoteRateLimiter;
+  /** Client key for the quote limiter. Defaults to the socket address. */
+  quoteRateKey?: (req: http.IncomingMessage) => string;
 }
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
@@ -179,6 +194,9 @@ export async function buildAppraisalServer(
 
   const httpServer = new x402HTTPResourceServer(resourceServer, routes);
   await httpServer.initialize();
+  const quoteLimiter =
+    options.quoteRateLimiter ?? createMemoryQuoteRateLimiter(DEVELOPMENT_QUOTE_RATE_LIMIT);
+  const quoteRateKey = options.quoteRateKey ?? appraisalQuoteRateKey;
 
   return http.createServer(async (req, res) => {
     try {
@@ -237,7 +255,27 @@ export async function buildAppraisalServer(
 
       // result.type === "payment-verified": funds are authorized but not yet
       // captured. Produce the resource; only settle on a valid request so a
-      // malformed body never costs the caller.
+      // malformed body never costs the caller. A rate-limited quote is not
+      // built and the authorized payment is not settled.
+      const nowMs = options.nowSeconds
+        ? options.nowSeconds() * 1000
+        : globalThis.Date.now();
+      let quoteDecision: QuoteRateLimitDecision;
+      try {
+        quoteDecision = quoteLimiter.take(quoteRateKey(req), nowMs);
+      } catch {
+        quoteDecision = { allowed: false, retryAfterMs: DEVELOPMENT_QUOTE_RATE_LIMIT.windowMs };
+      }
+      if (!quoteDecision.allowed) {
+        const retryAfterSeconds = Math.max(1, Math.ceil(quoteDecision.retryAfterMs / 1000));
+        return send(
+          res,
+          429,
+          { "retry-after": String(retryAfterSeconds) },
+          { error: "appraisal quote rate limit exceeded" },
+        );
+      }
+
       let body: unknown;
       try {
         const nowSeconds = options.nowSeconds

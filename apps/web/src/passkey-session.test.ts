@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
+import { systemClock } from "@sub-rosa/time";
 import {
   SubRosaClient,
   SubRosaNetworkMismatchError,
@@ -24,7 +25,18 @@ describe("Passkey session binding fixture test", async () => {
   const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
   const PUBLIC_PASSPHRASE = "Public Global Stellar Network ; September 2015";
 
-  const commitParams = {
+  it("records the session creation time", () => {
+    const before = systemClock.nowMs();
+    const session = createPasskeySession({
+      contractId: FIXTURE_CONTRACT_ID,
+      networkPassphrase: TESTNET_PASSPHRASE,
+      account: FIXTURE_PUBLIC,
+    });
+    const createdAt = Date.parse(session.createdAt!);
+    assert.ok(createdAt >= before && createdAt <= systemClock.nowMs());
+  });
+
+  const FAKE_COMMIT_PARAMS = {
     roundId: 1,
     sealed: await sealFixture({ contractId: FIXTURE_CONTRACT_ID, bidderId: FIXTURE_PUBLIC, value: 50_000n }),
     escrow: 100_000n,

@@ -3,6 +3,7 @@ import { publicErrorMessage } from "@sub-rosa/logging/errors";
 import { Buffer } from "buffer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { gateDemoActions } from "../lib/config";
+import { transactionStatusAnnouncement } from "../lib/transaction-status";
 import {
   getNetworkDetails,
   isConnected,
@@ -30,7 +31,6 @@ import {
   PUBLIC_ENV,
   detectChainNetworkPassphrase,
   displayError,
-  formatDemoAmount,
   freighterError,
   resolveFreighterAddress,
   sdkClientNetworkPassphrase,
@@ -364,7 +364,11 @@ export function useRoundSession(active: UseCase) {
     }
     const id = active.id;
     const displayed = active.formatValue(entryValue);
-    const workingId = toast.push("working", "Sealing your entry…", `${active.inputLabel}: ${displayed}`);
+    const workingId = toast.push(
+      "working",
+      "Sealing your entry…",
+      transactionStatusAnnouncement("commit", "working"),
+    );
     setStatus("working");
     try {
       await guardNetwork("commit");
@@ -401,10 +405,13 @@ export function useRoundSession(active: UseCase) {
         auditorPublicKey: auditorPublicKey ?? roundAuditorPublicKey,
       });
       setStatus("ok");
-      const msg = `${formatDemoAmount(value)} escrow locked · ciphertext on-chain`;
       push(`Sealed ${active.inputLabel}: ${displayed}.`, id);
       toast.dismiss(workingId);
-      toast.push("success", "Entry sealed on-chain", msg);
+      toast.push(
+        "success",
+        "Entry sealed on-chain",
+        transactionStatusAnnouncement("commit", "success"),
+      );
       await refresh(roundId, id);
     } catch (error) {
       if (error instanceof DemoNetworkMismatchError) {
@@ -433,7 +440,11 @@ export function useRoundSession(active: UseCase) {
       );
       return;
     }
-    const workingId = toast.push("working", "Opening reveal gate…", "BLS verify + decrypt bids");
+    const workingId = toast.push(
+      "working",
+      "Opening reveal gate…",
+      transactionStatusAnnouncement("reveal", "working"),
+    );
     setStatus("working");
     setRevealProgress(null);
     try {
@@ -516,7 +527,8 @@ export function useRoundSession(active: UseCase) {
       const msg = `${revealed} entr${revealed === 1 ? "y" : "ies"} opened permissionlessly`;
       push(msg, id);
       toast.dismiss(workingId);
-      toast.push("success", "Reveal complete", msg);
+      toast.push("success", "Reveal complete", transactionStatusAnnouncement("reveal", "success"));
+      toast.push("success", "Settlement complete", transactionStatusAnnouncement("settle", "success"));
       if (skipped.length > 0) {
         toast.push(
           "info",
