@@ -9,11 +9,12 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createLogger } from "../packages/logging/src/index.cjs";
+import { normalizeError } from "../packages/logging/src/errors.cjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const logger = createLogger("scripts.check-rust-toolchain");
 
-export const PINNED_RUST_VERSION = "1.85.0";
+export const PINNED_RUST_VERSION = "1.91.0";
 export const CONTRACT_WORKFLOWS = ["contract.yml", "bindings-check.yml"];
 
 /**
@@ -82,7 +83,7 @@ export function validateRustToolchainAlignment(repoRoot = root) {
       );
     }
   } catch (err) {
-    errors.push(err instanceof Error ? err.message : String(err));
+    errors.push(normalizeError(err).message);
   }
 
   const entries = findWorkflowRustToolchains(join(repoRoot, ".github/workflows"));

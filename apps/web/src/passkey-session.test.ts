@@ -36,7 +36,7 @@ describe("Passkey session binding fixture test", async () => {
     assert.ok(createdAt >= before && createdAt <= systemClock.nowMs());
   });
 
-  const FAKE_COMMIT_PARAMS = {
+  const commitParams = {
     roundId: 1,
     sealed: await sealFixture({ contractId: FIXTURE_CONTRACT_ID, bidderId: FIXTURE_PUBLIC, value: 50_000n }),
     escrow: 100_000n,
@@ -150,20 +150,14 @@ describe("Passkey session binding fixture test", async () => {
       account: FIXTURE_PUBLIC,
     };
 
-    try {
-      await commitWithPasskeySession(swappedSession, client, commitParams);
-      assert.fail("commitWithPasskeySession should have failed");
-    } catch (e: unknown) {
-      assert.ok(e instanceof Error);
-      const errorText = e.message;
-      assert.ok(
-        !errorText.includes(FIXTURE_SEED),
-        "Error message must not include fixture secret seed",
-      );
-      assert.ok(
-        !/\bS[A-Z2-7]{55}\b/.test(errorText),
-        "Error message must not match secret seed pattern",
-      );
-    }
+    await assert.rejects(
+      commitWithPasskeySession(swappedSession, client, commitParams),
+      (error: unknown) => {
+        assert.ok(error instanceof SubRosaSessionMismatchError);
+        assert.ok(!error.message.includes(FIXTURE_SEED), "error must omit the fixture seed");
+        assert.doesNotMatch(error.message, /\bS[A-Z2-7]{55}\b/);
+        return true;
+      },
+    );
   });
 });

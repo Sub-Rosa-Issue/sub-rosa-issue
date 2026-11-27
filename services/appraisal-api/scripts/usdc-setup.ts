@@ -1,6 +1,6 @@
 import { normalizeError } from "@sub-rosa/logging/errors";
 import { createLogger } from '@sub-rosa/logging';
-import { assertUsdcSetupAsset } from '@sub-rosa/sdk/asset-config';
+import { assertAssetGuard } from '@sub-rosa/sdk/asset-config';
 const diagnostics = createLogger("services.appraisal-api.scripts.usdc-setup");
 // USDC asset provisioning for the x402 e2e (classic ops via Horizon).
 // Trustlines for the payer (client) + resource server, and mint USDC to the
@@ -33,17 +33,17 @@ async function main() {
   const clientKp = Keypair.fromSecret(reqEnv("CLIENT_SECRET"));
   const serverKp = Keypair.fromSecret(reqEnv("SERVER_SECRET"));
 
-  // Refuse mainnet and SAC/decimals mismatches before any transaction is built.
-  assertUsdcSetupAsset({
-    networkPassphrase: NETWORK,
-    sacContractId: process.env.USDK_SAC_CONTRACT_ID,
-    decimals: process.env.USDK_DECIMALS
-      ? Number(process.env.USDK_DECIMALS)
-      : undefined,
-  });
-
-  const server = new Horizon.Server(HORIZON_URL);
   const asset = new Asset(ASSET_CODE, issuerKp.publicKey());
+  const expectedContractId = asset.contractId(NETWORK);
+  assertAssetGuard(
+    {
+      networkPassphrase: NETWORK,
+      contractId: process.env.USDC_SAC ?? expectedContractId,
+      decimals: Number(process.env.USDC_DECIMALS ?? "7"),
+    },
+    { type: "sac", contractId: expectedContractId, decimals: 7 },
+  );
+  const server = new Horizon.Server(HORIZON_URL);
 
   async function submit(sourceKp: Keypair, op: xdr.Operation) {
     const account = await server.loadAccount(sourceKp.publicKey());

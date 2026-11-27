@@ -22,7 +22,8 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./network": "./src/network.ts"
+    "./network": "./src/network.ts",
+    "./asset-config": "./src/asset-config.ts"
   },
   "scripts": {
     "test": "node --import tsx --test src/asset-config.test.ts src/client.test.ts src/conservation.test.ts src/encoding.test.ts src/encrypted-blob.test.ts src/errors.test.ts src/export-receipt.test.ts src/ids.test.ts src/mainnet-readiness.test.ts src/network.test.ts src/preflight.test.ts src/public-api-snapshot.test.ts src/receipt.test.ts src/redact.test.ts src/round-status.test.ts src/status-client.test.ts src/verify.test.ts",

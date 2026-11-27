@@ -213,7 +213,7 @@ pnpm rust:audit:check
 
 ## Pinned Rust toolchain check
 
-`rust-toolchain.toml` pins an explicit Rust version (`1.85.0` with target
+`rust-toolchain.toml` pins an explicit Rust version (`1.91.0` with target
 `wasm32v1-none`), and both contract workflows (`.github/workflows/contract.yml`
 and `.github/workflows/bindings-check.yml`) must use that exact version instead
 of a moving `stable` reference:

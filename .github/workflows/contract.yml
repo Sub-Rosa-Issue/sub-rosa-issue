@@ -25,9 +25,9 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.85.0
+        uses: dtolnay/rust-toolchain@1.91.0
         with:
-          toolchain: "1.85.0"
+          toolchain: "1.91.0"
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -38,7 +38,7 @@ jobs:
           node-version: "22"
 
       - name: Run round contract unit tests
-        run: cargo test -p sub-rosa-round
+        run: cargo test --locked -p sub-rosa-round
 
       - name: Fail if generated contract snapshots differ from committed evidence
         run: |
