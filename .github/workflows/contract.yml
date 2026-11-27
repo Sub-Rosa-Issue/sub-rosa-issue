@@ -38,7 +38,7 @@ jobs:
           node-version: "22"
 
       - name: Run round contract unit tests
-        run: cargo test --locked -p sub-rosa-round
+        run: cargo test -p sub-rosa-round
 
       - name: Fail if generated contract snapshots differ from committed evidence
         run: |

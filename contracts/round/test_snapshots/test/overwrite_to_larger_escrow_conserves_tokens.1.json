@@ -65,7 +65,7 @@
                         "symbol": "asset_type"
                       },
                       "val": {
-                        "string": "sac"
+                        "string": "native"
                       }
                     },
                     {
@@ -73,7 +73,7 @@
                         "symbol": "code"
                       },
                       "val": {
-                        "string": "USDC"
+                        "string": "XLM"
                       }
                     },
                     {
@@ -81,7 +81,7 @@
                         "symbol": "contract_id"
                       },
                       "val": {
-                        "string": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4"
+                        "string": ""
                       }
                     },
                     {
@@ -97,7 +97,7 @@
                         "symbol": "issuer"
                       },
                       "val": {
-                        "string": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+                        "string": ""
                       }
                     }
                   ]
@@ -509,7 +509,7 @@
                               "symbol": "asset_type"
                             },
                             "val": {
-                              "string": "sac"
+                              "string": "native"
                             }
                           },
                           {
@@ -517,7 +517,7 @@
                               "symbol": "code"
                             },
                             "val": {
-                              "string": "USDC"
+                              "string": "XLM"
                             }
                           },
                           {
@@ -525,7 +525,7 @@
                               "symbol": "contract_id"
                             },
                             "val": {
-                              "string": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4"
+                              "string": ""
                             }
                           },
                           {
@@ -541,7 +541,7 @@
                               "symbol": "issuer"
                             },
                             "val": {
-                              "string": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+                              "string": ""
                             }
                           }
                         ]
