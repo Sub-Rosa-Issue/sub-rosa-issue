@@ -56,6 +56,22 @@ dependencies without lifecycle scripts, then runs `pnpm agent:test` and
 `services/agent`; `node --test scripts/agent-ci.test.mjs` verifies the CI job
 configuration.
 
+## Receipt CLI checks
+
+The `Receipt CLI checks` workflow (`.github/workflows/receipt-cli.yml`) runs on
+pushes to `main` and on every pull request. Its single blocking job installs
+locked JS dependencies without lifecycle scripts, then runs
+`pnpm receipt-cli:test` and `pnpm receipt-cli:typecheck` in order. Run the same
+two commands locally to check `services/receipt-cli`;
+`node --test scripts/receipt-cli-ci.test.mjs` verifies the CI job
+configuration.
+
+The receipt CLI is the tool a bidder uses to check a settlement they did not
+run, so its typecheck reaches through `@sub-rosa/sdk`, `@sub-rosa/tlock` and
+`@sub-rosa/time`: the gate fails while any of those stops compiling against
+the CLI that reads them, which is the point of running it here rather than
+only in each package.
+
 ## Keeper checks
 
 The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
