@@ -11,7 +11,7 @@
   },
   "scripts": {
     "validate": "tsx src/index.ts",
-    "test": "node --import tsx --test src/encode.test.ts src/parity.test.ts src/quicknet.test.ts",
+    "test": "node --import tsx --test src/encode.test.ts src/parity.test.ts src/quicknet.test.ts src/chain-hash.test.ts src/transport.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

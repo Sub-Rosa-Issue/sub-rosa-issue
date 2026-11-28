@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Structured logging
 
-`createLogger(component, { sink, clock })` exposes `debug`, `info`, `warn` and
-`error`. Each method takes a stable event name, an optional message and optional
-structured context. Each diagnostic is one JSON line with `timestamp`, `level`,
+`createLogger(component, { sink, clock, maxFieldLength, truncatedSuffix })`
+exposes `debug`, `info`, `warn` and `error`. Each method takes a stable event
+name, an optional message and optional structured context. Each diagnostic is one JSON line with `timestamp`, `level`,
 `component` and `event`. Debug/info use stdout; warn/error use stderr.
 
 ```ts
@@ -13,6 +13,13 @@ const logger = createLogger('keeper', {
 });
 logger.info('round-settled', 'Settlement completed', { roundId: 42n });
 ```
+
+Every serialized string field is truncated to `maxFieldLength` characters
+(default 1000, including a `truncatedSuffix` marker, default `...`) at the point
+where it is written into the record. Nested fields, arrays, messages and error
+members share the limit; the discarded tail is never retained. Pass `0` to keep
+only the marker. The same helpers are exported as `truncateStrings` and
+`truncateError` for callers that serialize outside the logger.
 
 Errors (including causes), bigint, arrays, nested objects and cycles are safe to
 serialize. Accessors are not invoked. Sensitive key names are recursively redacted,

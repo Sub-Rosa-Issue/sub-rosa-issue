@@ -5,63 +5,72 @@
 export const QUICKNET_HASH =
   "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 
+export const DRAND_CHAIN_HASH_ENV = "DRAND_CHAIN_HASH";
+export const DRAND_API_URL_ENV = "DRAND_API_URL";
 export const DEFAULT_DRAND_API_URL = "https://api.drand.sh";
+export const CHAIN_HASH_REQUIRED_ERROR = "DRAND_CHAIN_HASH is required";
+export const CHAIN_HASH_INVALID_ERROR = "DRAND_CHAIN_HASH must be a 64-character hex string";
+export const CHAIN_HASH_MISMATCH_ERROR = "drand chain hash mismatch";
 
-export interface DrandEndpointOptions {
-  /** Allow plaintext HTTP to a loopback host (local development only). */
+export interface DrandConfig {
+  apiUrl: string;
+  expectedChainHash: string;
   allowLocalHttp?: boolean;
 }
 
-function isLoopbackHostname(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host === "::1" || host === "0.0.0.0") return true;
-  if (host.endsWith(".localhost")) return true;
-  return /^127(?:\.\d{1,3}){3}$/.test(host);
+export class DrandChainHashMismatchError extends Error {
+  readonly code = "DRAND_CHAIN_HASH_MISMATCH";
+  constructor() {
+    super(CHAIN_HASH_MISMATCH_ERROR);
+    this.name = "DrandChainHashMismatchError";
+  }
 }
 
-/**
- * Validate a Drand API endpoint before anything is fetched from it.
- *
- * The beacon decides when a sealed bid opens, so a plaintext endpoint lets a
- * network attacker withhold or substitute the round and break the protocol's
- * timing guarantee. HTTPS is required for every remote host; `http://` is only
- * accepted for loopback hosts and only with an explicit `allowLocalHttp`.
- */
 export function assertDrandEndpointUrl(
-  rawUrl: string = DEFAULT_DRAND_API_URL,
-  options: DrandEndpointOptions = {},
+  rawUrl = DEFAULT_DRAND_API_URL,
+  options: { allowLocalHttp?: boolean } = {},
 ): URL {
-  const trimmed = typeof rawUrl === "string" ? rawUrl.trim() : "";
-  if (!trimmed) {
-    throw new Error("DRAND_API_URL must be a non-empty http(s) URL");
-  }
-  let parsed: URL;
+  let url: URL;
   try {
-    parsed = new URL(trimmed);
+    url = new URL(rawUrl);
   } catch {
-    throw new Error(`DRAND_API_URL must be a valid http(s) URL, got ${JSON.stringify(rawUrl)}`);
+    throw new Error("Invalid DRAND_API_URL");
   }
-  if (parsed.protocol === "https:") return parsed;
-  if (parsed.protocol !== "http:") {
-    throw new Error("DRAND_API_URL must use https:// (or http:// for local development)");
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("DRAND_API_URL must not contain credentials, a query, or a fragment");
   }
-  if (!options.allowLocalHttp || !isLoopbackHostname(parsed.hostname)) {
-    throw new Error(
-      "DRAND_API_URL must use https://; plaintext Drand endpoints let a network " +
-        "attacker withhold or substitute round signatures. Local development may " +
-        "opt in with DRAND_ALLOW_LOCAL_HTTP=true against a loopback host.",
-    );
-  }
-  return parsed;
+  if (url.protocol === "https:") return url;
+  const host = url.hostname.toLowerCase();
+  const loopback = host === "localhost" || host === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(host);
+  if (url.protocol === "http:" && loopback && options.allowLocalHttp) return url;
+  throw new Error("DRAND_API_URL requires HTTPS unless loopback HTTP is explicitly enabled");
 }
 
-/** The validated Drand API base URL, without a trailing slash. */
-export function drandApiUrl(): string {
-  const url = assertDrandEndpointUrl(process.env.DRAND_API_URL ?? DEFAULT_DRAND_API_URL, {
-    allowLocalHttp: process.env.DRAND_ALLOW_LOCAL_HTTP === "true",
-  });
-  return url.toString().replace(/\/+$/, "");
+function checkedDrandConfig(config: DrandConfig): DrandConfig {
+  const expectedChainHash = config.expectedChainHash.trim().toLowerCase();
+  if (!expectedChainHash) throw new Error(CHAIN_HASH_REQUIRED_ERROR);
+  if (!/^[0-9a-f]{64}$/.test(expectedChainHash)) throw new Error(CHAIN_HASH_INVALID_ERROR);
+
+  const url = assertDrandEndpointUrl(config.apiUrl, { allowLocalHttp: config.allowLocalHttp });
+  return {
+    apiUrl: url.href.replace(/\/+$/, ""),
+    expectedChainHash,
+    ...(config.allowLocalHttp ? { allowLocalHttp: true } : {}),
+  };
 }
+
+export function loadDrandConfig(
+  env: Record<string, string | undefined> = process.env,
+): DrandConfig {
+  return checkedDrandConfig({
+    apiUrl: env[DRAND_API_URL_ENV]?.trim() || DEFAULT_DRAND_API_URL,
+    expectedChainHash: env[DRAND_CHAIN_HASH_ENV] ?? "",
+    allowLocalHttp: env.DRAND_ALLOW_LOCAL_HTTP?.trim().toLowerCase() === "true",
+  });
+}
+
+/** Stable error category for every HTTP 3xx / opaque redirect from Drand HTTP. */
+export const DRAND_HTTP_REDIRECT_CATEGORY = "http_redirect" as const;
 
 export interface ChainInfo {
   public_key: string; // compressed G2, hex (96 bytes)
@@ -77,14 +86,79 @@ export interface Beacon {
   signature: string; // compressed G1, hex (48 bytes)
 }
 
-export async function getChainInfo(): Promise<ChainInfo> {
-  const res = await fetch(`${drandApiUrl()}/${QUICKNET_HASH}/info`);
-  if (!res.ok) throw new Error(`info HTTP ${res.status}`);
-  return (await res.json()) as ChainInfo;
+/** True for HTTP 3xx statuses that would otherwise trigger a redirect. */
+export function isHttpRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400;
 }
 
-export async function getBeacon(round: number | "latest"): Promise<Beacon> {
-  const res = await fetch(`${drandApiUrl()}/${QUICKNET_HASH}/public/${round}`);
+/**
+ * Raised when a Drand chain-info or beacon fetch receives a redirect instead of
+ * following it. The `Location` header value is never included in the message,
+ * on the error object, or in any diagnostic payload derived from it.
+ */
+export class DrandRedirectError extends Error {
+  readonly name = "DrandRedirectError";
+  /** One stable category for every 3xx / opaque redirect response. */
+  readonly category = DRAND_HTTP_REDIRECT_CATEGORY;
+  readonly status: number;
+  readonly resource: "chain-info" | "beacon";
+
+  constructor(resource: "chain-info" | "beacon", status: number) {
+    const label = status === 0 ? "opaque" : String(status);
+    super(`drand ${resource} request redirected (${label})`);
+    this.status = status;
+    this.resource = resource;
+  }
+
+  /** Build an error from a redirect response without echoing Location. */
+  static fromResponse(resource: "chain-info" | "beacon", res: Response): DrandRedirectError {
+    const status = res.type === "opaqueredirect" && res.status === 0 ? 0 : res.status;
+    return new DrandRedirectError(resource, status);
+  }
+}
+
+type FetchImpl = typeof fetch;
+
+async function fetchDrand(
+  url: string,
+  resource: "chain-info" | "beacon",
+  fetchImpl: FetchImpl = globalThis.fetch,
+): Promise<Response> {
+  // Never follow redirects: trust only the configured endpoint, not an
+  // intermediary-selected Location destination.
+  const res = await fetchImpl(url, { redirect: "manual" });
+  if (res.type === "opaqueredirect" || isHttpRedirectStatus(res.status)) {
+    throw DrandRedirectError.fromResponse(resource, res);
+  }
+  return res;
+}
+
+export async function getChainInfo(
+  fetchImpl?: FetchImpl,
+  config: DrandConfig = loadDrandConfig(),
+): Promise<ChainInfo> {
+  const { apiUrl, expectedChainHash } = checkedDrandConfig(config);
+  const res = await fetchDrand(`${apiUrl}/${expectedChainHash}/info`, "chain-info", fetchImpl);
+  if (!res.ok) throw new Error(`info HTTP ${res.status}`);
+  const info = (await res.json()) as ChainInfo;
+  if (typeof info?.hash !== "string" || info.hash.trim().toLowerCase() !== expectedChainHash) {
+    throw new DrandChainHashMismatchError();
+  }
+  return info;
+}
+
+export async function getBeacon(
+  round: number | "latest",
+  fetchImpl?: FetchImpl,
+  config: DrandConfig = loadDrandConfig(),
+): Promise<Beacon> {
+  const checked = checkedDrandConfig(config);
+  await getChainInfo(fetchImpl, checked);
+  const res = await fetchDrand(
+    `${checked.apiUrl}/${checked.expectedChainHash}/public/${round}`,
+    "beacon",
+    fetchImpl,
+  );
   if (!res.ok) throw new Error(`beacon ${round} HTTP ${res.status}`);
   return (await res.json()) as Beacon;
 }

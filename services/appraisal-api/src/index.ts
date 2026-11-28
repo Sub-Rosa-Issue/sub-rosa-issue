@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Sub Rosa contributors
 export {
+  APPRAISAL_ATTRIBUTE_KEYS,
   APPRAISAL_MODEL,
   APPRAISAL_QUOTE_TTL_SECONDS,
+  APPRAISAL_REQUEST_KEYS,
   MAX_APPRAISAL_BODY_BYTES,
   MAX_CATEGORY_LENGTH,
   MAX_ITEMREF_LENGTH,
@@ -24,6 +26,13 @@ export {
   withNonCacheableHeaders,
   type AppraisalServerOptions,
 } from "./server.js";
+export {
+  APPRAISAL_REQUEST_ID_HEADER,
+  MAX_APPRAISAL_REQUEST_ID_LENGTH,
+  isValidAppraisalRequestId,
+  readInboundAppraisalRequestId,
+  resolveAppraisalRequestId,
+} from "./request-id.js";
 export {
   AppraisalConfigError,
   configFromEnv,

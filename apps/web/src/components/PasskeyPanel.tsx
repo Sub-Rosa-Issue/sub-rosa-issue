@@ -1,5 +1,5 @@
-import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 import { useMemo, useState } from "react";
 import { SubRosaClient, validatePasskeySession } from "@sub-rosa/sdk";
 import { CAP_SAFETY_COPY } from "../demo/trace";
@@ -12,6 +12,7 @@ import {
   resolvePasskeyWalletWasmHash,
   type PasskeySession,
 } from "../passkey-config";
+import { ExternalLink } from "./ExternalLink";
 
 type PasskeyStatus = "idle" | "loading" | "ready" | "blocked" | "error";
 
@@ -393,9 +394,7 @@ export function PasskeyPanel({
       <ul className="link-list">
         {LINKS.map((l) => (
           <li key={l.href}>
-            <a href={l.href} target="_blank" rel="noreferrer">
-              {l.label}
-            </a>
+            <ExternalLink href={l.href}>{l.label}</ExternalLink>
             <span className="muted">{l.note}</span>
           </li>
         ))}

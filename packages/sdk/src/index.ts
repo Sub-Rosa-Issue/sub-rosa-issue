@@ -170,6 +170,7 @@ export {
   type BidReceiptEntry,
   RECEIPT_VERSION,
 } from "./receipt.js";
+export { truncateStrings, truncateError, type TruncateOptions } from "./truncate.js";
 export {
   redactReceipt,
   type RedactOptions,
@@ -231,7 +232,9 @@ export {
   KeeperStatusClient,
   StatusApiError,
   StatusJsonParseError,
+  StatusRedirectError,
   KeeperStatusTimeoutError,
+  isHttpRedirectStatus,
   redactUrlUserinfo,
   type KeeperReadiness,
   type KeeperNotReadyReason,

@@ -36,6 +36,7 @@ export const oversizedText = loadFixture<Record<string, unknown>>("oversized-tex
 export const invalidScoreValues = loadFixture<Record<string, unknown>>(
   "invalid-score-values.json",
 );
+export const unknownFields = loadFixture<Record<string, unknown>>("unknown-fields.json");
 
 export const allFixtures = [
   validRequest,
@@ -44,4 +45,5 @@ export const allFixtures = [
   wrongTypes,
   oversizedText,
   invalidScoreValues,
+  unknownFields,
 ] as const;

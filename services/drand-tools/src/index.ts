@@ -6,7 +6,12 @@ const diagnostics = createLogger("services.drand-tools.src.index");
 // the contract must use, and emits the exact Soroban-encoded constants for the
 // deploy configuration (drand_pubkey, negated G2 generator, DST).
 
-import { getChainInfo, getBeacon } from "./quicknet.js";
+import {
+  CHAIN_HASH_MISMATCH_ERROR,
+  DrandChainHashMismatchError,
+  getChainInfo,
+  getBeacon,
+} from "./quicknet.js";
 import { detectMessageVariant, DST } from "./parity.js";
 import {
   encodeG1,
@@ -83,6 +88,10 @@ async function main() {
 }
 
 main().catch((err) => {
-  diagnostics.error("harness-error", "harness error:", { "err_0": normalizeError(err) });
+  if (err instanceof DrandChainHashMismatchError) {
+    diagnostics.error("chain-hash-mismatch", CHAIN_HASH_MISMATCH_ERROR);
+  } else {
+    diagnostics.error("harness-error", "harness error:", { "err_0": normalizeError(err) });
+  }
   process.exitCode = 1;
 });
