@@ -4,6 +4,7 @@ import { DEMO_TRACE } from "../demo/trace";
 import { USE_CASES, type UseCaseId } from "../config/useCases";
 import { LOGO_SRC } from "../lib/chain";
 import { shortAddr } from "../lib/format";
+import { ExternalLink } from "../components/ExternalLink";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -48,9 +49,9 @@ export function LandingPage({
         <div className="landing-nav-actions">
           <span className="landing-status-pill winner">Hack Privacy #1</span>
           <span className="landing-status-pill">testnet · live</span>
-          <a href="https://github.com/Sub-Rosa-Issue/sub-rosa-issue" target="_blank" rel="noreferrer">
+          <ExternalLink href="https://github.com/Sub-Rosa-Issue/sub-rosa-issue">
             GitHub
-          </a>
+          </ExternalLink>
           <a href="#/dashboard" className="secondary-action compact">
             Dashboard
           </a>

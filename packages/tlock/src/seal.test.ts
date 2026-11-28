@@ -33,9 +33,7 @@ test(
       value,
       nonce,
       round,
-      revealRound: round,
-      client,
-      identity,
+      revealRound: round, client, identity,
       auditorPublicKey: auditor.publicKey,
     });
 
@@ -84,9 +82,7 @@ test(
       nonce,
       payload,
       round,
-      revealRound: round,
-      client,
-      identity,
+      revealRound: round, client, identity,
       auditorPublicKey: auditor.publicKey,
     });
     const opened = await openPayload(sealed.ciphertext, client);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 'use strict';
+const { truncateString } = require('./truncate.cjs');
 const REDACTED = '[REDACTED]';
 const sensitive = (key) => /secret|token|password|passwd|privatekey|credential|cookie|authorization|apikey|mnemonic|seedphrase/i.test(key.replace(/[^a-z0-9]/gi, ''));
 
@@ -36,8 +37,13 @@ function collectSecrets(value, secrets, seen = new WeakSet(), depth = 0) {
   } catch { /* Uninspectable proxies are replaced during serialization. */ }
 }
 
-function serialize(value, secrets, seen = new WeakSet(), depth = 0) {
-  if (typeof value === 'string') return scrubText(value, secrets);
+function serialize(value, secrets, seen = new WeakSet(), depth = 0, limits = null) {
+  // Scrub before truncating so a redaction marker is never cut in half and a
+  // secret never survives partially because its tail was dropped.
+  if (typeof value === 'string') {
+    const scrubbed = scrubText(value, secrets);
+    return limits ? truncateString(scrubbed, limits.maxLength, limits.truncatedSuffix) : scrubbed;
+  }
   if (typeof value === 'bigint') return value.toString();
   if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
   if (value === undefined) return null;
@@ -51,7 +57,7 @@ function serialize(value, secrets, seen = new WeakSet(), depth = 0) {
     for (const [key, descriptor] of Object.entries(descriptors)) {
       if (Array.isArray(value) && key === 'length') continue;
       output[key] = sensitive(key) ? REDACTED : 'value' in descriptor
-        ? serialize(descriptor.value, secrets, seen, depth + 1) : '[Accessor]';
+        ? serialize(descriptor.value, secrets, seen, depth + 1, limits) : '[Accessor]';
     }
     return output;
   } catch {
