@@ -15,6 +15,19 @@ pnpm workspaces:check  # verifies every workspace is included in the root lists
 pnpm workspaces:test   # runs unit tests for the aggregate runner
 ```
 
+## Orphaned workspace test check
+
+To keep newly added `*.test.*` files from being silently omitted from workspace
+`package.json` test scripts, `scripts/check-orphaned-tests.mjs` compares tracked
+test files under `apps/*`, `packages/*`, and `services/*` with each workspace's
+`scripts.test` definition. Files that are intentionally excluded must be listed
+in `DOCUMENTED_EXCLUSIONS` with a short reason; anything else fails the check:
+
+```bash
+pnpm orphaned-tests:check
+pnpm orphaned-tests:test
+```
+
 ## Web checks
 
 The `Web checks` workflow (`.github/workflows/web.yml`) runs on pushes to
