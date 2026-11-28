@@ -60,6 +60,10 @@ export const CHECKPOINT_VERSION = 1;
 /** Default checkpoint path, overridable with `KEEPER_CHECKPOINT_PATH`. */
 export const DEFAULT_CHECKPOINT_PATH = ".keeper-checkpoint.json";
 
+/** Owner-only permissions (0600) for checkpoint files, matching the store. */
+const CHECKPOINT_FILE_PERMISSIONS = 0o600;
+let writeSequence = 0;
+
 /**
  * Keeper lifecycle steps tracked by the cursor.
  *
@@ -402,6 +406,17 @@ export class KeeperCheckpointStore implements ResumableCheckpoint {
       return emptyFile(this.network, this.contractId);
     }
 
+    // Tighten an existing checkpoint written by an older build to owner-only.
+    try {
+      fs.chmodSync(this.filePath, CHECKPOINT_FILE_PERMISSIONS);
+    } catch (chmodErr) {
+      this.logger.warn(
+        "checkpoint-could-not-set-file-permissions",
+        `[Checkpoint] Could not set permissions on ${this.filePath}:`,
+        { "chmodErr_0": normalizeError(chmodErr) },
+      );
+    }
+
     let parsed: KeeperCheckpointFile;
     try {
       const content = fs.readFileSync(this.filePath, "utf-8");
@@ -466,11 +481,37 @@ export class KeeperCheckpointStore implements ResumableCheckpoint {
       );
       return;
     }
+    let tmpPath: string | undefined;
     try {
       const dir = path.dirname(this.filePath);
       if (dir !== ".") fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
+      // Write-then-rename so another keeper process can never read a truncated
+      // checkpoint. The temporary file is created owner-only (0600) so its
+      // contents are never briefly readable by other users before a chmod.
+      tmpPath = `${this.filePath}.tmp.${process.pid}.${++writeSequence}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(this.data, null, 2), {
+        encoding: "utf-8",
+        mode: CHECKPOINT_FILE_PERMISSIONS,
+      });
+      try {
+        fs.chmodSync(tmpPath, CHECKPOINT_FILE_PERMISSIONS);
+      } catch (chmodErr) {
+        this.logger.warn(
+          "checkpoint-could-not-set-temporary-file-permissions",
+          `[Checkpoint] Could not set temporary file permissions for ${this.filePath}:`,
+          { "chmodErr_0": normalizeError(chmodErr) },
+        );
+      }
+      fs.renameSync(tmpPath, this.filePath);
+      tmpPath = undefined;
     } catch (e) {
+      if (tmpPath) {
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch {
+          // Best effort: the leftover file is owner-only and never read.
+        }
+      }
       this.logger.error(
         "checkpoint-failed-to-save",
         `[Checkpoint] Failed to save checkpoint to ${this.filePath}:`,
