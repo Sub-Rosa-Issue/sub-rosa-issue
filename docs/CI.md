@@ -195,6 +195,22 @@ print order are asserted by:
 node --test scripts/check-bindings-cli.test.mjs
 ```
 
+## Threat-model anchor check
+
+The `Threat model anchor check` workflow (`.github/workflows/threat-model.yml`)
+runs when threat-model docs, security docs, or security-relevant code paths
+change (`docs/THREAT_MODEL.md`, `SECURITY.md`, `docs/SECURITY.md`,
+`contracts/**`, `packages/**`, `services/**`, and the checker scripts). Its
+blocking job installs locked JS dependencies with lifecycle scripts disabled,
+then runs `pnpm threat-model:test` and `pnpm threat-model:check` in order so
+`docs/THREAT_MODEL.md` keeps the five required sealed-round risk anchors.
+
+```bash
+pnpm threat-model:test   # unit tests for the anchor checker
+pnpm threat-model:check  # docs/THREAT_MODEL.md must cover required anchors
+node --test scripts/threat-model-ci.test.mjs  # verifies the CI wiring
+```
+
 ## Rust dependency advisory audit
 
 Rust dependencies in the committed `Cargo.lock` are audited against the RustSec
