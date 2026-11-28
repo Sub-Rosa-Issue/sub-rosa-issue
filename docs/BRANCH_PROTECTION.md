@@ -1,20 +1,38 @@
 # Branch protection for `main`
 
-Recorded settings for issue
+Proposed settings for issue
 [#484](https://github.com/Sub-Rosa-Issue/sub-rosa-issue/issues/484)
 (`security(high/easy): protect main with reviewed PRs and blocked force-pushes`).
 
-The default branch is protected by an **active repository ruleset**, not by a
-legacy branch-protection rule. Before this change the repository had neither: the
-ruleset list was empty and `GET /branches/main/protection` returned
-`404 Branch not protected`.
+## Current status: not yet applied upstream
 
-## Applied ruleset
+> **`Sub-Rosa-Issue/sub-rosa-issue` `main` is not protected.** This document is
+> the reviewed ruleset an org admin needs to apply. It does not record an active
+> upstream setting. Issue #484 is done only when the
+> [verification](#verification-after-applying) below passes against the
+> upstream repository.
+
+Live state, checked `2026-11-28T08:45Z` against upstream `main` at `939e22e`:
+
+| Check | Result |
+| --- | --- |
+| `gh api repos/Sub-Rosa-Issue/sub-rosa-issue/rules/branches/main` | `[]`, so no active rules apply to `main` |
+| `gh api repos/Sub-Rosa-Issue/sub-rosa-issue/rulesets` | `[]`, so no rulesets exist |
+| `gh api repos/Sub-Rosa-Issue/sub-rosa-issue/rulesets/25968240` | `404 Not Found` |
+| `gh api repos/Sub-Rosa-Issue/sub-rosa-issue --jq .permissions.admin` | `false` for the PR author's token |
+
+Ruleset `25968240` exists only on the contributor fork
+`timo126/sub-rosa-issue`. Ruleset IDs are per repository, so that ID does not
+mean anything upstream. The fork copy was a dry run: it confirmed that GitHub
+accepts the payload and that it resolves against a `main` branch. It protects
+nothing in this repository. The PR author cannot create the upstream ruleset,
+because that needs admin rights on `Sub-Rosa-Issue/sub-rosa-issue`.
+
+## Proposed ruleset
 
 | Field | Value |
 | --- | --- |
 | Name | `Protect main` |
-| ID | `25968240` |
 | Target | `branch` |
 | Enforcement | `active` |
 | Conditions | `ref_name.include = ["~DEFAULT_BRANCH"]`, no exclusions |
@@ -39,55 +57,65 @@ first land on another branch and be submitted as a pull request.
 
 ## Required status checks
 
-The contexts are the GitHub Actions **job names** reported on pull requests.
-Five workflows gate every PR through four contexts:
+The contexts are the GitHub Actions **job names**. They were taken from upstream
+`main` at `939e22e`, and each one already reports a check run on that commit.
+Nine workflows that run on every pull request gate it through eight contexts:
 
 | Required context | Workflow | Job |
 | --- | --- | --- |
+| `agent` | `Agent checks` (`.github/workflows/agent.yml`) | `agent` |
+| `appraisal` | `Appraisal API checks` (`.github/workflows/appraisal.yml`) | `appraisal` |
 | `check` | `Bindings check` (`.github/workflows/bindings-check.yml`) | `check` |
 | `check` | `Line lengths check` (`.github/workflows/line-lengths.yml`) | `check` |
 | `coverage` | `TypeScript coverage` (`.github/workflows/coverage.yml`) | `coverage` |
+| `keeper` | `Keeper checks` (`.github/workflows/keeper.yml`) | `keeper` |
 | `round-contract` | `Contract tests` (`.github/workflows/contract.yml`) | `round-contract` |
+| `sdk` | `SDK checks` (`.github/workflows/sdk.yml`) | `sdk` |
 | `web` | `Web checks` (`.github/workflows/web.yml`) | `web` |
 
 Two workflows both name their job `check`. GitHub matches required checks by
-context name, and when several runs share a context **all of them must pass**, so
-requiring `check` covers both the bindings and the line-lengths job.
+context name, and when several runs share a context **all of them must pass**.
+Requiring `check` therefore covers both the bindings job and the line-lengths
+job. Any later always-on workflow whose job is named `check` is also covered
+automatically.
+
+Re-read the job names in `.github/workflows/` before applying. If a gate was
+added or renamed since `939e22e`, update `required_status_checks` to match. A
+required context that never reports leaves every pull request blocked.
 
 ### Deliberately not required
 
 `Docs link check` (`check-links`) and `Environment template check` (`validate`)
-are scoped by `on: pull_request: paths:`. GitHub leaves a required check from a
-path-filtered workflow in a `Pending` state when the paths do not match, which
-blocks every unrelated pull request indefinitely. They stay as advisory checks
-until they run on every PR (for example behind an always-on gate job).
+use `on: pull_request: paths:` filters. When the paths don't match, GitHub
+leaves a required check from a path-filtered workflow in `Pending`, which would
+block every unrelated pull request indefinitely. These two stay advisory until
+they run on every PR (for example behind an always-on gate job).
 
 ## Bypass actors
 
-Exactly one bypass actor is configured: the repository **admin** role
-(`actor_type: RepositoryRole`, `actor_id: 5`). No individual users, teams,
-deploy keys, apps, or the `write`/`maintain` roles can bypass the ruleset. This
-keeps an emergency escape hatch for repository owners without widening bypass
-access beyond what is required to administer the repository.
+The ruleset configures exactly one bypass actor: the repository **admin** role
+(`actor_type: RepositoryRole`, `actor_id: 5`). Individual users, teams, deploy
+keys, apps, and the `write` and `maintain` roles cannot bypass it. Repository
+owners keep an emergency escape hatch, and bypass access goes no wider than
+administering the repository requires.
 
-For an organization-owned repository, organization owners retain bypass at the
+For an organization-owned repository, organization owners keep bypass at the
 organization level, so no `OrganizationAdmin` actor needs to be added here.
 
-## Recorded settings
+## Payload to apply
 
-`GET /repos/timo126/sub-rosa-issue/rulesets/25968240`:
+[`ruleset-main.json`](ruleset-main.json) is the request body for
+`POST /repos/{owner}/{repo}/rulesets`, reproduced here:
 
 ```json
 {
-  "id": 25968240,
   "name": "Protect main",
   "target": "branch",
-  "source": "timo126/sub-rosa-issue",
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "exclude": [],
-      "include": ["~DEFAULT_BRANCH"]
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
     }
   },
   "bypass_actors": [
@@ -101,23 +129,23 @@ organization level, so no `OrganizationAdmin` actor needs to be added here.
       "parameters": {
         "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": true,
-        "required_reviewers": [],
         "require_code_owner_review": false,
         "require_last_push_approval": false,
-        "required_review_thread_resolution": false,
-        "require_extra_approval_for_unattributed_changes": false,
-        "allowed_merge_methods": ["merge", "squash", "rebase"]
+        "required_review_thread_resolution": false
       }
     },
     {
       "type": "required_status_checks",
       "parameters": {
         "strict_required_status_checks_policy": false,
-        "do_not_enforce_on_create": false,
         "required_status_checks": [
+          { "context": "agent" },
+          { "context": "appraisal" },
           { "context": "check" },
           { "context": "coverage" },
+          { "context": "keeper" },
           { "context": "round-contract" },
+          { "context": "sdk" },
           { "context": "web" }
         ]
       }
@@ -126,52 +154,40 @@ organization level, so no `OrganizationAdmin` actor needs to be added here.
 }
 ```
 
-The ruleset page is
-<https://github.com/timo126/sub-rosa-issue/rules/25968240> and the rules are
-listed under **Settings → Rules → Rulesets**.
-
-Two parameters are left at their least-restrictive value because the issue does
-not ask for them: `strict_required_status_checks_policy` (do not require PR
-branches to be up to date with `main`) and
-`require_extra_approval_for_unattributed_changes` (a newer GitHub default that
-would otherwise demand two approvals on fork pull requests). Turn either on if
+`strict_required_status_checks_policy` is left `false`, so PR branches do not
+have to be up to date with `main`. The issue does not ask for that. Turn it on if
 the project wants a stricter merge bar.
 
-## Verification
-
-Effective rules for the branch — confirms the ruleset is active and resolves
-against `main`:
-
-```bash
-gh api repos/timo126/sub-rosa-issue/rules/branches/main
-```
-
-```json
-[
-  { "type": "deletion", "ruleset_id": 25968240, "ruleset_source_type": "Repository" },
-  { "type": "non_fast_forward", "ruleset_id": 25968240, "ruleset_source_type": "Repository" },
-  { "type": "pull_request", "ruleset_id": 25968240, "ruleset_source_type": "Repository" },
-  { "type": "required_status_checks", "ruleset_id": 25968240, "ruleset_source_type": "Repository" }
-]
-```
-
-That endpoint returns only rules from rulesets whose enforcement is `active` or
-`evaluate`, so this output is direct evidence that merges into `main` must go
-through an approved, CI-green pull request and that force pushes and deletions
-are blocked.
-
-## Applying this to the upstream repository
-
-The ruleset above is applied to `timo126/sub-rosa-issue`, the fork, which is the
-only repository where the automation account holds `admin`. The upstream
-`Sub-Rosa-Issue/sub-rosa-issue` returns `permissions.admin = false` for the same
-token, so a maintainer with admin rights must apply it there. Either reproduce
-the settings through **Settings → Rules → New ruleset** or POST the payload from
-the JSON block above:
+An org admin applies the payload from the repository root:
 
 ```bash
 gh api --method POST repos/Sub-Rosa-Issue/sub-rosa-issue/rulesets \
-  --input ruleset-main.json
+  --input docs/ruleset-main.json
 ```
+
+Alternatively, enter the same values through
+**Settings → Rules → Rulesets → New branch ruleset**.
+
+## Verification after applying
+
+Run these against the **upstream** repository. Results from the fork do not
+count.
+
+```bash
+# 1. The ruleset exists and is active. Note the new upstream ID.
+gh api repos/Sub-Rosa-Issue/sub-rosa-issue/rulesets \
+  --jq '.[] | {id, name, enforcement}'
+
+# 2. Effective rules on main. Expect four entries
+#    (deletion, non_fast_forward, pull_request, required_status_checks),
+#    all with ruleset_source "Sub-Rosa-Issue/sub-rosa-issue".
+gh api repos/Sub-Rosa-Issue/sub-rosa-issue/rules/branches/main \
+  --jq '.[] | {type, ruleset_source, ruleset_id}'
+```
+
+`rules/branches/main` returns only rules from rulesets whose enforcement is
+`active` or `evaluate`. Four entries there are the evidence that #484 is done.
+Record the upstream ruleset ID and that output on the issue. An empty array `[]`,
+which is today's result, means `main` is still unprotected.
 
 No source code, workflow, or dependency change is part of this hardening.
