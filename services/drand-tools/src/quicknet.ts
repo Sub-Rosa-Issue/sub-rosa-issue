@@ -7,6 +7,9 @@ export const QUICKNET_HASH =
 
 const API = process.env.DRAND_API_URL ?? "https://api.drand.sh";
 
+/** Stable error category for every HTTP 3xx / opaque redirect from Drand HTTP. */
+export const DRAND_HTTP_REDIRECT_CATEGORY = "http_redirect" as const;
+
 export interface ChainInfo {
   public_key: string; // compressed G2, hex (96 bytes)
   period: number; // seconds
@@ -21,14 +24,68 @@ export interface Beacon {
   signature: string; // compressed G1, hex (48 bytes)
 }
 
-export async function getChainInfo(): Promise<ChainInfo> {
-  const res = await fetch(`${API}/${QUICKNET_HASH}/info`);
+/** True for HTTP 3xx statuses that would otherwise trigger a redirect. */
+export function isHttpRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400;
+}
+
+/**
+ * Raised when a Drand chain-info or beacon fetch receives a redirect instead of
+ * following it. The `Location` header value is never included in the message,
+ * on the error object, or in any diagnostic payload derived from it.
+ */
+export class DrandRedirectError extends Error {
+  readonly name = "DrandRedirectError";
+  /** One stable category for every 3xx / opaque redirect response. */
+  readonly category = DRAND_HTTP_REDIRECT_CATEGORY;
+  readonly status: number;
+  readonly resource: "chain-info" | "beacon";
+
+  constructor(resource: "chain-info" | "beacon", status: number) {
+    const label = status === 0 ? "opaque" : String(status);
+    super(`drand ${resource} request redirected (${label})`);
+    this.status = status;
+    this.resource = resource;
+  }
+
+  /** Build an error from a redirect response without echoing Location. */
+  static fromResponse(resource: "chain-info" | "beacon", res: Response): DrandRedirectError {
+    const status = res.type === "opaqueredirect" && res.status === 0 ? 0 : res.status;
+    return new DrandRedirectError(resource, status);
+  }
+}
+
+type FetchImpl = typeof fetch;
+
+async function fetchDrand(
+  url: string,
+  resource: "chain-info" | "beacon",
+  fetchImpl: FetchImpl = globalThis.fetch,
+): Promise<Response> {
+  // Never follow redirects: trust only the configured endpoint, not an
+  // intermediary-selected Location destination.
+  const res = await fetchImpl(url, { redirect: "manual" });
+  if (res.type === "opaqueredirect" || isHttpRedirectStatus(res.status)) {
+    throw DrandRedirectError.fromResponse(resource, res);
+  }
+  return res;
+}
+
+export async function getChainInfo(fetchImpl?: FetchImpl): Promise<ChainInfo> {
+  const res = await fetchDrand(`${API}/${QUICKNET_HASH}/info`, "chain-info", fetchImpl);
   if (!res.ok) throw new Error(`info HTTP ${res.status}`);
   return (await res.json()) as ChainInfo;
 }
 
-export async function getBeacon(round: number | "latest"): Promise<Beacon> {
-  const res = await fetch(`${API}/${QUICKNET_HASH}/public/${round}`);
+export async function getBeacon(
+  round: number | "latest",
+  fetchImpl?: FetchImpl,
+): Promise<Beacon> {
+  const res = await fetchDrand(
+    `${API}/${QUICKNET_HASH}/public/${round}`,
+    "beacon",
+    fetchImpl,
+  );
   if (!res.ok) throw new Error(`beacon ${round} HTTP ${res.status}`);
   return (await res.json()) as Beacon;
 }

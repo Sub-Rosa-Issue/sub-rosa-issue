@@ -86,3 +86,31 @@ test("parseAppraisalRequest validates and clamps", () => {
   assert.equal(parsed.attributes?.quality, 100);
   assert.equal(parsed.attributes?.risk, 0);
 });
+
+test("parseAppraisalRequest rejects unknown fields without echoing values", () => {
+  const leaked = "PAY-SECRET-SHOULD-NOT-ECHO";
+  assert.throws(
+    () =>
+      parseAppraisalRequest({
+        itemRef: "x",
+        basePrice: 1,
+        amount: leaked,
+      }),
+    (e: unknown) =>
+      e instanceof AppraisalInputError &&
+      e.message === "request contains unknown fields" &&
+      !e.message.includes(leaked),
+  );
+  assert.throws(
+    () =>
+      parseAppraisalRequest({
+        itemRef: "x",
+        basePrice: 1,
+        attributes: { quality: 50, rarity: leaked },
+      }),
+    (e: unknown) =>
+      e instanceof AppraisalInputError &&
+      e.message === "request contains unknown fields" &&
+      !e.message.includes(leaked),
+  );
+});

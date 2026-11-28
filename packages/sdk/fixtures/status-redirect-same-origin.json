@@ -1,0 +1,9 @@
+{
+  "description": "Same-origin HTTP redirect from the keeper status endpoint",
+  "requestUrl": "http://keeper.test/status",
+  "status": 302,
+  "headers": {
+    "Location": "http://keeper.test/status/moved"
+  },
+  "sameOrigin": true
+}
