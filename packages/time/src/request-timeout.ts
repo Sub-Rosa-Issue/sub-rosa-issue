@@ -76,6 +76,7 @@ function bindBodyToDeadline(
     if (released) return;
     released = true;
     signal.removeEventListener("abort", onAbort);
+    reader.releaseLock();
     release();
   };
 
@@ -116,8 +117,9 @@ function bindBodyToDeadline(
       }
     },
     cancel(reason) {
+      const cancellation = reader.cancel(reason);
       finish();
-      return reader.cancel(reason);
+      return cancellation;
     },
   });
 
@@ -128,6 +130,7 @@ function bindBodyToDeadline(
   });
   Object.defineProperty(bound, "url", { value: response.url });
   Object.defineProperty(bound, "redirected", { value: response.redirected });
+  Object.defineProperty(bound, "type", { value: response.type });
   return bound;
 }
 
@@ -149,7 +152,7 @@ export async function fetchWithTimeout(
   const timeoutMs = resolveRequestTimeoutMs(options.timeoutMs);
   const scheduler = options.scheduler ?? systemScheduler;
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-  const callerSignal = init.signal ?? undefined;
+  const callerSignal = init.signal ?? (input instanceof Request ? input.signal : undefined);
 
   if (callerSignal?.aborted) {
     throw callerSignal.reason ?? new DOMException("Aborted", "AbortError");
@@ -173,6 +176,12 @@ export async function fetchWithTimeout(
     release();
     if (controller.signal.reason === timeoutError) throw timeoutError;
     throw error;
+  }
+  if (controller.signal.aborted) {
+    const reason = controller.signal.reason;
+    void response.body?.cancel(reason).catch(() => undefined);
+    release();
+    throw reason;
   }
   return bindBodyToDeadline(response, controller.signal, release);
 }

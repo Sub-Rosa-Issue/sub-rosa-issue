@@ -61,7 +61,7 @@ import {
 } from "./errors.js";
 import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 import {
-  assertNoUrlCredentials,
+  assertEndpointTransportSecurity,
   validateContractNetwork,
   validatePasskeySession,
   type PasskeySessionBinding,
@@ -220,13 +220,14 @@ export class SubRosaClient {
 
 
   constructor(config: SubRosaClientConfig) {
-    assertNoUrlCredentials(config.rpcUrl, "rpcUrl");
     const allowHttp = config.allowHttp ?? false;
-    if (/^http:\/\//i.test(config.rpcUrl) && !allowHttp) {
-      throw new SubRosaClientConfigError(
-        "rpcUrl must use https unless allowHttp is explicitly enabled",
-      );
-    }
+    // Mainnet never accepts plaintext HTTP: allowHttp is a local/testnet
+    // development escape hatch, so it cannot downgrade a mainnet endpoint.
+    assertEndpointTransportSecurity(config.rpcUrl, {
+      label: "rpcUrl",
+      networkPassphrase: config.networkPassphrase,
+      allowHttp,
+    });
 
     const confirmTimeout = config.confirmTimeout ?? 60_000;
     if (!Number.isFinite(confirmTimeout) || confirmTimeout < 1_000) {

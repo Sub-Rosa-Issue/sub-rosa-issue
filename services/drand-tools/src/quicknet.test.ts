@@ -11,8 +11,9 @@ import { createLogger } from "@sub-rosa/logging";
 import {
   DRAND_HTTP_REDIRECT_CATEGORY,
   DrandRedirectError,
-  getBeacon,
-  getChainInfo,
+  QUICKNET_HASH,
+  getBeacon as fetchBeacon,
+  getChainInfo as fetchChainInfo,
   isHttpRedirectStatus,
 } from "./quicknet.js";
 
@@ -39,6 +40,22 @@ function redirectFetch(fixture: RedirectFixture): typeof fetch {
   };
 }
 
+const config = { apiUrl: "https://drand.invalid", expectedChainHash: QUICKNET_HASH };
+
+function getChainInfo(fetchImpl: typeof fetch) {
+  return fetchChainInfo(fetchImpl, config);
+}
+
+function getBeacon(round: number | "latest", fetchImpl: typeof fetch) {
+  return fetchBeacon(round, (url, init) => {
+    if (String(url).endsWith("/info")) {
+      assert.equal(init?.redirect, "manual");
+      return Promise.resolve(new Response(JSON.stringify({ hash: QUICKNET_HASH }), { status: 200 }));
+    }
+    return fetchImpl(url, init);
+  }, config);
+}
+
 describe("Drand HTTP redirect rejection", () => {
   it("disables automatic redirects for chain-info fetches", async () => {
     let seenRedirect: RequestRedirect | undefined;
@@ -49,7 +66,7 @@ describe("Drand HTTP redirect rejection", () => {
           public_key: "ab",
           period: 3,
           genesis_time: 1,
-          hash: "h",
+          hash: QUICKNET_HASH,
           schemeID: "bls-unchained-g1-rfc9380",
         }),
         { status: 200, headers: { "content-type": "application/json" } },
