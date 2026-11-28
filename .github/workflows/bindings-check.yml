@@ -28,7 +28,7 @@ jobs:
         run: node --test scripts/check-bindings-cli.test.mjs
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.85.0
+        uses: dtolnay/rust-toolchain@1.120.0
         with:
           toolchain: "1.85.0"
           targets: wasm32v1-none
