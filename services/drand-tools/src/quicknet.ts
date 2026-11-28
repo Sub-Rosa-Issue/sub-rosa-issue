@@ -5,7 +5,52 @@
 export const QUICKNET_HASH =
   "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 
-const API = process.env.DRAND_API_URL ?? "https://api.drand.sh";
+export const DRAND_CHAIN_HASH_ENV = "DRAND_CHAIN_HASH";
+export const DRAND_API_URL_ENV = "DRAND_API_URL";
+export const DEFAULT_DRAND_API_URL = "https://api.drand.sh";
+export const CHAIN_HASH_REQUIRED_ERROR = "DRAND_CHAIN_HASH is required";
+export const CHAIN_HASH_INVALID_ERROR = "DRAND_CHAIN_HASH must be a 64-character hex string";
+export const CHAIN_HASH_MISMATCH_ERROR = "drand chain hash mismatch";
+
+export interface DrandConfig {
+  apiUrl: string;
+  expectedChainHash: string;
+}
+
+export class DrandChainHashMismatchError extends Error {
+  readonly code = "DRAND_CHAIN_HASH_MISMATCH";
+  constructor() {
+    super(CHAIN_HASH_MISMATCH_ERROR);
+    this.name = "DrandChainHashMismatchError";
+  }
+}
+
+function checkedDrandConfig(config: DrandConfig): DrandConfig {
+  const expectedChainHash = config.expectedChainHash.trim().toLowerCase();
+  if (!expectedChainHash) throw new Error(CHAIN_HASH_REQUIRED_ERROR);
+  if (!/^[0-9a-f]{64}$/.test(expectedChainHash)) throw new Error(CHAIN_HASH_INVALID_ERROR);
+
+  let url: URL;
+  try {
+    url = new URL(config.apiUrl);
+  } catch {
+    throw new Error("Invalid DRAND_API_URL");
+  }
+  if (!["https:", "http:"].includes(url.protocol) ||
+      url.username || url.password || url.search || url.hash) {
+    throw new Error("Invalid DRAND_API_URL");
+  }
+  return { apiUrl: url.href.replace(/\/+$/, ""), expectedChainHash };
+}
+
+export function loadDrandConfig(
+  env: Record<string, string | undefined> = process.env,
+): DrandConfig {
+  return checkedDrandConfig({
+    apiUrl: env[DRAND_API_URL_ENV]?.trim() || DEFAULT_DRAND_API_URL,
+    expectedChainHash: env[DRAND_CHAIN_HASH_ENV] ?? "",
+  });
+}
 
 /** Stable error category for every HTTP 3xx / opaque redirect from Drand HTTP. */
 export const DRAND_HTTP_REDIRECT_CATEGORY = "http_redirect" as const;
@@ -71,18 +116,29 @@ async function fetchDrand(
   return res;
 }
 
-export async function getChainInfo(fetchImpl?: FetchImpl): Promise<ChainInfo> {
-  const res = await fetchDrand(`${API}/${QUICKNET_HASH}/info`, "chain-info", fetchImpl);
+export async function getChainInfo(
+  fetchImpl?: FetchImpl,
+  config: DrandConfig = loadDrandConfig(),
+): Promise<ChainInfo> {
+  const { apiUrl, expectedChainHash } = checkedDrandConfig(config);
+  const res = await fetchDrand(`${apiUrl}/${expectedChainHash}/info`, "chain-info", fetchImpl);
   if (!res.ok) throw new Error(`info HTTP ${res.status}`);
-  return (await res.json()) as ChainInfo;
+  const info = (await res.json()) as ChainInfo;
+  if (typeof info?.hash !== "string" || info.hash.trim().toLowerCase() !== expectedChainHash) {
+    throw new DrandChainHashMismatchError();
+  }
+  return info;
 }
 
 export async function getBeacon(
   round: number | "latest",
   fetchImpl?: FetchImpl,
+  config: DrandConfig = loadDrandConfig(),
 ): Promise<Beacon> {
+  const checked = checkedDrandConfig(config);
+  await getChainInfo(fetchImpl, checked);
   const res = await fetchDrand(
-    `${API}/${QUICKNET_HASH}/public/${round}`,
+    `${checked.apiUrl}/${checked.expectedChainHash}/public/${round}`,
     "beacon",
     fetchImpl,
   );
