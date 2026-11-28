@@ -5,13 +5,11 @@ import { createLogger, writeData } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.receipt-cli.src.index");
 // receipt-cli — export a round receipt from RPC or verify a local file.
 
-import { readFileSync, writeFileSync, renameSync, statSync, existsSync, constants, openSync, closeSync, unlinkSync, writeSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt, redactReceipt } from "@sub-rosa/sdk";
-import { systemClock } from "@sub-rosa/time";
 import { buildJsonOutput } from "./json-output.js";
-
-const MAX_OUTPUT_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
+import { writeOutputFile } from "./output-file.js";
 
 function usage(): never {
   diagnostics.error("usage-receipt-cli-export-roundid-fetch-receipt-from-rpc", `
@@ -36,35 +34,6 @@ Environment for "export":
   process.exit(1);
 }
 
-function writeFileAtomic(filePath: string, data: string, force: boolean): void {
-  // Check if file exists and is non-empty
-  if (existsSync(filePath)) {
-    const stats = statSync(filePath);
-    if (stats.size > 0 && !force) {
-      throw new Error(`Output file "${filePath}" exists and is not empty. Use --force to overwrite.`);
-    }
-    if (stats.size > MAX_OUTPUT_FILE_SIZE) {
-      throw new Error(`Output file "${filePath}" exceeds maximum allowed size of ${MAX_OUTPUT_FILE_SIZE} bytes.`);
-    }
-  }
-
-  // Write to temporary file first
-  const tempPath = `${filePath}.tmp.${process.pid}.${systemClock.nowMs()}`;
-  try {
-    // Write with owner-only permissions (0o600)
-    const fd = openSync(tempPath, 'w', 0o600);
-    writeSync(fd, data, 0, 'utf-8');
-    closeSync(fd);
-
-    // Atomic rename
-    renameSync(tempPath, filePath);
-  } catch (e) {
-    // Clean up temp file on error
-    try { unlinkSync(tempPath); } catch {}
-    throw e;
-  }
-}
-
 async function cmdExport(roundIdStr: string, force: boolean) {
   const roundId = BigInt(roundIdStr);
   const rpcUrl = process.env.RPC_URL ?? "https://soroban-testnet.stellar.org";
@@ -80,7 +49,7 @@ async function cmdExport(roundIdStr: string, force: boolean) {
   const receipt = await client.exportReceipt(roundId);
   const json = serializeReceipt(receipt);
   const filename = `round-${roundId}-receipt.json`;
-  writeFileAtomic(filename, json, force);
+  writeOutputFile(filename, json, { force });
   diagnostics.info("wrote", `Wrote ${filename}`);
 }
 
@@ -213,7 +182,7 @@ async function cmdRedact(inputPath: string, outputPath?: string, force: boolean 
   const redacted = redactReceipt(receipt);
   const out = serializeReceipt(redacted);
   const outPath = outputPath ?? inputPath.replace(/\.json$/, ".redacted.json");
-  writeFileAtomic(outPath, out, force);
+  writeOutputFile(outPath, out, { force });
   diagnostics.info("wrote-redacted-receipt-to", `Wrote redacted receipt to ${outPath}`);
 }
 
