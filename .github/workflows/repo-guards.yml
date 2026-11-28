@@ -1,0 +1,70 @@
+name: Repository guards
+
+# One job per repository policy. Both are blocking: the workflow fails when
+# either job fails, and no step uses continue-on-error. Splitting them keeps the
+# failing policy visible in the check name, and lets either one be required or
+# reverted without the other.
+#
+# The guards are Node-only, read the tracked file list from git and import no
+# workspace package, so neither job installs dependencies.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  root-lockfile-policy:
+    name: Root lockfile matches the declared package manager
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Read-only workflow: downstream steps do not push
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test the root lockfile guard
+        run: pnpm lockfile:test
+
+      - name: Enforce one supported root lockfile
+        run: pnpm lockfile:check
+
+  editor-auto-run-tasks:
+    name: No VS Code task runs on folder open
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Read-only workflow: downstream steps do not push
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test the editor task guard
+        run: pnpm vscode-tasks:test
+
+      - name: Reject VS Code tasks that run on folder open
+        run: pnpm vscode-tasks:check

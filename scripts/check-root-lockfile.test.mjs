@@ -171,8 +171,16 @@ describe("check-root-lockfile CLI", () => {
     assert.equal(scripts["lockfile:test"], "node --test scripts/check-root-lockfile.test.mjs");
   });
 
-  it("is wired into the TypeScript coverage workflow", () => {
-    const workflow = readFileSync(join(REPO_ROOT, ".github", "workflows", "coverage.yml"), "utf-8");
-    assert.match(workflow, /pnpm lockfile:test && pnpm lockfile:check/);
+  it("is its own blocking job in the repository guards workflow", () => {
+    const workflow = readFileSync(join(REPO_ROOT, ".github", "workflows", "repo-guards.yml"), "utf-8");
+    const block = workflow
+      .split(/^  (?=[a-z][\w-]*:$)/m)
+      .find((section) => section.startsWith("root-lockfile-policy:"));
+    assert.ok(block, "root-lockfile-policy job must exist");
+    assert.doesNotMatch(block, /\bcontinue-on-error\s*:/, "the lockfile policy must block on failure");
+    assert.match(block, /^        run: pnpm lockfile:test$/m);
+    assert.match(block, /^        run: pnpm lockfile:check$/m);
+    // El guard del editor es otro job: una politica no puede tapar a la otra.
+    assert.doesNotMatch(block, /vscode-tasks/);
   });
 });

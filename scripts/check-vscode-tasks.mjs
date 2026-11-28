@@ -1,17 +1,29 @@
 #!/usr/bin/env node
 // Copyright (c) 2026 Sub Rosa contributors
 /**
- * Fail when a tracked `.vscode/tasks.json` asks VS Code to run a task by itself
- * as soon as the folder is opened.
+ * Fail when a tracked VS Code task manifest asks the editor to run a task by
+ * itself as soon as its folder is opened.
  *
  * `"runOn": "folderOpen"` turns opening the repository into code execution: the
  * task runs before the contributor reads anything, with the workspace's own
  * commands and the repo's checkout as the trigger. The repository should refuse
  * to carry that configuration rather than review it.
  *
- * This scanner deliberately looks for the trigger only. It does not parse the
- * task object, does not resolve or execute a command, and does not echo file
- * contents — the finding is a path and a line number, nothing else.
+ * Scope: every tracked `.vscode/tasks.json` — at the root or inside a nested
+ * workspace folder — and every tracked `*.code-workspace` file, because a
+ * multi-root workspace makes the task manifests of the folders it lists run as
+ * workspace tasks.
+ *
+ * Both are JSONC, so comments and trailing commas are legal and the trigger may
+ * be split over several lines:
+ *
+ *     "runOn":
+ *       // the value VS Code treats as "start this when the folder opens"
+ *       "folderOpen"
+ *
+ * The manifest is tokenized rather than matched line by line, so formatting does
+ * not decide whether the guard sees the trigger. It reports a path and a line
+ * only: it never resolves, executes or echoes a task command.
  */
 
 import { execFileSync } from "node:child_process";
@@ -25,35 +37,181 @@ import { normalizeError } from "../packages/logging/src/errors.cjs";
 const diagnostics = createLogger("scripts.check-vscode-tasks");
 
 /** VS Code auto-runs a task on folder open with exactly this value. */
-const AUTO_RUN_TRIGGER = /"runOn"\s*:\s*"folderOpen"/;
+const AUTO_RUN_KEY = "runOn";
+const AUTO_RUN_VALUE = "folderOpen";
 
 /**
- * True for a VS Code task manifest at the repo root or inside a nested
- * workspace folder, as `git ls-files` reports paths.
+ * True for a tracked VS Code task manifest: `.vscode/tasks.json` at any depth,
+ * or a multi-root `*.code-workspace` file at any depth, as `git ls-files`
+ * reports paths.
  *
  * @param {string} trackedPath
  */
 export function isTasksManifest(trackedPath) {
   const segments = trackedPath.split("/");
-  return segments.length >= 2 && segments[segments.length - 1] === "tasks.json" &&
-    segments[segments.length - 2] === ".vscode";
+  const name = segments[segments.length - 1];
+  if (name.endsWith(".code-workspace")) return true;
+  return segments.length >= 2 && name === "tasks.json" && segments[segments.length - 2] === ".vscode";
 }
 
 /**
+ * Split JSONC into the tokens this scan needs, keeping the line each token
+ * starts on. Comments are dropped, so a commented-out trigger is not a
+ * finding, and string values are decoded, so an escaped `\"runOn\"` inside a
+ * task command is not mistaken for a key.
+ *
+ * @param {string} source
+ * @returns {{
+ *   tokens: { type: "string" | "punct" | "literal", value: string, line: number }[],
+ *   error: { line: number, message: string } | null,
+ * }}
+ */
+export function tokenizeJsonc(source) {
+  /** @type {{ type: "string" | "punct" | "literal", value: string, line: number }[]} */
+  const tokens = [];
+  let line = 1;
+  let i = 0;
+
+  /** @param {string} message @param {number} atLine */
+  const fail = (message, atLine) => ({ tokens, error: { line: atLine, message } });
+
+  while (i < source.length) {
+    const char = source[i];
+
+    if (char === "\n") {
+      line++;
+      i++;
+      continue;
+    }
+    if (char === " " || char === "\t" || char === "\r" || char === "\uFEFF") {
+      i++;
+      continue;
+    }
+
+    if (char === "/" && source[i + 1] === "/") {
+      while (i < source.length && source[i] !== "\n") i++;
+      continue;
+    }
+
+    if (char === "/" && source[i + 1] === "*") {
+      const startLine = line;
+      i += 2;
+      while (i < source.length && !(source[i] === "*" && source[i + 1] === "/")) {
+        if (source[i] === "\n") line++;
+        i++;
+      }
+      if (i >= source.length) return fail("an unterminated /* comment", startLine);
+      i += 2;
+      continue;
+    }
+
+    if (char === '"') {
+      const startLine = line;
+      let value = "";
+      let closed = false;
+      i++;
+      while (i < source.length) {
+        const current = source[i];
+        if (current === '"') {
+          i++;
+          closed = true;
+          break;
+        }
+        if (current === "\n") break;
+        if (current === "\\") {
+          const escape = source[i + 1];
+          if (escape === undefined) break;
+          if (escape === "u") {
+            const hex = source.slice(i + 2, i + 6);
+            if (!/^[0-9a-fA-F]{4}$/.test(hex)) return fail("an invalid \\u escape", line);
+            value += String.fromCharCode(parseInt(hex, 16));
+            i += 6;
+            continue;
+          }
+          const simple = {
+            '"': '"',
+            "\\": "\\",
+            "/": "/",
+            b: "\b",
+            f: "\f",
+            n: "\n",
+            r: "\r",
+            t: "\t",
+          };
+          if (!Object.hasOwn(simple, escape)) return fail(`an invalid \\${escape} escape`, line);
+          value += simple[escape];
+          i += 2;
+          continue;
+        }
+        value += current;
+        i++;
+      }
+      if (!closed) return fail("an unterminated string", startLine);
+      tokens.push({ type: "string", value, line: startLine });
+      continue;
+    }
+
+    if ("{}[]:,".includes(char)) {
+      tokens.push({ type: "punct", value: char, line });
+      i++;
+      continue;
+    }
+
+    const start = i;
+    while (
+      i < source.length &&
+      !/[\s{}\[\]:,"]/.test(source[i]) &&
+      !(source[i] === "/" && (source[i + 1] === "/" || source[i + 1] === "*"))
+    ) {
+      i++;
+    }
+    if (i === start) return fail(`an unexpected character ${JSON.stringify(char)}`, line);
+    tokens.push({ type: "literal", value: source.slice(start, i), line });
+  }
+
+  return { tokens, error: null };
+}
+
+/**
+ * A manifest that cannot be tokenized cannot be cleared, so it is reported as a
+ * finding — the guard fails closed instead of passing a file it could not read.
+ *
  * @param {string} content
  * @param {string} relPath
  * @returns {{ relPath: string, line: number, problem: string }[]}
  */
 export function findAutoRunTriggers(content, relPath) {
+  const { tokens, error } = tokenizeJsonc(content);
+  if (error) {
+    return [
+      {
+        relPath,
+        line: error.line,
+        problem: `is not readable as JSONC (${error.message}), so its tasks cannot be verified`,
+      },
+    ];
+  }
+
+  /** @type {{ relPath: string, line: number, problem: string }[]} */
   const hits = [];
-  const lines = content.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    if (AUTO_RUN_TRIGGER.test(lines[i])) {
+  for (let i = 0; i + 2 < tokens.length; i++) {
+    const key = tokens[i];
+    const colon = tokens[i + 1];
+    const value = tokens[i + 2];
+    if (
+      key.type === "string" &&
+      key.value === AUTO_RUN_KEY &&
+      colon.type === "punct" &&
+      colon.value === ":" &&
+      value.type === "string" &&
+      value.value === AUTO_RUN_VALUE
+    ) {
       hits.push({
         relPath,
-        line: i + 1,
-        problem: 'declares "runOn": "folderOpen", which runs a task without anyone asking',
+        line: key.line,
+        problem: `declares "${AUTO_RUN_KEY}": "${AUTO_RUN_VALUE}", which runs a task without anyone asking`,
       });
+      i += 2;
     }
   }
   return hits;
@@ -107,7 +265,10 @@ export function trackedTaskManifests(cwd = process.cwd()) {
 
 function main() {
   diagnostics.info("vscode-task-guard", "\nVS Code automatic-task guard");
-  diagnostics.info("rejecting", `  rejecting: "runOn": "folderOpen" in tracked .vscode/tasks.json`);
+  diagnostics.info(
+    "rejecting",
+    `  rejecting: "${AUTO_RUN_KEY}": "${AUTO_RUN_VALUE}" in tracked .vscode/tasks.json or *.code-workspace manifests`,
+  );
 
   /** @type {ReturnType<typeof scanTasksManifests>} */
   let violations;
