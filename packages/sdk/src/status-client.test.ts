@@ -6,9 +6,12 @@ import { dirname, join } from "node:path";
 
 import {
   KeeperStatusClient,
+  KeeperStatusTimeoutError,
+  MAX_STATUS_RESPONSE_BYTES,
   StatusApiError,
   StatusJsonParseError,
   StatusRedirectError,
+  StatusResponseTooLargeError,
   type StatusClientOptions,
 } from "./status-client.js";
 import { createFakeTime } from "@sub-rosa/time";
@@ -90,6 +93,87 @@ describe("KeeperStatusClient successful JSON parsing", () => {
         assert.match(error.message, /invalid JSON/i);
         return true;
       },
+    );
+  });
+
+  it("accepts an exact-limit status response", async () => {
+    const json = JSON.stringify(SAMPLE_STATUS);
+    const exactBytes = Buffer.byteLength(json, "utf-8");
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      maxResponseBytes: exactBytes,
+      fetchImpl: mockFetch(json),
+    });
+    const status = await client.getStatus();
+    assert.deepEqual(status, SAMPLE_STATUS);
+  });
+
+  it("stops reading over-limit streaming responses and returns StatusResponseTooLargeError", async () => {
+    let chunksPulled = 0;
+    const limit = 128;
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      maxResponseBytes: limit,
+      fetchImpl: async () => {
+        const stream = new ReadableStream<Uint8Array>(
+          {
+            pull(controller) {
+              chunksPulled += 1;
+              controller.enqueue(new Uint8Array(64).fill(0x20));
+            },
+          },
+          new CountQueuingStrategy({ highWaterMark: 0 }),
+        );
+        return new Response(stream, { status: 200 });
+      },
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusResponseTooLargeError);
+        assert.equal(error.status, 200);
+        assert.equal(error.limitBytes, limit);
+        return true;
+      },
+    );
+    // 64 + 64 + 64 = 192 > 128: stops immediately on the 3rd chunk without buffering further.
+    assert.equal(chunksPulled, 3);
+  });
+
+  it("rejects over-limit non-2xx responses with StatusResponseTooLargeError", async () => {
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      maxResponseBytes: 32,
+      fetchImpl: mockFetch(JSON.stringify({ error: "x".repeat(64) }), 503),
+    });
+    await assert.rejects(
+      () => client.getHealth(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusResponseTooLargeError);
+        assert.equal(error.status, 503);
+        assert.equal(error.limitBytes, 32);
+        return true;
+      },
+    );
+  });
+
+  it("preserves timeout behavior when a streaming body stalls", async () => {
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      timeoutMs: 10,
+      maxResponseBytes: MAX_STATUS_RESPONSE_BYTES,
+      fetchImpl: async () => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(16).fill(0x7b));
+          },
+        });
+        return new Response(stream, { status: 200 });
+      },
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => error instanceof KeeperStatusTimeoutError,
     );
   });
 });

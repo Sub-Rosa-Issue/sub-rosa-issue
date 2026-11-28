@@ -25,8 +25,13 @@ pnpm --filter @sub-rosa/receipt-cli receipt verify src/fixtures/golden.json --js
 
 JSON output includes `valid`, `receiptId`, `roundId`, `checkedAt`, `errors`, and
 `warnings`. Successful verification exits with code 0; invalid receipts, unreadable
-files, malformed input, and usage errors exit with code 1. Warnings alone do not
+files, oversized inputs, malformed input, and usage errors exit with code 1. Warnings alone do not
 make an otherwise valid receipt fail.
+
+Pass `-` instead of a file path to read receipt JSON from `stdin`. Both file and
+`stdin` receipt inputs are capped at `1048576` bytes (1 MiB) before parsing;
+oversized inputs fail with exit code 1 and a concise message without echoing
+the rejected payload.
 
 To also verify a local artifact, supply a receipt containing `artifactChecksum`
 and the exact artifact file whose SHA-256 checksum was recorded in that receipt:

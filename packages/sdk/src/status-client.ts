@@ -14,11 +14,16 @@ import type {
   ApiError,
 } from "./status.js";
 
+/** Default maximum keeper status response size in bytes (1 MiB). */
+export const MAX_STATUS_RESPONSE_BYTES = 1_048_576;
+
 export interface StatusClientOptions {
   baseURL: string;
   fetchImpl?: typeof fetch;
   headers?: Record<string, string>;
   timeoutMs?: number;
+  /** Maximum response body size in bytes before aborting read (defaults to {@link MAX_STATUS_RESPONSE_BYTES}). */
+  maxResponseBytes?: number;
   /** Injectable scheduler bounding each request (defaults to the system scheduler). */
   scheduler?: Scheduler;
   /** Contract the caller acts on; a status body for another contract is not ready. */
@@ -77,6 +82,19 @@ export class StatusJsonParseError extends Error {
   }
 }
 
+/** Raised when a keeper status response exceeds `maxResponseBytes`. */
+export class StatusResponseTooLargeError extends Error {
+  readonly name = "StatusResponseTooLargeError";
+  readonly status: number;
+  readonly limitBytes: number;
+
+  constructor(status: number, limitBytes: number) {
+    super(`status api returned ${status} exceeding ${limitBytes} byte limit`);
+    this.status = status;
+    this.limitBytes = limitBytes;
+  }
+}
+
 /** True for HTTP 3xx statuses that would otherwise trigger a redirect. */
 export function isHttpRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400;
@@ -129,8 +147,53 @@ function fullURL(base: string, path: string): string {
   return `${trimmed}${clean}`;
 }
 
-async function parseErrorBody(res: Response): Promise<ApiError> {
-  const text = await res.text();
+async function readCappedResponseText(res: Response, maxBytes: number): Promise<string> {
+  const contentLength = res.headers?.get("content-length");
+  if (contentLength !== null && contentLength !== undefined) {
+    const declared = Number(contentLength);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      void res.body?.cancel().catch(() => {});
+      throw new StatusResponseTooLargeError(res.status, maxBytes);
+    }
+  }
+
+  if (res.body) {
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          void reader.cancel().catch(() => {});
+          throw new StatusResponseTooLargeError(res.status, maxBytes);
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder().decode(merged);
+  }
+
+  const buf = new Uint8Array(await res.arrayBuffer());
+  if (buf.byteLength > maxBytes) {
+    throw new StatusResponseTooLargeError(res.status, maxBytes);
+  }
+  return new TextDecoder().decode(buf);
+}
+
+async function parseErrorBody(res: Response, maxBytes: number): Promise<ApiError> {
+  const text = await readCappedResponseText(res, maxBytes);
   if (!text.trim()) return { error: `status api returned ${res.status}` };
   try {
     return JSON.parse(text) as ApiError;
@@ -139,8 +202,8 @@ async function parseErrorBody(res: Response): Promise<ApiError> {
   }
 }
 
-async function parseSuccessBody<T>(res: Response): Promise<T> {
-  const text = await res.text();
+async function parseSuccessBody<T>(res: Response, maxBytes: number): Promise<T> {
+  const text = await readCappedResponseText(res, maxBytes);
   if (!text.trim()) {
     throw new StatusJsonParseError(res.status);
   }
@@ -156,6 +219,7 @@ export class KeeperStatusClient {
   readonly fetchImpl: typeof fetch;
   readonly headers: Record<string, string>;
   readonly timeoutMs: number;
+  readonly maxResponseBytes: number;
   readonly scheduler: Scheduler;
   readonly contractId?: string;
   readonly roundId?: string;
@@ -167,6 +231,10 @@ export class KeeperStatusClient {
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
     this.headers = opts.headers ?? {};
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    this.maxResponseBytes = opts.maxResponseBytes ?? MAX_STATUS_RESPONSE_BYTES;
+    if (!Number.isInteger(this.maxResponseBytes) || this.maxResponseBytes < 1) {
+      throw new Error("maxResponseBytes must be a positive integer");
+    }
     this.scheduler = opts.scheduler ?? systemScheduler;
     this.contractId = opts.contractId;
     this.roundId = opts.roundId === undefined ? undefined : String(opts.roundId);
@@ -257,10 +325,10 @@ export class KeeperStatusClient {
         throw StatusRedirectError.fromResponse(url, res);
       }
       if (!res.ok) {
-        const body = await parseErrorBody(res);
+        const body = await parseErrorBody(res, this.maxResponseBytes);
         throw new StatusApiError(res.status, body);
       }
-      return parseSuccessBody<T>(res);
+      return await parseSuccessBody<T>(res, this.maxResponseBytes);
     })();
     try {
       return await Promise.race([request, timedOut]);

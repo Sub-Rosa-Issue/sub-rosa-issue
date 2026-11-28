@@ -103,3 +103,10 @@ pnpm mainnet:verify                                                 # settlement
 `--fixture` replays a recorded deployment through the same comparison with no
 mainnet RPC, so CI can prove each mismatch field fails and a matching recording
 passes.
+
+## Keeper status client
+
+`KeeperStatusClient` caps status response bodies at `MAX_STATUS_RESPONSE_BYTES`
+(`1048576` bytes / 1 MiB, configurable via `maxResponseBytes`) before JSON
+parsing, aborting oversized streams early and throwing
+`StatusResponseTooLargeError` while preserving the configured `timeoutMs`.

@@ -103,6 +103,17 @@ export interface AppraisalServerOptions {
   generateRequestId?: () => string;
   /** Optional logger override (used by deterministic unit tests). */
   logger?: ReturnType<typeof createLogger>;
+  /** Trust `X-Forwarded-For` when deriving the default quote rate-limit key. */
+  trustedProxyIps?: readonly string[];
+}
+
+/** Format a standards-compliant `Retry-After` delay-seconds header value. */
+export function formatRetryAfterSeconds(
+  retryAfterMs: number,
+  fallbackMs: number = DEVELOPMENT_QUOTE_RATE_LIMIT.windowMs,
+): string {
+  const safeMs = Number.isFinite(retryAfterMs) ? retryAfterMs : fallbackMs;
+  return String(Math.max(1, Math.ceil(safeMs / 1000)));
 }
 
 /** Minimal HTTPAdapter over a Node request + already-read body. */
@@ -225,7 +236,9 @@ export async function buildAppraisalServer(
   await httpServer.initialize();
   const quoteLimiter =
     options.quoteRateLimiter ?? createMemoryQuoteRateLimiter(DEVELOPMENT_QUOTE_RATE_LIMIT);
-  const quoteRateKey = options.quoteRateKey ?? appraisalQuoteRateKey;
+  const trustedProxyIps = options.trustedProxyIps ?? config.trustedProxyIps ?? [];
+  const quoteRateKey =
+    options.quoteRateKey ?? ((req) => appraisalQuoteRateKey(req, { trustedProxyIps }));
   const log = options.logger ?? diagnostics;
 
   return http.createServer(async (req, res) => {
@@ -311,11 +324,10 @@ export async function buildAppraisalServer(
         quoteDecision = { allowed: false, retryAfterMs: DEVELOPMENT_QUOTE_RATE_LIMIT.windowMs };
       }
       if (!quoteDecision.allowed) {
-        const retryAfterSeconds = Math.max(1, Math.ceil(quoteDecision.retryAfterMs / 1000));
         return send(
           res,
           429,
-          { "retry-after": String(retryAfterSeconds) },
+          { "retry-after": formatRetryAfterSeconds(quoteDecision.retryAfterMs) },
           { error: "appraisal quote rate limit exceeded" },
           requestId,
         );
