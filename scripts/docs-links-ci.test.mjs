@@ -14,5 +14,13 @@ test("docs-links workflow defines branch-scoped concurrency cancellation", () =>
     /^concurrency:\n(?:\s+#.*\n)*  group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.ref \}\}\n  cancel-in-progress: true$/m
   );
   assert.match(workflow, /^permissions:\n(?:\s+#.*\n)*  contents: read$/m);
+  assert.match(workflow, /run: node scripts\/check-deploy-docs\.mjs/);
   assert.match(workflow, /run: node scripts\/check-links\.js/);
+});
+
+test("docs-links workflow validates deployment documentation alongside link check", () => {
+  assert.match(
+    workflow,
+    /- name: Validate deployment documentation\s*\n\s*run: node scripts\/check-deploy-docs\.mjs/
+  );
 });

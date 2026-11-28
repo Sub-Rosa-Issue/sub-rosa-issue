@@ -83,6 +83,8 @@
     "snapshot:check": "node scripts/check-snapshots.mjs",
     "docs:check": "node scripts/check-deploy-docs.mjs",
     "docs:check-links": "node scripts/check-links.js",
+    "fonts:check": "node scripts/check-font-assets.mjs",
+    "fonts:test": "node --test scripts/check-font-assets.test.mjs",
     "coverage:test": "node --test scripts/check-rust-audit.test.mjs && node scripts/check-rust-audit.mjs && node --test scripts/run-ts-coverage.test.mjs && node scripts/run-ts-coverage.mjs",
     "rust:audit:check": "node scripts/check-rust-audit.mjs",
     "rust:audit:test": "node --test scripts/check-rust-audit.test.mjs",
