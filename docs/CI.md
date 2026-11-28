@@ -257,3 +257,7 @@ pnpm ci:rust-toolchain:check
 
 Checker source: `scripts/check-rust-toolchain.mjs` (tests in
 `scripts/check-rust-toolchain.test.mjs`).
+
+## Web test discovery
+
+`pnpm --filter @sub-rosa/web test` discovers `*.test.ts` and `*.test.tsx` files in the web workspace in path order. Files that use `mock.module()` run in separate Node processes with module mocking enabled. New web tests do not require a package script change.
