@@ -39,6 +39,22 @@ Host `dist/` on Vercel, Netlify, Cloudflare Pages, GitHub Pages, S3, etc.
 | Output directory | `apps/web/dist` |
 | Node | 22+ |
 
+### Production source maps
+
+Production builds omit source maps by default. Setting
+`WEB_BUILD_SOURCEMAP=true` (or `hidden`) makes Vite write `.map` files into
+`apps/web/dist` without adding `sourceMappingURL` comments to the JavaScript.
+`hidden` does not make those files private: the generic deploy above publishes
+the whole `dist/` directory, including any maps that remain there.
+
+The repository does not configure a private source-map uploader or a deploy
+exclusion rule. If you opt in for debugging, configure your deployment
+pipeline to upload `apps/web/dist/**/*.map` to your organization's private
+error-monitoring/source-map store, then remove those `.map` files from
+`apps/web/dist` before publishing that directory. Verify the public artifact
+contains no `.map` files. Do not enable the opt-in on a public deployment unless
+that private-upload and removal step is in place.
+
 ---
 
 ## 2. Jury UI — optional live contract poll

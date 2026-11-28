@@ -10,7 +10,7 @@ test("production build disables public source maps by default", () => {
   assert.equal(resolveBuildSourcemap("production", { WEB_BUILD_SOURCEMAP: "false" }), false);
 });
 
-test("production build allows explicit opt-in source maps for controlled debugging", () => {
+test("production build allows explicitly hidden source maps", () => {
   assert.equal(resolveBuildSourcemap("production", { WEB_BUILD_SOURCEMAP: "true" }), "hidden");
   assert.equal(resolveBuildSourcemap("production", { WEB_BUILD_SOURCEMAP: "1" }), "hidden");
   assert.equal(resolveBuildSourcemap("production", { WEB_BUILD_SOURCEMAP: "hidden" }), "hidden");
