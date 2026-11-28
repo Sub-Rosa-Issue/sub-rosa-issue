@@ -55,15 +55,73 @@ describe("configFromEnv valid configurations", () => {
     });
   });
 
-  test("parses and normalizes trusted proxy socket addresses", () => {
-    assert.deepEqual(
-      configFromEnv({ ...MINIMAL_ENV, TRUSTED_PROXY_IPS: "127.0.0.1, ::ffff:127.0.0.1, 2001:db8::1" }).trustedProxyIps,
-      ["127.0.0.1", "2001:db8::1"],
+  test("normalizes and validates explicitly trusted proxy addresses", () => {
+    const config = configFromEnv({
+      ...MINIMAL_ENV,
+      TRUSTED_PROXY_IPS: "127.0.0.1, ::ffff:127.0.0.1, 2001:db8::1",
+    });
+    assert.deepEqual(config.trustedProxyIps, ["127.0.0.1", "2001:db8::1"]);
+    assertConfigError({ ...MINIMAL_ENV, TRUSTED_PROXY_IPS: "invalid" }, "TRUSTED_PROXY_IPS");
+  });
+
+  test("accepts explicit testnet overrides", () => {
+    const config = configFromEnv({
+      ...MINIMAL_ENV,
+      X402_NETWORK: STELLAR_TESTNET_CAIP2,
+      NETWORK_PASSPHRASE: Networks.TESTNET,
+      RPC_URL: "https://rpc.example.com/",
+      PAYMENT_ASSET: USDC_TESTNET_ADDRESS,
+      PRICE: "0.25",
+      PORT: "8080",
+    });
+
+    assert.equal(config.rpcUrl, "https://rpc.example.com");
+    assert.equal(config.price, 0.25);
+    assert.equal(config.port, 8080);
+  });
+
+  test("uses pubnet USDC when pubnet and its RPC are configured", () => {
+    const config = configFromEnv({
+      ...MINIMAL_ENV,
+      X402_NETWORK: STELLAR_PUBNET_CAIP2,
+      NETWORK_PASSPHRASE: Networks.PUBLIC,
+      RPC_URL: "https://rpc.example.com",
+    });
+
+    assert.equal(config.network, STELLAR_PUBNET_CAIP2);
+    assert.equal(config.networkPassphrase, Networks.PUBLIC);
+    assert.equal(config.asset, USDC_PUBNET_ADDRESS);
+  });
+
+  test("accepts valid HTTP RPC URL control case", () => {
+    const config = configFromEnv({
+      ...MINIMAL_ENV,
+      RPC_URL: "http://localhost:8000/rpc",
+    });
+
+    assert.equal(config.rpcUrl, "http://localhost:8000/rpc");
+  });
+});
+
+describe("configFromEnv failure modes", () => {
+  test("names missing required variables", () => {
+    assertConfigError({ PAY_TO: payee.publicKey() }, "FACILITATOR_SECRET");
+    assertConfigError(
+      { FACILITATOR_SECRET: facilitator.secret() },
+      "PAY_TO",
     );
   });
 
-  test("rejects non-IP trusted proxy values", () => {
-    assertConfigError({ ...MINIMAL_ENV, TRUSTED_PROXY_IPS: "invalid" }, "TRUSTED_PROXY_IPS");
+  test("rejects malformed PRICE values", () => {
+    for (const price of ["abc", "NaN", "Infinity", "0", "-1"]) {
+      assertConfigError({ ...MINIMAL_ENV, PRICE: price }, "PRICE");
+    }
+  });
+
+  test("rejects invalid PORT values", () => {
+    for (const port of ["abc", "1.5", "0", "65536"]) {
+      assertConfigError({ ...MINIMAL_ENV, PORT: port }, "PORT");
+    }
   });
 
   test("rejects unsupported networks", () => {
