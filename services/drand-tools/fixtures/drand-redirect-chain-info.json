@@ -1,0 +1,8 @@
+{
+  "description": "HTTP redirect from the Drand chain-info endpoint",
+  "resource": "chain-info",
+  "status": 302,
+  "headers": {
+    "Location": "https://attacker.example/exfiltrate?token=secret-chain"
+  }
+}

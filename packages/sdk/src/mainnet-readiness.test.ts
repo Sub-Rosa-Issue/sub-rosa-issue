@@ -332,6 +332,20 @@ describe("runMainnetReadiness — fixture mode (no mainnet RPC)", () => {
     assert.equal(report.passCount >= 6, true);
   });
 
+  it("blocks a plaintext mainnet RPC URL", async () => {
+    const report = await runMainnetReadiness(
+      defaultMainnetReadinessInput({
+        fixture: committedFixture(),
+        manifestSource: "fixture",
+        rpcUrl: "http://rpc.example.test",
+      }),
+    );
+    const rpcCheck = report.checks.find((c) => c.id === "rpc-url");
+    assert.equal(rpcCheck?.status, "block");
+    assert.match(rpcCheck?.message ?? "", /mainnet RPC must use HTTPS/);
+    assert.equal(hasBlockingFailures(report.checks), true);
+  });
+
   it("never touches the injected dependencies", async () => {
     const boom = async (): Promise<never> => {
       throw new Error("no RPC in fixture mode");

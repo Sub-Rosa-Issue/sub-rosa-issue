@@ -33,6 +33,17 @@ const client = new SubRosaClient({
 });
 ```
 
+`rpcUrl` must be `https://`. A plain `http://` URL is rejected with
+`SubRosaClientConfigError` unless `allowHttp: true` is passed explicitly, and
+that opt-in only applies off mainnet: when `networkPassphrase` is
+`Public Global Stellar Network ; September 2015`, the client requires HTTPS
+even if `allowHttp` is set and even for a loopback host. Mainnet socket traffic
+carries signed envelopes, so there is no local node that could legitimately
+serve it in the clear. `direct RPC` submits, `getTransaction` polling, and the
+contract bindings all get the same `allowHttp` value, so no path can silently
+downgrade to plaintext. The mainnet readiness report also reports a `block`
+(not a warning) for a plaintext RPC URL.
+
 On the first contract call, the client asks the RPC for its actual network
 passphrase and confirms that `contractId` exists on that network. The result is
 cached for later calls. A mismatch throws `SubRosaNetworkMismatchError` before
@@ -92,3 +103,10 @@ pnpm mainnet:verify                                                 # settlement
 `--fixture` replays a recorded deployment through the same comparison with no
 mainnet RPC, so CI can prove each mismatch field fails and a matching recording
 passes.
+
+## Keeper status client
+
+`KeeperStatusClient` caps status response bodies at `MAX_STATUS_RESPONSE_BYTES`
+(`1048576` bytes / 1 MiB, configurable via `maxResponseBytes`) before JSON
+parsing, aborting oversized streams early and throwing
+`StatusResponseTooLargeError` while preserving the configured `timeoutMs`.

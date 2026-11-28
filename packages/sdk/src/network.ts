@@ -1,4 +1,4 @@
-import { Contract, rpc } from "@stellar/stellar-sdk";
+import { Contract, Networks, rpc } from "@stellar/stellar-sdk";
 import {
   SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
@@ -48,6 +48,82 @@ export function assertNoUrlCredentials(
   }
   if (parsed.username !== "" || parsed.password !== "") {
     throw new SubRosaClientConfigError(`${label}: must not contain credentials`);
+  }
+  return parsed;
+}
+
+/**
+ * Stellar mainnet passphrase. Traffic on this network must never be sent over
+ * plaintext HTTP: the RPC sees the signed envelopes and the Drand endpoint is
+ * what decides when a seal opens.
+ */
+export const MAINNET_NETWORK_PASSPHRASE = Networks.PUBLIC;
+
+/** True when `passphrase` is the Stellar mainnet passphrase (trimmed). */
+export function isMainnetPassphrase(passphrase: string): boolean {
+  return typeof passphrase === "string" && passphrase.trim() === Networks.PUBLIC;
+}
+
+/**
+ * True when `rawUrl` points at a loopback host (`localhost`, `127.0.0.0/8`,
+ * `::1`, `0.0.0.0`, or a `*.localhost` name). Loopback HTTP stays available for
+ * local development; remote plaintext endpoints do not.
+ */
+export function isLoopbackHost(rawUrl: string | URL): boolean {
+  let hostname: string;
+  if (rawUrl instanceof URL) {
+    hostname = rawUrl.hostname;
+  } else {
+    try {
+      hostname = new URL(rawUrl.trim()).hostname;
+    } catch {
+      return false;
+    }
+  }
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host === "::1" || host === "0.0.0.0") return true;
+  if (host.endsWith(".localhost")) return true;
+  return /^127(?:\.\d{1,3}){3}$/.test(host);
+}
+
+export interface EndpointTransportSecurityOptions {
+  /** Field name used in the error message. Default: "rpcUrl". */
+  label?: string;
+  /** Passphrase of the network the endpoint serves. */
+  networkPassphrase?: string;
+  /** Explicit opt-in to HTTP for local/testnet development. */
+  allowHttp?: boolean;
+}
+
+/**
+ * Validate an RPC (or other service) endpoint URL and its transport security.
+ *
+ * - HTTPS is always accepted.
+ * - On mainnet, HTTP is rejected outright — even with `allowHttp: true` and
+ *   even for loopback hosts — because there is no development node that could
+ *   legitimately serve mainnet state over plaintext.
+ * - Off mainnet, HTTP requires an explicit `allowHttp: true`.
+ *
+ * Credentials embedded in the URL are rejected before anything else so they can
+ * never be echoed back.
+ */
+export function assertEndpointTransportSecurity(
+  rawUrl: string,
+  options: EndpointTransportSecurityOptions = {},
+): URL {
+  const label = options.label ?? "rpcUrl";
+  const parsed = assertNoUrlCredentials(rawUrl, label);
+  if (parsed.protocol === "https:") return parsed;
+
+  if (isMainnetPassphrase(options.networkPassphrase ?? "")) {
+    throw new SubRosaClientConfigError(
+      `${label} must use https on mainnet; allowHttp only applies to local/testnet development`,
+    );
+  }
+  if (!options.allowHttp) {
+    throw new SubRosaClientConfigError(
+      `${label} must use https unless allowHttp is explicitly enabled`,
+    );
   }
   return parsed;
 }

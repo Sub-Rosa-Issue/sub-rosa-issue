@@ -16,6 +16,6 @@
     }
   },
   "scripts": {
-    "test": "node --test src/index.test.cjs src/errors.test.cjs"
+    "test": "node --test src/index.test.cjs src/errors.test.cjs src/truncate.test.cjs"
   }
 }

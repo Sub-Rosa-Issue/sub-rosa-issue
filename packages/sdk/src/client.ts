@@ -61,12 +61,13 @@ import {
 } from "./errors.js";
 import { normalizeRoundId, normalizeSorobanContractId } from "./ids.js";
 import {
-  assertNoUrlCredentials,
+  assertEndpointTransportSecurity,
   validateContractNetwork,
   validatePasskeySession,
   type PasskeySessionBinding,
 } from "./network.js";
 import {
+  resolveRequestTimeoutMs,
   resolveTimeContext,
   systemTime,
   type Clock,
@@ -106,6 +107,11 @@ export interface SubRosaClientConfig {
    * using an external submitter. Must be at least 100. Default: 1_500.
    */
   pollInterval?: number;
+  /**
+   * Timeout (ms) for each Soroban RPC request. Integer between 100 and 300_000.
+   * Default: the shared `DEFAULT_REQUEST_TIMEOUT_MS` (10_000).
+   */
+  rpcTimeoutMs?: number;
   /** Injectable wall clock and scheduler. Default: systemTime. */
   time?: PartialTimeContext;
   /**
@@ -204,6 +210,7 @@ export class SubRosaClient {
   readonly #submitter?: TransactionSubmitter;
   readonly #confirmTimeout: number;
   readonly #pollInterval: number;
+  readonly #rpcTimeoutMs: number;
   readonly #assetConfig?: import("./asset-config.js").AssetConfig;
   readonly #clock: Clock;
   readonly #scheduler: Scheduler;
@@ -213,13 +220,14 @@ export class SubRosaClient {
 
 
   constructor(config: SubRosaClientConfig) {
-    assertNoUrlCredentials(config.rpcUrl, "rpcUrl");
     const allowHttp = config.allowHttp ?? false;
-    if (/^http:\/\//i.test(config.rpcUrl) && !allowHttp) {
-      throw new SubRosaClientConfigError(
-        "rpcUrl must use https unless allowHttp is explicitly enabled",
-      );
-    }
+    // Mainnet never accepts plaintext HTTP: allowHttp is a local/testnet
+    // development escape hatch, so it cannot downgrade a mainnet endpoint.
+    assertEndpointTransportSecurity(config.rpcUrl, {
+      label: "rpcUrl",
+      networkPassphrase: config.networkPassphrase,
+      allowHttp,
+    });
 
     const confirmTimeout = config.confirmTimeout ?? 60_000;
     if (!Number.isFinite(confirmTimeout) || confirmTimeout < 1_000) {
@@ -232,6 +240,15 @@ export class SubRosaClient {
     if (!Number.isFinite(pollInterval) || pollInterval < 100) {
       throw new SubRosaClientConfigError(
         `pollInterval must be a finite number at least 100ms, got ${pollInterval}`,
+      );
+    }
+
+    let rpcTimeoutMs: number;
+    try {
+      rpcTimeoutMs = resolveRequestTimeoutMs(config.rpcTimeoutMs);
+    } catch (error) {
+      throw new SubRosaClientConfigError(
+        `rpcTimeoutMs: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
 
@@ -251,13 +268,14 @@ export class SubRosaClient {
     this.#submitter = config.submitter;
     this.#confirmTimeout = confirmTimeout;
     this.#pollInterval = pollInterval;
+    this.#rpcTimeoutMs = rpcTimeoutMs;
     this.#assetConfig = config.assetConfig;
 
     const time = resolveTimeContext(systemTime, config.time);
     this.#clock = time.clock;
     this.#scheduler = time.scheduler;
     this.#session = config.session;
-    this.#server = config._server ?? new rpc.Server(config.rpcUrl, { allowHttp });
+    this.#server = config._server ?? new rpc.Server(config.rpcUrl, { allowHttp, timeout: rpcTimeoutMs });
 
     if (config._sleep) this.#sleep = config._sleep;
     else this.#sleep = (ms) => this.#scheduler.sleep(ms);
@@ -393,7 +411,10 @@ export class SubRosaClient {
         { cause: e },
       );
     }
-    const server = new rpc.Server(this.#rpcUrl, { allowHttp: this.#allowHttp });
+    const server = new rpc.Server(this.#rpcUrl, {
+      allowHttp: this.#allowHttp,
+      timeout: this.#rpcTimeoutMs,
+    });
     const deadline = this.#clock.nowMs() + this.#confirmTimeout;
     let lastStatus = "NOT_FOUND";
     while (this.#clock.nowMs() < deadline) {

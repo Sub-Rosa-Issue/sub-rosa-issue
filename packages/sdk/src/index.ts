@@ -71,15 +71,20 @@ export {
   type ProveEscrowConservationOptions,
 } from "./conservation.js";
 export {
+  MAINNET_NETWORK_PASSPHRASE,
+  assertEndpointTransportSecurity,
   assertNoUrlCredentials,
   describeNetworkPassphraseMismatch,
   hasUrlCredentials,
+  isLoopbackHost,
+  isMainnetPassphrase,
   networkDisplayName,
   networkPassphrasesMatch,
   SubRosaNetworkPassphraseMismatchError,
   validateContractNetwork,
   validatePasskeySession,
   type ContractNetworkValidationConfig,
+  type EndpointTransportSecurityOptions,
   type NetworkValidationServer,
   type PasskeySessionBinding,
   type SessionBindingTarget,
@@ -165,6 +170,7 @@ export {
   type BidReceiptEntry,
   RECEIPT_VERSION,
 } from "./receipt.js";
+export { truncateStrings, truncateError, type TruncateOptions } from "./truncate.js";
 export {
   redactReceipt,
   type RedactOptions,
@@ -224,9 +230,13 @@ export {
 // Fetch client for the keeper status API.
 export {
   KeeperStatusClient,
+  MAX_STATUS_RESPONSE_BYTES,
   StatusApiError,
   StatusJsonParseError,
+  StatusRedirectError,
+  StatusResponseTooLargeError,
   KeeperStatusTimeoutError,
+  isHttpRedirectStatus,
   redactUrlUserinfo,
   type KeeperReadiness,
   type KeeperNotReadyReason,

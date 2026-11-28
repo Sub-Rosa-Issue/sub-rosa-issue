@@ -71,6 +71,14 @@ A `POST /appraise` body larger than 8192 bytes is rejected with **HTTP 413**
 `{ "error": "payload_too_large", "limitBytes": 8192 }` before the bytes are
 parsed as JSON, so the request never receives a 402 payment quote.
 
+`POST /appraise` requires `Content-Type: application/json`. A `charset`
+parameter is allowed only when it is UTF-8 (`application/json; charset=utf-8`).
+Any other media type, a non-UTF-8 charset, or a missing header is rejected with
+**HTTP 415** `{ "error": "unsupported_media_type", "expected": "application/json" }`
+and an `Accept-Post: application/json` header, before the body is read and
+before any payment quote is built. Clients using `createPaidFetch` must set the
+header themselves, as in the examples.
+
 All appraisal quote challenges (`402`), paid appraisal responses (`200`), and
 error responses include `Cache-Control: no-store`, `Pragma: no-cache`,
 `Expires: 0`, and `X-Content-Type-Options: nosniff` so intermediary caches
@@ -89,6 +97,7 @@ JSON next to the source so integrators can copy-paste them.
 | `src/fixtures/wrong-types.json`          | Arrays / strings where scalars expected | **400** — `itemRef must be a non-empty string` (first field checked) |
 | `src/fixtures/oversized-text.json`       | `itemRef` / `category` past the documented length caps | **400** — `itemRef must be at most 256 characters` (and `category` cap of 64) |
 | `src/fixtures/invalid-score-values.json` | Attribute scores of wrong JSON type | **400** — `attributes.<field> must be a number` |
+| `src/fixtures/unknown-fields.json`       | Extra top-level key (e.g. mistyped payment field) | **400** — `request contains unknown fields` |
 
 These are the **exact** payloads exercised by `src/appraisal-fixtures.test.ts`.
 The fixture names are exported from `src/fixtures/index.ts` for use in other
@@ -109,7 +118,15 @@ matching test.
 | `category` longer than 64 characters      | `category must be at most 64 characters` |
 | `attributes` present but not an object    | `attributes must be an object` |
 | Any score not a finite number (string, boolean, array, object, null, NaN, Infinity) | `attributes.<field> must be a number` |
+| Unknown top-level or attribute key        | `request contains unknown fields` |
 | Body is not a JSON object                 | `body must be a JSON object` |
+
+The request schema is **closed**: only the documented top-level keys
+(`itemRef`, `basePrice`, `category`, `attributes`) and attribute keys
+(`quality`, `demand`, `scarcity`, `risk`) are accepted. Unknown keys produce
+the stable `request contains unknown fields` message and never echo submitted
+values. Over HTTP, `AppraisalInputError` maps to **400**
+`{ "error": "Invalid appraisal request" }`.
 
 Numeric scores outside `0..100` are **clamped** rather than rejected: integrators
 may submit raw 0–100 survey data without coercing it first. NaN/Infinity *are*
@@ -130,9 +147,11 @@ pnpm appraisal:e2e     # x402 handshake + on-chain settlement
 
 ## Quote rate limit
 
-`POST /appraise` checks a quote-creation limiter after payment is verified and before `buildAppraisalQuote`. When the limiter refuses, the response is HTTP 429 `{ "error": "appraisal quote rate limit exceeded" }` with `retry-after`. No quote is returned and the authorized payment is not settled.
+`POST /appraise` checks a quote-creation limiter after payment is verified and before `buildAppraisalQuote`. When the limiter refuses, the response is HTTP 429 `{ "error": "appraisal quote rate limit exceeded" }` with `Retry-After` set to the remaining window rounded up to whole seconds (minimum 1). No quote is returned and the authorized payment is not settled.
 
-The default adapter is `createMemoryQuoteRateLimiter`: a fixed window of 30 quotes per 60 seconds per socket address, retaining at most 1,000 keys. It is for a single development process. Production should pass `quoteRateLimiter` on `buildAppraisalServer` with an implementation of `QuoteRateLimiter` backed by a shared store. The interface is `take(key, nowMs) -> { allowed, retryAfterMs }`.
+`X-Forwarded-For` is ignored by default. Set `TRUSTED_PROXY_IPS` to the comma-separated socket addresses of trusted gateways, or pass `trustedProxyIps` to `buildAppraisalServer`. The gateway must replace the header or append the real client address, which is the only forwarded value the service uses.
+
+The default adapter is `createMemoryQuoteRateLimiter`: a fixed window of 30 quotes per 60 seconds per client address, retaining at most 1,000 keys. It is for a single development process. Production should pass `quoteRateLimiter` on `buildAppraisalServer` with an implementation of `QuoteRateLimiter` backed by a shared store. The interface is `take(key, nowMs) -> { allowed, retryAfterMs }`.
 
 ## Determinism
 

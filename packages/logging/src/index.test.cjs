@@ -38,6 +38,81 @@ test('redacts URL credentials and query tokens in errors',()=>{
  const {logger,records}=capture();logger.error('failed',new Error('https://user:secret@rpc.example/?token=hidden'));
  const text=JSON.stringify(records);assert.ok(!text.includes('user:secret'));assert.ok(!text.includes('token=hidden'));
 });
+test('truncates oversized strings wherever log fields serialize', () => {
+  const records = [];
+  const logger = createLogger('test.component', {
+    clock: () => '2026-09-08T00:00:00.000Z',
+    sink: (line) => records.push(JSON.parse(line)),
+    maxFieldLength: 12,
+  });
+  logger.error('failed', 'a'.repeat(40), {
+    detail: 'b'.repeat(40),
+    list: ['c'.repeat(40)],
+    nested: { deep: 'd'.repeat(40) },
+  });
+  const record = records[0];
+  assert.equal(record.message, 'aaaaaaaaaaaa...');
+  assert.equal(record.context.detail, 'bbbbbbbbbbbb...');
+  assert.equal(record.context.list[0], 'cccccccccccc...');
+  assert.equal(record.context.nested.deep, 'dddddddddddd...');
+  assert.ok(!JSON.stringify(record).includes('ccccccccccccc'));
+});
+
+test('truncates structured nested errors without dropping their shape', () => {
+  const records = [];
+  const logger = createLogger('test.component', {
+    clock: () => '2026-09-08T00:00:00.000Z',
+    sink: (line) => records.push(JSON.parse(line)),
+    maxFieldLength: 10,
+  });
+  const cause = Object.assign(new Error('underlying provider failure'), { code: 'EPROVIDER', detail: 'z'.repeat(50) });
+  const error = Object.assign(new Error('wrapper failure from the upstream provider'), {
+    cause,
+    nested: { explanation: 'y'.repeat(50) },
+  });
+  assert.doesNotThrow(() => logger.error('failed', error));
+  const record = records[0];
+  assert.equal(record.message.message, 'wrapper fa...');
+  assert.equal(record.message.cause.message, 'underlying...');
+  assert.equal(record.message.cause.detail, 'zzzzzzzzzz...');
+  assert.equal(record.message.nested.explanation, 'yyyyyyyyyy...');
+  assert.equal(record.message.cause.code, 'EPROVIDER');
+});
+
+test('survives cyclic contexts and cyclic error causes while handling an application error', () => {
+  const records = [];
+  const logger = createLogger('test.component', {
+    clock: () => '2026-09-08T00:00:00.000Z',
+    sink: (line) => records.push(JSON.parse(line)),
+    maxFieldLength: 8,
+  });
+  const context = { name: 'request' };
+  context.self = context;
+  const error = new Error('application failure');
+  error.cause = error;
+  context.error = error;
+  error.context = context;
+  assert.doesNotThrow(() => logger.error('failed', 'application failure', context));
+  const record = records[0];
+  assert.equal(record.context.name, 'request');
+  assert.equal(record.context.self, '[Circular]');
+  assert.equal(record.context.error.message, 'applicat...');
+  assert.equal(record.context.error.cause, '[Circular]');
+  assert.equal(record.context.error.context, '[Circular]');
+});
+
+test('accepts a custom truncation marker', () => {
+  const records = [];
+  const logger = createLogger('test.component', {
+    clock: () => '2026-09-08T00:00:00.000Z',
+    sink: (line) => records.push(JSON.parse(line)),
+    maxFieldLength: 5,
+    truncatedSuffix: '[cut]',
+  });
+  logger.info('event', 'abcdefghij');
+  assert.equal(records[0].message, 'abcde[cut]');
+});
+
 test('hostile accessors, circular arrays, deep context and broken sinks do not throw',()=>{
  const {logger,records}=capture();const a=[];a.push(a);
  logger.info('event',undefined,{a,get token(){throw new Error('getter');},get safe(){throw new Error('getter');}});

@@ -169,6 +169,21 @@ describe("SubRosaClientConfig validation", () => {
     }
   });
 
+  it("rejects an rpcTimeoutMs outside the shared 100-300000 ms range", () => {
+    for (const rpcTimeoutMs of [0, 99, 1.5, Number.NaN, 300_001]) {
+      assert.throws(
+        () => new SubRosaClient({ ...BASE_CONFIG, rpcTimeoutMs }),
+        (e) => e instanceof SubRosaClientConfigError && /rpcTimeoutMs/.test(e.message),
+        String(rpcTimeoutMs),
+      );
+    }
+  });
+
+  it("accepts the default and an explicit rpcTimeoutMs", () => {
+    assert.doesNotThrow(() => new SubRosaClient(BASE_CONFIG));
+    assert.doesNotThrow(() => new SubRosaClient({ ...BASE_CONFIG, rpcTimeoutMs: 2_500 }));
+  });
+
   it("accepts confirmTimeout = 1000", () => {
     assert.doesNotThrow(
       () => new SubRosaClient({ ...BASE_CONFIG, confirmTimeout: 1000 }),
