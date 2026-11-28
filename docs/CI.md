@@ -104,6 +104,60 @@ The `TypeScript coverage` workflow runs `pnpm time:guard:test` followed by
 first-party code calls the clock or timer globals outside `@sub-rosa/time`.
 Both commands are blocking CI steps and can be run locally from the root.
 
+## Root lockfile policy
+
+`pnpm` is the only installer this workspace supports, and exactly one root
+lockfile may be tracked: the one owned by the package manager named in
+`package.json` `packageManager` (`pnpm@10.13.1` → `pnpm-lock.yaml`). A second
+root lockfile (`package-lock.json`, `yarn.lock`, `bun.lock`, `bun.lockb`)
+resolves a second dependency graph for the same commit, so CI, a contributor's
+machine and any publish step can install different trees.
+
+This policy is its own blocking job, `root-lockfile-policy`, in
+`.github/workflows/repo-guards.yml`. It reads the tracked file set with
+`git ls-files`, so an ignored lockfile on a laptop cannot fail CI and a
+force-added one cannot hide.
+
+### Run locally
+
+```bash
+pnpm lockfile:test   # unit tests for the checker
+pnpm lockfile:check  # audits the tracked root lockfile
+```
+
+Checker source: `scripts/check-root-lockfile.mjs` (tests in
+`scripts/check-root-lockfile.test.mjs`). `.gitignore` ignores npm, yarn and Bun
+lockfiles at the root; the job fails when one is tracked anyway, when no root
+lockfile is tracked, and when `packageManager` names an unsupported installer.
+
+## Editor auto-run task guard
+
+A tracked `.vscode/tasks.json` with `"runOn": "folderOpen"` makes opening the
+repository execute a task before anyone reads it. VS Code applies the same
+trigger to the task manifests of the folders listed by a multi-root workspace,
+so the guard scans every tracked `.vscode/tasks.json` — at the root or in a
+nested workspace folder — and every tracked `*.code-workspace` file.
+
+Both formats are JSONC, so the guard tokenizes each manifest instead of matching
+a single line: comments, trailing commas, and a trigger split across lines
+(`"runOn":` on one line, `"folderOpen"` on the next) are all detected. A
+manifest that cannot be tokenized is a finding: the guard fails closed rather
+than clearing a file it could not read.
+
+This is its own blocking job, `editor-auto-run-tasks`, in
+`.github/workflows/repo-guards.yml` — separate from the lockfile policy, so a
+failure names the policy that broke.
+
+### Run locally
+
+```bash
+pnpm vscode-tasks:test   # unit tests, including JSONC and nested fixtures
+pnpm vscode-tasks:check  # scans the tracked manifests in this repository
+```
+
+The guard prints the manifest path and line number only; it never resolves,
+executes or echoes a task command.
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for
