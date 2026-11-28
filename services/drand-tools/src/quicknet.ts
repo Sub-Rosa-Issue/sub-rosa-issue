@@ -9,14 +9,51 @@ export const DRAND_CHAIN_HASH_ENV = "DRAND_CHAIN_HASH";
 export const DRAND_API_URL_ENV = "DRAND_API_URL";
 export const DEFAULT_DRAND_API_URL = "https://api.drand.sh";
 export const CHAIN_HASH_REQUIRED_ERROR = "DRAND_CHAIN_HASH is required";
-export const CHAIN_HASH_INVALID_ERROR =
-  "DRAND_CHAIN_HASH must be a 64-character hex string";
+export const CHAIN_HASH_INVALID_ERROR = "DRAND_CHAIN_HASH must be a 64-character hex string";
 export const CHAIN_HASH_MISMATCH_ERROR = "drand chain hash mismatch";
 
 export interface DrandConfig {
   apiUrl: string;
   expectedChainHash: string;
 }
+
+export class DrandChainHashMismatchError extends Error {
+  readonly code = "DRAND_CHAIN_HASH_MISMATCH";
+  constructor() {
+    super(CHAIN_HASH_MISMATCH_ERROR);
+    this.name = "DrandChainHashMismatchError";
+  }
+}
+
+function checkedDrandConfig(config: DrandConfig): DrandConfig {
+  const expectedChainHash = config.expectedChainHash.trim().toLowerCase();
+  if (!expectedChainHash) throw new Error(CHAIN_HASH_REQUIRED_ERROR);
+  if (!/^[0-9a-f]{64}$/.test(expectedChainHash)) throw new Error(CHAIN_HASH_INVALID_ERROR);
+
+  let url: URL;
+  try {
+    url = new URL(config.apiUrl);
+  } catch {
+    throw new Error("Invalid DRAND_API_URL");
+  }
+  if (!["https:", "http:"].includes(url.protocol) ||
+      url.username || url.password || url.search || url.hash) {
+    throw new Error("Invalid DRAND_API_URL");
+  }
+  return { apiUrl: url.href.replace(/\/+$/, ""), expectedChainHash };
+}
+
+export function loadDrandConfig(
+  env: Record<string, string | undefined> = process.env,
+): DrandConfig {
+  return checkedDrandConfig({
+    apiUrl: env[DRAND_API_URL_ENV]?.trim() || DEFAULT_DRAND_API_URL,
+    expectedChainHash: env[DRAND_CHAIN_HASH_ENV] ?? "",
+  });
+}
+
+/** Stable error category for every HTTP 3xx / opaque redirect from Drand HTTP. */
+export const DRAND_HTTP_REDIRECT_CATEGORY = "http_redirect" as const;
 
 export interface ChainInfo {
   public_key: string; // compressed G2, hex (96 bytes)
@@ -32,67 +69,78 @@ export interface Beacon {
   signature: string; // compressed G1, hex (48 bytes)
 }
 
-export class DrandChainHashMismatchError extends Error {
-  readonly code = "DRAND_CHAIN_HASH_MISMATCH";
+/** True for HTTP 3xx statuses that would otherwise trigger a redirect. */
+export function isHttpRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400;
+}
 
-  constructor() {
-    super(CHAIN_HASH_MISMATCH_ERROR);
-    this.name = "DrandChainHashMismatchError";
+/**
+ * Raised when a Drand chain-info or beacon fetch receives a redirect instead of
+ * following it. The `Location` header value is never included in the message,
+ * on the error object, or in any diagnostic payload derived from it.
+ */
+export class DrandRedirectError extends Error {
+  readonly name = "DrandRedirectError";
+  /** One stable category for every 3xx / opaque redirect response. */
+  readonly category = DRAND_HTTP_REDIRECT_CATEGORY;
+  readonly status: number;
+  readonly resource: "chain-info" | "beacon";
+
+  constructor(resource: "chain-info" | "beacon", status: number) {
+    const label = status === 0 ? "opaque" : String(status);
+    super(`drand ${resource} request redirected (${label})`);
+    this.status = status;
+    this.resource = resource;
+  }
+
+  /** Build an error from a redirect response without echoing Location. */
+  static fromResponse(resource: "chain-info" | "beacon", res: Response): DrandRedirectError {
+    const status = res.type === "opaqueredirect" && res.status === 0 ? 0 : res.status;
+    return new DrandRedirectError(resource, status);
   }
 }
 
-function normalizeHash(value: string): string {
-  return value.trim().toLowerCase();
-}
+type FetchImpl = typeof fetch;
 
-function isChainHash(value: string): boolean {
-  return /^[0-9a-f]{64}$/.test(value);
-}
-
-export function loadDrandConfig(
-  env: Record<string, string | undefined> = process.env,
-): DrandConfig {
-  const rawHash = env[DRAND_CHAIN_HASH_ENV];
-  if (!rawHash || rawHash.trim() === "") {
-    throw new Error(CHAIN_HASH_REQUIRED_ERROR);
+async function fetchDrand(
+  url: string,
+  resource: "chain-info" | "beacon",
+  fetchImpl: FetchImpl = globalThis.fetch,
+): Promise<Response> {
+  // Never follow redirects: trust only the configured endpoint, not an
+  // intermediary-selected Location destination.
+  const res = await fetchImpl(url, { redirect: "manual" });
+  if (res.type === "opaqueredirect" || isHttpRedirectStatus(res.status)) {
+    throw DrandRedirectError.fromResponse(resource, res);
   }
-  const expectedChainHash = normalizeHash(rawHash);
-  if (!isChainHash(expectedChainHash)) {
-    throw new Error(CHAIN_HASH_INVALID_ERROR);
-  }
-  const apiUrl = env[DRAND_API_URL_ENV]?.trim() || DEFAULT_DRAND_API_URL;
-  return {
-    apiUrl: apiUrl.replace(/\/+$/, ""),
-    expectedChainHash,
-  };
-}
-
-export function assertChainHashMatches(
-  info: ChainInfo,
-  expectedChainHash: string,
-): void {
-  const actual = typeof info?.hash === "string" ? normalizeHash(info.hash) : "";
-  if (!isChainHash(actual) || actual !== normalizeHash(expectedChainHash)) {
-    throw new DrandChainHashMismatchError();
-  }
+  return res;
 }
 
 export async function getChainInfo(
+  fetchImpl?: FetchImpl,
   config: DrandConfig = loadDrandConfig(),
 ): Promise<ChainInfo> {
-  const res = await fetch(`${config.apiUrl}/${config.expectedChainHash}/info`);
+  const { apiUrl, expectedChainHash } = checkedDrandConfig(config);
+  const res = await fetchDrand(`${apiUrl}/${expectedChainHash}/info`, "chain-info", fetchImpl);
   if (!res.ok) throw new Error(`info HTTP ${res.status}`);
   const info = (await res.json()) as ChainInfo;
-  assertChainHashMatches(info, config.expectedChainHash);
+  if (typeof info?.hash !== "string" || info.hash.trim().toLowerCase() !== expectedChainHash) {
+    throw new DrandChainHashMismatchError();
+  }
   return info;
 }
 
 export async function getBeacon(
   round: number | "latest",
+  fetchImpl?: FetchImpl,
   config: DrandConfig = loadDrandConfig(),
 ): Promise<Beacon> {
-  const res = await fetch(
-    `${config.apiUrl}/${config.expectedChainHash}/public/${round}`,
+  const checked = checkedDrandConfig(config);
+  await getChainInfo(fetchImpl, checked);
+  const res = await fetchDrand(
+    `${checked.apiUrl}/${checked.expectedChainHash}/public/${round}`,
+    "beacon",
+    fetchImpl,
   );
   if (!res.ok) throw new Error(`beacon ${round} HTTP ${res.status}`);
   return (await res.json()) as Beacon;

@@ -12,7 +12,6 @@ import {
   DRAND_CHAIN_HASH_ENV,
   DrandChainHashMismatchError,
   getBeacon,
-  getChainInfo,
   loadDrandConfig,
   type Beacon,
   type ChainInfo,
@@ -91,11 +90,8 @@ function stubDrand(
   });
 }
 
-async function fetchRoundAfterChainCheck(): Promise<ChainInfo> {
-  const config = loadDrandConfig();
-  const info = await getChainInfo(config);
-  await getBeacon(fixture.round, config);
-  return info;
+function fetchCheckedBeacon(): Promise<Beacon> {
+  return getBeacon(fixture.round, undefined, loadDrandConfig());
 }
 
 test("matching chain-hash fixture is accepted before round data", async (t) => {
@@ -106,7 +102,7 @@ test("matching chain-hash fixture is accepted before round data", async (t) => {
   });
   stubDrand(t, chainInfo(), calls);
 
-  assert.deepEqual(await fetchRoundAfterChainCheck(), chainInfo());
+  assert.deepEqual(await fetchCheckedBeacon(), beacon());
   assert.deepEqual(calls, [
     `${API_BASE}/${fixture.chain_hash}/info`,
     `${API_BASE}/${fixture.chain_hash}/public/${fixture.round}`,
@@ -122,7 +118,7 @@ test("mismatching chain-hash fixture rejects before round data", async (t) => {
   stubDrand(t, chainInfo(MISMATCHED_HASH), calls);
 
   await assert.rejects(
-    fetchRoundAfterChainCheck(),
+    fetchCheckedBeacon(),
     (err: unknown) => {
       assert.ok(err instanceof DrandChainHashMismatchError);
       assert.equal(err.code, "DRAND_CHAIN_HASH_MISMATCH");
@@ -143,7 +139,7 @@ test("missing configured chain hash fails before any fetch", async (t) => {
   });
   stubDrand(t, chainInfo(), calls);
 
-  await assert.rejects(fetchRoundAfterChainCheck(), {
+  await assert.rejects(fetchCheckedBeacon(), {
     message: CHAIN_HASH_REQUIRED_ERROR,
   });
   assert.deepEqual(calls, []);
@@ -157,7 +153,7 @@ test("malformed configured chain hash fails before any fetch", async (t) => {
   });
   stubDrand(t, chainInfo(), calls);
 
-  await assert.rejects(fetchRoundAfterChainCheck(), {
+  await assert.rejects(fetchCheckedBeacon(), {
     message: CHAIN_HASH_INVALID_ERROR,
   });
   assert.deepEqual(calls, []);

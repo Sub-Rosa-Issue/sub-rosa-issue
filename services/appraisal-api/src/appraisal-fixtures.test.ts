@@ -22,6 +22,7 @@ import {
   invalidScoreValues,
   missingFields,
   oversizedText,
+  unknownFields,
   validRequest,
   validResponse,
   wrongTypes,
@@ -51,6 +52,7 @@ describe("appraisal schema fixtures load", () => {
       wrongTypes,
       oversizedText,
       invalidScoreValues,
+      unknownFields,
     ]) {
       assert.equal(typeof f.value, "object");
       assert.ok(f.value !== null, `fixture ${f.description} must be an object`);
@@ -241,5 +243,29 @@ describe("invalid score values fixture — full cascade", () => {
     });
     assert.equal(req.attributes?.quality, 0);
     assert.equal(req.attributes?.demand, 100);
+  });
+});
+
+describe("unknown fields fixture", () => {
+  test("rejects with a stable message that does not echo submitted values", () => {
+    const amount = (unknownFields.value as { amount: string }).amount;
+    const err = captureError(() => parseAppraisalRequest(unknownFields.value));
+    assert.ok(err instanceof AppraisalInputError);
+    assert.equal(err.message, "request contains unknown fields");
+    assert.equal(err.message.includes(amount), false);
+  });
+
+  test("unknown attribute keys use the same stable message", () => {
+    const leaked = "SHOULD-NOT-APPEAR";
+    const err = captureError(() =>
+      parseAppraisalRequest({
+        itemRef: "ok",
+        basePrice: 100,
+        attributes: { quality: 50, payTo: leaked },
+      }),
+    );
+    assert.ok(err instanceof AppraisalInputError);
+    assert.equal(err.message, "request contains unknown fields");
+    assert.equal(err.message.includes(leaked), false);
   });
 });
