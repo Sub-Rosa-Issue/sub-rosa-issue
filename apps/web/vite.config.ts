@@ -3,12 +3,21 @@ import react from "@vitejs/plugin-react";
 import inject from "@rollup/plugin-inject";
 import { createRequire } from "node:module";
 import { defineConfig } from "vite";
-
-import { SECURITY_HEADERS } from "./src/lib/security-headers";
+import { WEB_SECURITY_HEADERS } from "./src/lib/security-headers";
 
 const require = createRequire(import.meta.url);
 
-export default defineConfig({
+export function resolveBuildSourcemap(
+  command: "build" | "serve",
+  _mode: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean | "hidden" {
+  if (command !== "build") return true;
+  const value = env.WEB_BUILD_SOURCEMAP?.trim().toLowerCase();
+  return value === "true" || value === "1" || value === "hidden" ? "hidden" : false;
+}
+
+export default defineConfig(({ command, mode }) => ({
   plugins: [
     react(),
     {
@@ -37,14 +46,15 @@ export default defineConfig({
   optimizeDeps: {
     include: ["buffer", "crypto-browserify", "stream-browserify", "process/browser", "events"],
   },
+  build: {
+    sourcemap: resolveBuildSourcemap(command, mode),
+  },
+  preview: { headers: WEB_SECURITY_HEADERS },
   server: {
-    headers: SECURITY_HEADERS,
+    headers: WEB_SECURITY_HEADERS,
     port: 5173,
     fs: {
       allow: ["..", "../..", "../../..", "../../../.."],
     },
   },
-  preview: {
-    headers: SECURITY_HEADERS,
-  },
-});
+}));

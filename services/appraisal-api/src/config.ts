@@ -1,3 +1,4 @@
+import { normalizeClientIp } from "./quote-rate-limit.js";
 // Copyright (c) 2026 Sub Rosa contributors
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import {
@@ -38,6 +39,8 @@ export interface AppraisalServerConfig {
   rpcUrl: string;
   /** HTTP port. */
   port: number;
+  /** Trust `X-Forwarded-For` when identifying clients for rate limiting. Defaults to false. */
+  trustedProxyIps?: string[];
 }
 
 type AppraisalNetwork =
@@ -100,6 +103,15 @@ function parsePort(value: string | undefined): number {
     );
   }
   return port;
+}
+
+function parseTrustedProxyIps(value: string | undefined): string[] {
+  if (!value) return [];
+  const peers = value.split(",").map(normalizeClientIp);
+  if (peers.some((peer) => !peer)) {
+    throw new AppraisalConfigError("TRUSTED_PROXY_IPS", "must contain only comma-separated IP addresses");
+  }
+  return [...new Set(peers)];
 }
 
 function parseRpcUrl(
@@ -199,5 +211,6 @@ export function configFromEnv(
     networkPassphrase: expectedPassphrase,
     rpcUrl: parseRpcUrl(optionalEnv(env, "RPC_URL"), network),
     port: parsePort(optionalEnv(env, "PORT")),
+    trustedProxyIps: parseTrustedProxyIps(optionalEnv(env, "TRUSTED_PROXY_IPS")),
   };
 }

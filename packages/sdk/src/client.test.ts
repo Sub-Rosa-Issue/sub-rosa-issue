@@ -159,6 +159,19 @@ describe("SubRosaClient network configuration", () => {
     );
   });
 
+  it("rejects an HTTP RPC URL on mainnet even when allowHttp is enabled", () => {
+    assertConfigError(
+      () =>
+        new SubRosaClient({
+          ...BASE_CONFIG,
+          rpcUrl: "http://localhost:8000",
+          networkPassphrase: "Public Global Stellar Network ; September 2015",
+          allowHttp: true,
+        }),
+      /rpcUrl must use https on mainnet/,
+    );
+  });
+
   it("rejects a mismatched RPC before building a contract call", async () => {
     let contractCalls = 0;
     const client = new SubRosaClient({

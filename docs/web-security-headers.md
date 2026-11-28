@@ -1,32 +1,11 @@
-<!-- SPDX-License-Identifier: MIT -->
+# Auction web security headers
 
-# Web app security headers
+The auction web app sends `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and a `Content-Security-Policy` with `frame-ancestors 'none'`.
 
-The auction interface must not be framed by another origin (clickjacking) and
-must not be served with MIME sniffing enabled. Every response from the web app
-carries:
+Vercel reads [vercel.json](../apps/web/vercel.json) when the project Root Directory is set to `apps/web`. Netlify and Cloudflare Pages use [_headers](../apps/web/public/_headers), copied into the build output by Vite. Other hosts must configure the same headers on their CDN or web server. Vite dev and preview use the same values.
 
-| Header | Value | Why |
-| --- | --- | --- |
-| `Content-Security-Policy` | `frame-ancestors 'none'` | No origin may embed the app in a frame |
-| `X-Frame-Options` | `DENY` | The same denial for browsers that ignore `frame-ancestors` |
-| `X-Content-Type-Options` | `nosniff` | The browser must trust the declared content type |
+After deployment, inspect the response headers on the deployed HTML route.
 
-## Where they are configured
-
-- `apps/web/src/lib/security-headers.ts` is the single source of truth (the
-  `SECURITY_HEADERS` constant).
-- `apps/web/vite.config.ts` sends them from the Vite dev server (`server.headers`)
-  and the preview server (`preview.headers`).
-- `apps/web/public/_headers` ships with the build output (`dist/_headers`) and is
-  read by Netlify and Cloudflare Pages.
-
-Hosts that do not read `_headers` (nginx, Caddy, S3 or CloudFront, Vercel) need
-the same three headers set in their own configuration; copy them from the table
-above. A CDN or proxy in front of the app must not strip or override them.
-
-## Keeping them in step
-
-`apps/web/src/lib/security-headers.test.ts` fails when `public/_headers` no longer
-matches `SECURITY_HEADERS`, when the Vite config stops using it, or when this page
-stops naming the files above. Run it with `pnpm --filter @sub-rosa/web test`.
+- [Vercel project configuration](https://vercel.com/docs/project-configuration)
+- [Cloudflare Pages headers](https://developers.cloudflare.com/pages/configuration/headers/)
+- [Netlify headers](https://docs.netlify.com/manage/routing/headers/)

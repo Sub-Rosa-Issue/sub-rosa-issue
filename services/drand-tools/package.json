@@ -11,10 +11,11 @@
   },
   "scripts": {
     "validate": "tsx src/index.ts",
-    "test": "node --import tsx --test src/encode.test.ts src/parity.test.ts src/quicknet.test.ts",
+    "test": "node --import tsx --test src/encode.test.ts src/parity.test.ts src/quicknet.test.ts src/chain-hash.test.ts src/transport.test.ts src/media-type.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@sub-rosa/time": "workspace:*",
     "@sub-rosa/logging": "workspace:*",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0"

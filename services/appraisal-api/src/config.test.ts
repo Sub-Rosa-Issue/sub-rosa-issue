@@ -51,7 +51,17 @@ describe("configFromEnv valid configurations", () => {
       networkPassphrase: Networks.TESTNET,
       rpcUrl: DEFAULT_TESTNET_RPC_URL,
       port: 4021,
+      trustedProxyIps: [],
     });
+  });
+
+  test("normalizes and validates explicitly trusted proxy addresses", () => {
+    const config = configFromEnv({
+      ...MINIMAL_ENV,
+      TRUSTED_PROXY_IPS: "127.0.0.1, ::ffff:127.0.0.1, 2001:db8::1",
+    });
+    assert.deepEqual(config.trustedProxyIps, ["127.0.0.1", "2001:db8::1"]);
+    assertConfigError({ ...MINIMAL_ENV, TRUSTED_PROXY_IPS: "invalid" }, "TRUSTED_PROXY_IPS");
   });
 
   test("accepts explicit testnet overrides", () => {

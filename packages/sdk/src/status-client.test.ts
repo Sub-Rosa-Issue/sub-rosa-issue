@@ -1,14 +1,35 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 import {
   KeeperStatusClient,
+  KeeperStatusTimeoutError,
+  MAX_STATUS_RESPONSE_BYTES,
   StatusApiError,
   StatusJsonParseError,
+  StatusRedirectError,
+  StatusResponseTooLargeError,
   type StatusClientOptions,
 } from "./status-client.js";
 import { createFakeTime } from "@sub-rosa/time";
 import type { KeeperStatusResponse } from "./status.js";
+
+const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
+
+interface RedirectFixture {
+  description: string;
+  requestUrl: string;
+  status: number;
+  headers: { Location: string };
+  sameOrigin: boolean;
+}
+
+function loadRedirectFixture(name: string): RedirectFixture {
+  return JSON.parse(readFileSync(join(FIXTURES_DIR, name), "utf8")) as RedirectFixture;
+}
 
 const SAMPLE_STATUS: KeeperStatusResponse = {
   contractId: "C123",
@@ -74,6 +95,87 @@ describe("KeeperStatusClient successful JSON parsing", () => {
       },
     );
   });
+
+  it("accepts an exact-limit status response", async () => {
+    const json = JSON.stringify(SAMPLE_STATUS);
+    const exactBytes = Buffer.byteLength(json, "utf-8");
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      maxResponseBytes: exactBytes,
+      fetchImpl: mockFetch(json),
+    });
+    const status = await client.getStatus();
+    assert.deepEqual(status, SAMPLE_STATUS);
+  });
+
+  it("stops reading over-limit streaming responses and returns StatusResponseTooLargeError", async () => {
+    let chunksPulled = 0;
+    const limit = 128;
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      maxResponseBytes: limit,
+      fetchImpl: async () => {
+        const stream = new ReadableStream<Uint8Array>(
+          {
+            pull(controller) {
+              chunksPulled += 1;
+              controller.enqueue(new Uint8Array(64).fill(0x20));
+            },
+          },
+          new CountQueuingStrategy({ highWaterMark: 0 }),
+        );
+        return new Response(stream, { status: 200 });
+      },
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusResponseTooLargeError);
+        assert.equal(error.status, 200);
+        assert.equal(error.limitBytes, limit);
+        return true;
+      },
+    );
+    // 64 + 64 + 64 = 192 > 128: stops immediately on the 3rd chunk without buffering further.
+    assert.equal(chunksPulled, 3);
+  });
+
+  it("rejects over-limit non-2xx responses with StatusResponseTooLargeError", async () => {
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      maxResponseBytes: 32,
+      fetchImpl: mockFetch(JSON.stringify({ error: "x".repeat(64) }), 503),
+    });
+    await assert.rejects(
+      () => client.getHealth(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusResponseTooLargeError);
+        assert.equal(error.status, 503);
+        assert.equal(error.limitBytes, 32);
+        return true;
+      },
+    );
+  });
+
+  it("preserves timeout behavior when a streaming body stalls", async () => {
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      timeoutMs: 10,
+      maxResponseBytes: MAX_STATUS_RESPONSE_BYTES,
+      fetchImpl: async () => {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(16).fill(0x7b));
+          },
+        });
+        return new Response(stream, { status: 200 });
+      },
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => error instanceof KeeperStatusTimeoutError,
+    );
+  });
 });
 
 describe("KeeperStatusClient non-success responses", () => {
@@ -107,6 +209,95 @@ describe("KeeperStatusClient non-success responses", () => {
         return true;
       },
     );
+  });
+});
+
+describe("KeeperStatusClient redirects", () => {
+  it("disables automatic redirects on every status request", async () => {
+    let seenRedirect: RequestRedirect | undefined;
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      fetchImpl: async (_url, init) => {
+        seenRedirect = init?.redirect;
+        return new Response(JSON.stringify(SAMPLE_STATUS), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    await client.getStatus();
+    assert.equal(seenRedirect, "manual");
+  });
+
+  it("rejects same-origin redirect fixtures with a typed error and redacts Location", async () => {
+    const fixture = loadRedirectFixture("status-redirect-same-origin.json");
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      fetchImpl: async () =>
+        new Response("", {
+          status: fixture.status,
+          headers: fixture.headers,
+        }),
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusRedirectError);
+        assert.equal(error.status, fixture.status);
+        assert.equal(error.sameOrigin, true);
+        assert.equal(error.sameOrigin, fixture.sameOrigin);
+        assert.ok(!error.message.includes(fixture.headers.Location));
+        assert.ok(!JSON.stringify(error).includes(fixture.headers.Location));
+        assert.match(error.message, /refused redirect/i);
+        return true;
+      },
+    );
+  });
+
+  it("rejects cross-origin redirect fixtures with a typed error and redacts Location", async () => {
+    const fixture = loadRedirectFixture("status-redirect-cross-origin.json");
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      fetchImpl: async () =>
+        new Response("", {
+          status: fixture.status,
+          headers: fixture.headers,
+        }),
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusRedirectError);
+        assert.equal(error.status, fixture.status);
+        assert.equal(error.sameOrigin, false);
+        assert.equal(error.sameOrigin, fixture.sameOrigin);
+        assert.ok(!error.message.includes(fixture.headers.Location));
+        assert.ok(!error.message.includes("attacker.example"));
+        assert.ok(!error.message.includes("secret"));
+        assert.ok(!JSON.stringify(error).includes("attacker.example"));
+        return true;
+      },
+    );
+  });
+
+  it("treats redirect failures as not-ready without leaking Location", async () => {
+    const fixture = loadRedirectFixture("status-redirect-cross-origin.json");
+    const time = createFakeTime(1_700_000_000_000);
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      timeoutMs: 5_000,
+      scheduler: time.scheduler,
+      fetchImpl: async () =>
+        new Response("", {
+          status: fixture.status,
+          headers: fixture.headers,
+        }),
+    });
+    const verdict = await client.readiness();
+    assert.equal(verdict.ready, false);
+    assert.equal(verdict.ready === false && verdict.reason, "unavailable");
+    assert.ok(verdict.ready === false && !verdict.error.includes(fixture.headers.Location));
+    assert.ok(verdict.ready === false && !verdict.error.includes("attacker.example"));
   });
 });
 

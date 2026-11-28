@@ -11,7 +11,7 @@ import { x402Client, x402HTTPClient } from "@x402/core/client";
 import type { Network, PaymentRequired, SettleResponse } from "@x402/core/types";
 import { createEd25519Signer } from "@x402/stellar";
 import { ExactStellarScheme as ClientStellarScheme } from "@x402/stellar/exact/client";
-import { systemClock } from "@sub-rosa/time";
+import { fetchWithTimeout, systemClock } from "@sub-rosa/time";
 
 import {
   assertAppraisalBodyBytes,
@@ -26,6 +26,12 @@ export interface PaidClientConfig {
   network?: Network;
   /** Optional custom Soroban RPC URL. */
   rpcUrl?: string;
+  /**
+   * Timeout (ms) applied to each HTTP request the client makes (the probe and
+   * the paid retry). Integer between 100 and 300_000. Default: the shared
+   * `DEFAULT_REQUEST_TIMEOUT_MS` (10_000).
+   */
+  requestTimeoutMs?: number;
   /**
    * Expected payment quote. When set, the 402 offer is validated before any
    * signed payment is built: asset/destination must match, amount must be
@@ -509,7 +515,7 @@ export function createPaidFetch(config: PaidClientConfig) {
     // oversized / credential-like bodies still fail here with no payment.
     assertPaidRequestBodyAllowed(init, { requireBody: false });
 
-    const first = await fetch(url, init);
+    const first = await fetchWithTimeout(url, init, { timeoutMs: config.requestTimeoutMs });
     if (first.status !== 402) {
       return { status: first.status, body: await parseJsonResponse<T>(first) };
     }
@@ -562,10 +568,14 @@ export function createPaidFetch(config: PaidClientConfig) {
     const payload = await http.createPaymentPayload(paymentRequired);
     const payHeaders = http.encodePaymentSignatureHeader(payload);
 
-    const paid = await fetch(url, {
-      ...init,
-      headers: { ...(init.headers ?? {}), ...payHeaders },
-    });
+    const paid = await fetchWithTimeout(
+      url,
+      {
+        ...init,
+        headers: { ...(init.headers ?? {}), ...payHeaders },
+      },
+      { timeoutMs: config.requestTimeoutMs },
+    );
     const body = await parseJsonResponse<T>(paid);
 
     if (paid.status !== 200) {
