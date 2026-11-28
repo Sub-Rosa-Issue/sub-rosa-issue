@@ -75,6 +75,27 @@ The `TypeScript coverage` workflow runs `pnpm time:guard:test` followed by
 first-party code calls the clock or timer globals outside `@sub-rosa/time`.
 Both commands are blocking CI steps and can be run locally from the root.
 
+## Production dependency audit
+
+Production JavaScript dependencies are audited in the TypeScript coverage
+workflow (`.github/workflows/coverage.yml`) via `scripts/audit-prod-deps.mjs`
+(`pnpm audit --prod --audit-level=high --json`):
+
+- **Severity threshold:** `high` and `critical` advisories in production
+  dependencies block by default (override with `--audit-level <level>` or
+  `PNPM_AUDIT_LEVEL`).
+- **Exception process:** Temporary exceptions for unpatched transitive
+  advisories must be recorded in `audit-exceptions.json` with `id`, `package`,
+  `reason`, `expiresOn` (`YYYY-MM-DD`), and `trackingIssue`. Expired or
+  incomplete exceptions fail the check automatically.
+
+Run locally with:
+
+```bash
+pnpm audit:prod:test
+pnpm audit:prod
+```
+
 ## Test coverage gate
 
 The repository enforces a minimum **aggregate line coverage** threshold for

@@ -1,0 +1,180 @@
+{
+  "$schema_comment": "Time-boxed exceptions for production pnpm audit (Issue #529). Each entry needs id, package, reason, expiresOn (YYYY-MM-DD), and trackingIssue.",
+  "exceptions": [
+    {
+      "id": "GHSA-pmwg-cvhr-8vh7",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-pf86-5x62-jrwf",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-6chq-wfr3-2hj9",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-q8qp-cvcw-x6jj",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-hfxv-24rg-xrqf",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-777c-7fjr-54vf",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-p92q-9vqr-4j8v",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-j5f8-grm9-p9fc",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-3g43-6gmg-66jw",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-35jp-ww65-95wh",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-hmw2-7cc7-3qxx",
+      "package": "form-data",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace form-data before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-pjwm-pj3p-43mv",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-82x6-q7mm-w9cf",
+      "package": "toml",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace toml before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-v5mp-jgw5-2x6j",
+      "package": "toml",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace toml before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-mghh-pgcx-3jjj",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-3pq3-5fj3-cg6v",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-542g-h47m-68v8",
+      "package": "axios",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace axios before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-q3jh-wrc6-jgq8",
+      "package": "follow-redirects",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace follow-redirects before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-8r9p-f939-6h3c",
+      "package": "follow-redirects",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace follow-redirects before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-4qx8-w7c3-pj3p",
+      "package": "toml",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace toml before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-9j65-hcg3-gc64",
+      "package": "toml",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace toml before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-9qmh-m7c6-f92p",
+      "package": "toml",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace toml before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace zod before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-mrwp-f3q8-3g9p",
+      "package": "follow-redirects",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace follow-redirects before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    },
+    {
+      "id": "GHSA-h895-cgqg-jf52",
+      "package": "toml",
+      "reason": "Baseline production advisory recorded when enabling the CI gate; upgrade or replace toml before expiry",
+      "expiresOn": "2027-02-24",
+      "trackingIssue": "#529"
+    }
+  ]
+}
