@@ -54,11 +54,92 @@ export interface FetchWithTimeoutOptions {
 }
 
 /**
- * `fetch` bounded by a timeout. The timer covers connecting and receiving the
- * response headers; it aborts the request and rejects with
- * {@link RequestTimeoutError}. A caller `init.signal` still cancels the request
- * and its own abort reason is preserved. The error never includes the URL,
- * which may carry credentials.
+ * Re-expose `response` with a body that keeps the deadline armed: the timer is
+ * released only once the body is fully read, cancelled or has failed. If the
+ * deadline (or the caller's signal) fires while a read is pending, that read
+ * rejects with the abort reason and the source stream is cancelled, so a peer
+ * that sends headers and then stalls cannot hold the caller forever.
+ */
+function bindBodyToDeadline(
+  response: Response,
+  signal: AbortSignal,
+  release: () => void,
+): Response {
+  if (!response.body) {
+    release();
+    return response;
+  }
+
+  const reader = response.body.getReader();
+  let released = false;
+  const finish = () => {
+    if (released) return;
+    released = true;
+    signal.removeEventListener("abort", onAbort);
+    release();
+  };
+
+  let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const onAbort = () => {
+    const reason = signal.reason;
+    reader.cancel(reason).catch(() => undefined);
+    try {
+      streamController?.error(reason);
+    } catch {
+      // The stream already closed or errored; nothing left to signal.
+    }
+    finish();
+  };
+
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+      signal.addEventListener("abort", onAbort, { once: true });
+    },
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          finish();
+          controller.close();
+        } else {
+          controller.enqueue(value);
+        }
+      } catch (error) {
+        finish();
+        // An abort that already errored the stream wins; ignore the late throw.
+        try {
+          controller.error(signal.aborted ? signal.reason : error);
+        } catch {
+          // already errored by the abort handler
+        }
+      }
+    },
+    cancel(reason) {
+      finish();
+      return reader.cancel(reason);
+    },
+  });
+
+  const bound = new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+  Object.defineProperty(bound, "url", { value: response.url });
+  Object.defineProperty(bound, "redirected", { value: response.redirected });
+  return bound;
+}
+
+/**
+ * `fetch` bounded by a timeout. The timer covers connecting, receiving the
+ * response headers and reading the body: the returned response's body stays
+ * under the same deadline until it is fully consumed, so `await res.json()`
+ * on a stalled body rejects with {@link RequestTimeoutError} rather than
+ * hanging. It aborts the request and rejects with {@link RequestTimeoutError}.
+ * A caller `init.signal` still cancels the request (and an in-flight body
+ * read) and its own abort reason is preserved. The error never includes the
+ * URL, which may carry credentials.
  */
 export async function fetchWithTimeout(
   input: Parameters<typeof fetch>[0],
@@ -80,13 +161,18 @@ export async function fetchWithTimeout(
   callerSignal?.addEventListener("abort", onCallerAbort, { once: true });
   const timer = scheduler.setTimeout(() => controller.abort(timeoutError), timeoutMs);
 
-  try {
-    return await fetchImpl(input, { ...init, signal: controller.signal });
-  } catch (error) {
-    if (controller.signal.reason === timeoutError) throw timeoutError;
-    throw error;
-  } finally {
+  const release = () => {
     scheduler.clear(timer);
     callerSignal?.removeEventListener("abort", onCallerAbort);
+  };
+
+  let response: Response;
+  try {
+    response = await fetchImpl(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    release();
+    if (controller.signal.reason === timeoutError) throw timeoutError;
+    throw error;
   }
+  return bindBodyToDeadline(response, controller.signal, release);
 }

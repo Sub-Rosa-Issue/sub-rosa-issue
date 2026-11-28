@@ -315,6 +315,56 @@ describe("createPaidFetch request timeout", () => {
     }
   });
 
+  test("a response whose body stalls after the headers fails with RequestTimeoutError", async () => {
+    const paidFetch = createPaidFetch({ secret: TEST_SECRET, requestTimeoutMs: 100 });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (_url, init) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"partial":'));
+            init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason), { once: true });
+          },
+        }),
+        { status: 200 },
+      );
+    try {
+      await assert.rejects(
+        paidFetch("https://example.com/appraise", { method: "POST", body: "{}" }),
+        (error: unknown) => error instanceof RequestTimeoutError && error.timeoutMs === 100,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("a caller abort while the body is being read surfaces the caller's reason", async () => {
+    const paidFetch = createPaidFetch({ secret: TEST_SECRET, requestTimeoutMs: 5_000 });
+    const originalFetch = globalThis.fetch;
+    const reason = new Error("caller gave up");
+    const caller = new AbortController();
+    globalThis.fetch = async (_url, init) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason), { once: true });
+          },
+        }),
+        { status: 200 },
+      );
+    try {
+      const pending = paidFetch("https://example.com/appraise", {
+        method: "POST",
+        body: "{}",
+        signal: caller.signal,
+      });
+      setTimeout(() => caller.abort(reason), 20);
+      await assert.rejects(pending, (error: unknown) => error === reason);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("rejects an invalid requestTimeoutMs rather than disabling the bound", async () => {
     const paidFetch = createPaidFetch({ secret: TEST_SECRET, requestTimeoutMs: 0 });
     const originalFetch = globalThis.fetch;
