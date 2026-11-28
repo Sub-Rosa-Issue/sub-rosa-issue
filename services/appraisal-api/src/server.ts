@@ -41,6 +41,11 @@ import { appraise, AppraisalInputError, buildAppraisalQuote, MAX_APPRAISAL_BODY_
 import { takeAppraisalRequestBody } from "./body-limit.js";
 import type { AppraisalServerConfig } from "./config.js";
 import {
+  APPRAISAL_MEDIA_TYPE,
+  appraisalUnsupportedMediaTypeBody,
+  isAppraisalJsonContentType,
+} from "./content-type.js";
+import {
   appraisalQuoteRateKey,
   createMemoryQuoteRateLimiter,
   DEVELOPMENT_QUOTE_RATE_LIMIT,
@@ -214,6 +219,16 @@ export async function buildAppraisalServer(
           price: config.price,
           network: config.network,
         });
+      }
+
+      // Only JSON is accepted. Reject any other media type with a stable 415
+      // before the body is read and before any payment offer is built.
+      if (method === "POST" && url.pathname === "/appraise") {
+        if (!isAppraisalJsonContentType(req.headers["content-type"])) {
+          send(res, 415, { "accept-post": APPRAISAL_MEDIA_TYPE }, appraisalUnsupportedMediaTypeBody());
+          res.on("finish", () => req.destroy());
+          return;
+        }
       }
 
       const taken = await takeAppraisalRequestBody(req, MAX_APPRAISAL_BODY_BYTES);

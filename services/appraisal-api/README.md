@@ -71,6 +71,14 @@ A `POST /appraise` body larger than 8192 bytes is rejected with **HTTP 413**
 `{ "error": "payload_too_large", "limitBytes": 8192 }` before the bytes are
 parsed as JSON, so the request never receives a 402 payment quote.
 
+`POST /appraise` requires `Content-Type: application/json`. A `charset`
+parameter is allowed only when it is UTF-8 (`application/json; charset=utf-8`).
+Any other media type, a non-UTF-8 charset, or a missing header is rejected with
+**HTTP 415** `{ "error": "unsupported_media_type", "expected": "application/json" }`
+and an `Accept-Post: application/json` header, before the body is read and
+before any payment quote is built. Clients using `createPaidFetch` must set the
+header themselves, as in the examples.
+
 All appraisal quote challenges (`402`), paid appraisal responses (`200`), and
 error responses include `Cache-Control: no-store`, `Pragma: no-cache`,
 `Expires: 0`, and `X-Content-Type-Options: nosniff` so intermediary caches
