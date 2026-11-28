@@ -36,11 +36,7 @@ import {
   type TimeContext,
 } from "@sub-rosa/time";
 
-import {
-  CHECKPOINT_SKIP_STEPS,
-  type KeeperStep,
-  type WatchCheckpoint,
-} from "./checkpoint.js";
+import type { SettlementGuard } from "./settlement-guard.js";
 
 export type KeeperLogger = (msg: string) => void;
 
@@ -60,8 +56,6 @@ export interface KeeperDeps {
    * re-broadcast — that is what stops a restart from resettling a round.
    */
   checkpoint?: WatchCheckpoint;
-  /** Checks on-chain settlement inputs and tracks in-flight submissions. */
-  settlementGuard?: SettlementGuard;
 }
 
 export interface SkipRecord {
@@ -382,32 +376,21 @@ export async function closeRound(
       log(`settle skipped: checkpoint records the round as settled`);
       result.skipped.push("settle already complete (checkpoint)");
     } else {
-      const guard = deps.settlementGuard;
-      const decision = guard?.checkSettle(await readSettlementView(sdk, rid, clock.nowSeconds()));
-      if (decision && !decision.allowed) {
-        result.guardSkip = contractRefusal(decision.event);
-        const reason = describeSettlementSkip(decision.event);
-        result.skipped.push(`settle refused: ${reason}`);
-        log(`settle refused for round ${rid}: ${reason}`);
-      } else {
-        guard?.markSubmitted(rid);
-        try {
-          await sdk.settle(rid);
-          result.settled = true;
-          guard?.markTerminal(rid, "settled on-chain");
-          log(`settled round ${rid}`);
-          recordStep(deps, rid, "settle");
-        } catch (e) {
-          if (errorMatches(e, ["AlreadySettled", "NotCleared", "WrongStatus"])) {
-            result.skipped.push(`settle skipped: ${errorName(e)}`);
-            guard?.markTerminal(rid, errorName(e));
-            if (errorMatches(e, ["AlreadySettled"])) {
-              recordStep(deps, rid, "settle");
-            }
-          } else {
-            guard?.markRetryable(rid, errorName(e));
-            throw e;
+      try {
+        await sdk.settle(rid);
+        result.settled = true;
+        log(`settled round ${rid}`);
+        recordStep(deps, rid, "settle");
+      } catch (e) {
+        if (errorMatches(e, ["AlreadySettled", "NotCleared", "WrongStatus"])) {
+          result.skipped.push(`settle skipped: ${errorName(e)}`);
+          // The contract telling us it is already settled is proof the step landed —
+          // record it so the next restart does not broadcast it again.
+          if (errorMatches(e, ["AlreadySettled"])) {
+            recordStep(deps, rid, "settle");
           }
+        } else {
+          throw e;
         }
       }
     }

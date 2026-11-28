@@ -1,14 +1,32 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 import {
   KeeperStatusClient,
   StatusApiError,
   StatusJsonParseError,
+  StatusRedirectError,
   type StatusClientOptions,
 } from "./status-client.js";
 import { createFakeTime } from "@sub-rosa/time";
 import type { KeeperStatusResponse } from "./status.js";
+
+const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
+
+interface RedirectFixture {
+  description: string;
+  requestUrl: string;
+  status: number;
+  headers: { Location: string };
+  sameOrigin: boolean;
+}
+
+function loadRedirectFixture(name: string): RedirectFixture {
+  return JSON.parse(readFileSync(join(FIXTURES_DIR, name), "utf8")) as RedirectFixture;
+}
 
 const SAMPLE_STATUS: KeeperStatusResponse = {
   contractId: "C123",
@@ -110,6 +128,95 @@ describe("KeeperStatusClient non-success responses", () => {
   });
 });
 
+describe("KeeperStatusClient redirects", () => {
+  it("disables automatic redirects on every status request", async () => {
+    let seenRedirect: RequestRedirect | undefined;
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      fetchImpl: async (_url, init) => {
+        seenRedirect = init?.redirect;
+        return new Response(JSON.stringify(SAMPLE_STATUS), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    await client.getStatus();
+    assert.equal(seenRedirect, "manual");
+  });
+
+  it("rejects same-origin redirect fixtures with a typed error and redacts Location", async () => {
+    const fixture = loadRedirectFixture("status-redirect-same-origin.json");
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      fetchImpl: async () =>
+        new Response("", {
+          status: fixture.status,
+          headers: fixture.headers,
+        }),
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusRedirectError);
+        assert.equal(error.status, fixture.status);
+        assert.equal(error.sameOrigin, true);
+        assert.equal(error.sameOrigin, fixture.sameOrigin);
+        assert.ok(!error.message.includes(fixture.headers.Location));
+        assert.ok(!JSON.stringify(error).includes(fixture.headers.Location));
+        assert.match(error.message, /refused redirect/i);
+        return true;
+      },
+    );
+  });
+
+  it("rejects cross-origin redirect fixtures with a typed error and redacts Location", async () => {
+    const fixture = loadRedirectFixture("status-redirect-cross-origin.json");
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      fetchImpl: async () =>
+        new Response("", {
+          status: fixture.status,
+          headers: fixture.headers,
+        }),
+    });
+    await assert.rejects(
+      () => client.getStatus(),
+      (error: unknown) => {
+        assert.ok(error instanceof StatusRedirectError);
+        assert.equal(error.status, fixture.status);
+        assert.equal(error.sameOrigin, false);
+        assert.equal(error.sameOrigin, fixture.sameOrigin);
+        assert.ok(!error.message.includes(fixture.headers.Location));
+        assert.ok(!error.message.includes("attacker.example"));
+        assert.ok(!error.message.includes("secret"));
+        assert.ok(!JSON.stringify(error).includes("attacker.example"));
+        return true;
+      },
+    );
+  });
+
+  it("treats redirect failures as not-ready without leaking Location", async () => {
+    const fixture = loadRedirectFixture("status-redirect-cross-origin.json");
+    const time = createFakeTime(1_700_000_000_000);
+    const client = new KeeperStatusClient({
+      baseURL: "http://keeper.test",
+      timeoutMs: 5_000,
+      scheduler: time.scheduler,
+      fetchImpl: async () =>
+        new Response("", {
+          status: fixture.status,
+          headers: fixture.headers,
+        }),
+    });
+    const verdict = await client.readiness();
+    assert.equal(verdict.ready, false);
+    assert.equal(verdict.ready === false && verdict.reason, "unavailable");
+    assert.ok(verdict.ready === false && !verdict.error.includes(fixture.headers.Location));
+    assert.ok(verdict.ready === false && !verdict.error.includes("attacker.example"));
+  });
+});
+
 describe("KeeperStatusClient readiness", () => {
   const ROUND = {
     roundId: "7", status: "Open", phase: "awaiting-drand", nextAction: "wait", commitDeadline: 1,
@@ -176,15 +283,13 @@ describe("KeeperStatusClient readiness", () => {
     assert.equal(verdict.ready === false && verdict.reason, "round_mismatch");
   });
 
-  it("rejects keeper URL userinfo without exposing credentials", () => {
-    assert.throws(
-      () => client([LIVE], { baseURL: "http://operator:hunter2@keeper.test" }),
-      (error: unknown) => {
-        assert.ok(error instanceof Error);
-        assert.match(error.message, /must not contain credentials/);
-        assert.doesNotMatch(error.message, /hunter2|operator:/);
-        return true;
-      },
-    );
+  it("errors never include keeper URL userinfo", async () => {
+    const { c } = client([LIVE], {
+      baseURL: "http://operator:hunter2@keeper.test",
+      fetchImpl: async (url) => { throw new TypeError(`Request cannot be constructed from a URL that includes credentials: ${String(url)}`); },
+    });
+    const verdict = await c.readiness();
+    assert.equal(verdict.ready === false && verdict.reason, "unavailable");
+    assert.ok(verdict.ready === false && !verdict.error.includes("hunter2") && !verdict.error.includes("operator:"));
   });
 });

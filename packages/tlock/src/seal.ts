@@ -52,7 +52,7 @@ export function generateNonce(): Uint8Array {
 }
 
 export async function sealBid(params: SealBidParams): Promise<SealedBid> {
-  const { contractId, bidderId, value, nonce, round, revealRound, client, identity, auditorPublicKey } = params;
+  const { contractId, bidderId, value, nonce, round, client, revealRound, identity, auditorPublicKey } = params;
 
   assertContractId(contractId);
   assertBidderId(bidderId);

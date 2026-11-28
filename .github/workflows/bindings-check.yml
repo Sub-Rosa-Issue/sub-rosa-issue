@@ -28,27 +28,22 @@ jobs:
         run: node --test scripts/check-bindings-cli.test.mjs
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.91.0
+        uses: dtolnay/rust-toolchain@1.85.0
         with:
-          toolchain: "1.91.0"
+          toolchain: "1.85.0"
           targets: wasm32v1-none
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "contracts/round"
 
-      - name: Install Stellar CLI
-        env:
-          STELLAR_CLI_URL: https://github.com/stellar/stellar-cli/releases/download/v22.8.2/stellar-cli-22.8.2-x86_64-unknown-linux-gnu.tar.gz
-          STELLAR_CLI_SHA256: faeaec7f7a16c008f25c8b9a6d5fb047831e97b74c85336db4f6ad5877ae9c4f
-        run: |
-          set -euo pipefail
-          install_dir="$(mktemp -d "$RUNNER_TEMP/stellar-cli.XXXXXX")"
-          archive="$install_dir/stellar-cli.tar.gz"
-          curl --fail --silent --show-error --location --retry 3 "$STELLAR_CLI_URL" -o "$archive"
-          printf "%s  %s\n" "$STELLAR_CLI_SHA256" "$archive" | sha256sum --check
-          tar -xzf "$archive" -C "$install_dir"
-          echo "$install_dir" >> "$GITHUB_PATH"
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev libsodium-dev
+
+      - name: Install stellar CLI
+        # 22.8.2 is the latest stable stellar-cli that still supports soroban-sdk 22.
+        # CLI 23.0.0 and newer require soroban-sdk 23.
+        run: cargo install stellar-cli --version 22.8.2 --locked
 
       - name: Print Stellar CLI version
         run: stellar --version

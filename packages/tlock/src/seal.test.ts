@@ -33,9 +33,7 @@ test(
       value,
       nonce,
       round,
-      revealRound: round,
-      client,
-      identity,
+      revealRound: round, client, identity,
       auditorPublicKey: auditor.publicKey,
     });
 
@@ -84,9 +82,7 @@ test(
       nonce,
       payload,
       round,
-      revealRound: round,
-      client,
-      identity,
+      revealRound: round, client, identity,
       auditorPublicKey: auditor.publicKey,
     });
     const opened = await openPayload(sealed.ciphertext, client);
@@ -166,19 +162,19 @@ test("sealBid rejects non-positive or non-integer round numbers", async () => {
   const value = 100n;
 
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 0, revealRound: 1, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 0, revealRound: 0, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: -5, revealRound: 1, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: -5, revealRound: -5, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 1.5, revealRound: 1, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: 1.5, revealRound: 1.5, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
   await assert.rejects(
-    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: NaN, revealRound: 1, client }),
+    () => sealBid({ contractId: validContractId, bidderId: validBidderId, value, nonce, round: NaN, revealRound: NaN, client }),
     (err: any) => err instanceof RangeError && /round must be a positive integer/.test(err.message),
   );
 });

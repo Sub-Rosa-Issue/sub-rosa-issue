@@ -13,16 +13,12 @@ import { useMemo } from "react";
 import { formatEscrowAmount } from "./amount";
 import { configuredNetworkPassphrase, publicEnv } from "./config";
 
-export const PUBLIC_ENV = publicEnv();
-const env = PUBLIC_ENV;
+const env = publicEnv();
 
 export const LOGO_SRC = "/sub-rosa-logo.png";
 export const RPC_URL = env.VITE_RPC_URL ?? "https://soroban-testnet.stellar.org";
 export const NETWORK = configuredNetworkPassphrase(env);
 export const CONTRACT_ID = env.VITE_CONTRACT_ID;
-export const SDK_CLIENT_IDENTITY = CONTRACT_ID
-  ? { contractId: CONTRACT_ID, networkPassphrase: NETWORK }
-  : null;
 export const ESCROW_TOKEN_LABEL = env.VITE_ESCROW_TOKEN_LABEL ?? "token";
 export const DEFAULT_ROUND_ID = env.VITE_ROUND_ID ? BigInt(env.VITE_ROUND_ID) : null;
 

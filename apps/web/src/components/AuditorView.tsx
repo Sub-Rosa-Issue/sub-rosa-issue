@@ -86,15 +86,7 @@ export function AuditorView({ trace }: { trace: DemoTrace }) {
       const round = trace.meta.revealRound;
       const nonce = generateNonce();
       const value = 42_000_000n;
-      const sealed = await sealBid({
-        contractId: trace.meta.contractId,
-        bidderId: trace.bidders[0].address,
-        value,
-        nonce,
-        round,
-        revealRound: round,
-        client,
-      });
+      const sealed = await sealBid({ value, nonce, round, client });
       const opened = await openBid(new Uint8Array(sealed.ciphertext), client);
       if (opened.value !== value) throw new Error("opened value mismatch");
       setBidDemo({ value: (Number(value) / 1e7).toFixed(2), round });

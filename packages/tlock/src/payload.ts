@@ -17,7 +17,6 @@ import { sealIdentityForBidder } from "./auditor.js";
 import { beBytesToI128, i128ToBeBytes, NONCE_BYTES, VALUE_BYTES } from "./commitment.js";
 import type { DrandClient } from "./quicknet.js";
 import { assertContractId, assertBidderId } from "./validate.js";
-import { assertSealRoundWindow } from "./window.js";
 
 const utf8Encode = new TextEncoder();
 const utf8Decode = new TextDecoder();
@@ -169,7 +168,6 @@ export async function sealPayload(params: SealPayloadParams): Promise<SealedPayl
 
   assertContractId(contractId);
   assertBidderId(bidderId);
-  assertSealRoundWindow(round, revealRound);
 
   const envelope: PayloadEnvelope = {
     ...(amount === undefined ? {} : { amount }),

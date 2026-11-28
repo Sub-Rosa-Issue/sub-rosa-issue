@@ -13,7 +13,7 @@
 
 /**
  * Stable reasons a seal round can fall outside the commit window. Mirrors the
- * contract's `Error` variants: SealRoundTooEarly (43), SealRoundTooLate (41),
+ * contract's `Error` variants: SealRoundTooEarly (40), SealRoundTooLate (41),
  * InvalidSealRoundZero (42).
  */
 export type SealRoundErrorReason =

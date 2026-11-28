@@ -114,7 +114,7 @@ function checkBidders(
   issues: string[],
 ): { labels: string[]; addresses: string[] } {
   const bidders = requireNonEmptyArray(value, "bidders", issues);
-  if (!bidders) return { labels: [], addresses: [] };
+  if (!bidders) return [];
 
   const labels: string[] = [];
   const addresses: string[] = [];

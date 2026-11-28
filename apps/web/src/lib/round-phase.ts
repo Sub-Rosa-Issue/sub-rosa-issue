@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import type { RoundStatus as DashboardRoundStatus } from "../dashboard/types";
-import { ROUND_PHASE_LABELS, roundPhaseLabel, type RoundPhase, type RoundStatus as SdkRoundStatus } from "@sub-rosa/sdk";
+import type { RoundStatus as SdkRoundStatus } from "@sub-rosa/sdk";
 
 // Re-export the shared phase vocabulary so the UI cannot invent a fourth phase
 // name that drifts from `packages/sdk/src/round-status.ts`.
@@ -13,7 +13,7 @@ export interface ClassifyRoundPhaseInput {
 }
 
 /** Status tags the shared phase helper accepts; anything else is sealed. */
-const KNOWN_ROUND_STATUSES: readonly DashboardRoundStatus[] = [
+const KNOWN_ROUND_STATUSES: readonly RoundStatus[] = [
   "Open",
   "Revealing",
   "Cleared",
@@ -30,24 +30,6 @@ export function classifyRoundPhase({
     return "Reveal";
   }
   return "Open";
-}
-
-/** True once the shared phase helper says bid values are public. */
-export function isRevealPhase(phase: RoundPhase): boolean {
-  return phase !== "Open";
-}
-
-/**
- * Normalize an on-chain or recorded status tag into a `RoundStatus` the shared
- * phase helper accepts. Unknown tags classify conservatively as "Open" so a
- * sealed value can never be formatted from an unrecognized status.
- */
-export function roundStatusFromTag(
-  tag: string | null | undefined,
-): DashboardRoundStatus {
-  return (KNOWN_ROUND_STATUSES as readonly string[]).includes(tag ?? "")
-    ? (tag as DashboardRoundStatus)
-    : "Open";
 }
 
 // ---------------------------------------------------------------------------

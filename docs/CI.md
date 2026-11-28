@@ -24,6 +24,11 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+Toast keyboard behavior: when a toast is dismissed by keyboard (close button or
+`Escape` while focus is inside the toast), focus returns to the action that
+opened the toast; programmatic/auto-dismiss does not move focus when the user
+has moved elsewhere.
+
 The same job runs `pnpm snapshot:check` to require the committed contract
 snapshot categories, while `web:test` checks the generated demo trace and its
 agreement with the dashboard fixture. The contract job regenerates Rust test
@@ -63,6 +68,15 @@ The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
 dependencies with `--frozen-lockfile --ignore-scripts` and runs
 `pnpm keeper:test` and `pnpm keeper:typecheck` in order
 (`node --test scripts/keeper-ci.test.mjs` verifies the workflow configuration).
+
+## Tlock checks
+
+The `Tlock checks` workflow (`.github/workflows/tlock.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm tlock:test` and
+`pnpm tlock:typecheck` in order. Run the same two commands locally to check
+`packages/tlock`; `node --test scripts/tlock-ci.test.mjs` verifies the CI job
+configuration.
 
 Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
@@ -181,12 +195,15 @@ supports this repo's `soroban-sdk` 22 (`Cargo.lock` resolves 22.0.11).
 `stellar-cli` 23.0.0 and newer depend on `soroban-sdk` 23, so they are not
 used for this contract.
 
-CI installs the [official Linux x86_64 release archive](https://github.com/stellar/stellar-cli/releases/download/v22.8.2/stellar-cli-22.8.2-x86_64-unknown-linux-gnu.tar.gz)
-and verifies its SHA-256 checksum before extraction. This avoids building the
-older CLI dependencies with the Rust compiler used to build the contract.
+CI installs that release with:
 
-`stellar --version` runs before `pnpm bindings:check`. The release pin, checksum,
-and command order are checked by:
+```bash
+cargo install stellar-cli --version 22.8.2 --locked
+stellar --version
+```
+
+`stellar --version` runs before `pnpm bindings:check`. The pin, `--locked`, and
+print order are asserted by:
 
 ```bash
 node --test scripts/check-bindings-cli.test.mjs
@@ -213,7 +230,7 @@ pnpm rust:audit:check
 
 ## Pinned Rust toolchain check
 
-`rust-toolchain.toml` pins an explicit Rust version (`1.91.0` with target
+`rust-toolchain.toml` pins an explicit Rust version (`1.85.0` with target
 `wasm32v1-none`), and both contract workflows (`.github/workflows/contract.yml`
 and `.github/workflows/bindings-check.yml`) must use that exact version instead
 of a moving `stable` reference:

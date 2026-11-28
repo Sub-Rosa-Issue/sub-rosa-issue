@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expectedRoundEventSequence, networkFingerprint, ROUND_EVENT_PHASE_BY_NAME, type RoundReceipt } from "@sub-rosa/sdk";
+import { networkFingerprint, type RoundReceipt } from "@sub-rosa/sdk";
 import { OutcomePanel } from "./OutcomePanel";
 import { SettlementRail } from "./SettlementRail";
 import { PENDING_SETTLEMENT, verifySettlement, type VerifiedSettlement } from "../lib/verified-settlement";
@@ -30,10 +30,6 @@ function receipt(overrides: Partial<RoundReceipt> = {}): RoundReceipt {
     bidders: [W, L],
     bids: { [W]: bid("750000000", true), [L]: bid("500000000", true, "900000000") },
     winner: W, winningValue: "750000000", status: "Settled",
-    events: expectedRoundEventSequence(7n).map(({ name }, index) => ({
-      name, topics: ["symbol_short", "u64"], roundId: "7", ledger: index + 1,
-      phase: ROUND_EVENT_PHASE_BY_NAME[name],
-    })),
     ...overrides,
   };
 }

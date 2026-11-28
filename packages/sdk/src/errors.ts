@@ -32,24 +32,7 @@ export type RoundContractErrorCode =
   | "NoValidBids"
   | "RoundFull"
   | "InvalidLimit"
-  | "EscrowNotConserved"
-  | "SealRoundTooLate"
-  | "InvalidSealRoundZero"
-  | "SealRoundTooEarly"
-  | "InvalidCursor";
-
-/** Enumeration stopped because a page cannot be consumed without data loss. */
-export class SubRosaPaginationError extends Error {
-  readonly name = "SubRosaPaginationError";
-
-  constructor(
-    readonly roundId: bigint,
-    readonly reason: "repeated_bidder" | "invalid_page" | "repeated_cursor",
-    readonly bidder?: string,
-  ) {
-    super(`bidder enumeration for round ${roundId} failed: ${reason}${bidder ? ` (${bidder})` : ""}`);
-  }
-}
+  | "EscrowNotConserved";
 
 export interface RoundContractErrorSpec {
   readonly code: number;
@@ -95,10 +78,6 @@ export const ROUND_CONTRACT_ERRORS: Readonly<Record<number, RoundContractErrorSp
   38: { code: 38, name: "RoundFull", retryable: false },
   39: { code: 39, name: "InvalidLimit", retryable: false },
   40: { code: 40, name: "EscrowNotConserved", retryable: false },
-  41: { code: 41, name: "SealRoundTooLate", retryable: false },
-  42: { code: 42, name: "InvalidSealRoundZero", retryable: false },
-  43: { code: 43, name: "SealRoundTooEarly", retryable: false },
-  44: { code: 44, name: "InvalidCursor", retryable: false },
 });
 
 export const ROUND_CONTRACT_ERRORS_BY_NAME: Readonly<Record<string, RoundContractErrorSpec>> = Object.freeze(

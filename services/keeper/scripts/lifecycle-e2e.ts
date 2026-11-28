@@ -170,10 +170,10 @@ async function main() {
     operator: usdc(before.op), bidder1: usdc(before.b1), bidder2: usdc(before.b2), contract: usdc(before.contract),
   } });
 
-  async function commitBid(secret: string, bidderId: string, value: bigint, escrow: bigint, who: string) {
+  async function commitBid(secret: string, value: bigint, escrow: bigint, who: string) {
     const nonce = generateNonce();
     const sealed = await sealBid({
-      contractId, bidderId, value, nonce, round: revealRound, revealRound, client: drand,
+      value, nonce, round: revealRound, revealRound, client: drand,
       identity: new TextEncoder().encode(`bidder:${who}`),
       auditorPublicKey: auditor.publicKey,
     });
@@ -184,8 +184,8 @@ async function main() {
   }
   diagnostics.info("3-8-sealing-committing-two-bids", "\n[3/8] sealing + committing two bids…");
   const auditorRows = [
-    await commitBid(bidder1Secret, b1, V1, E1, "bidder1"),
-    await commitBid(bidder2Secret, b2, V2, E2, "bidder2"),
+    await commitBid(bidder1Secret, V1, E1, "bidder1"),
+    await commitBid(bidder2Secret, V2, E2, "bidder2"),
   ];
   await writeAuditorTrace("artifacts/lifecycle-auditor-trace.json", {
     source: "lifecycle:e2e",

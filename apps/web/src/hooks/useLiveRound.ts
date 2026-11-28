@@ -1,9 +1,9 @@
 import { publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
 import { useEffect, useRef, useState } from "react";
-import { SubRosaClient, type Round, type BidState } from "@sub-rosa/sdk";
+import type { Round, BidState } from "@sub-rosa/sdk";
 import { useTime } from "../lib/time";
-import { classifyRoundPhase, roundStatusFromTag, type RoundPhase } from "../lib/round-phase";
+import { classifyRoundPhase, type RoundPhase } from "../lib/round-phase";
 
 import type { TimerHandle } from "@sub-rosa/time";
 
@@ -65,7 +65,6 @@ export function buildRoundSnapshot({
 }: BuildRoundSnapshotInput): RoundSnapshot {
   const states = Object.values(bidStates);
   const revealed = states.filter((state) => state.revealed_value != null).length;
-  const committed = states.reduce((sum, state) => sum + state.escrow, 0n);
   const revealedTotal = states.reduce(
     (sum, state) => sum + (state.revealed_value ?? 0n),
     0n,
@@ -74,9 +73,9 @@ export function buildRoundSnapshot({
     round,
     bidders,
     bidStates,
-    phase: classifyRoundPhase({ status: roundStatusFromTag(round.status.tag), drandPublished }),
+    phase: classifyRoundPhase({ status: round.status, drandPublished }),
     revealCursor: { revealed, total: bidders.length },
-    escrow: { committed, revealed: revealedTotal },
+    escrow: { committed: round.escrow ?? 0n, revealed: revealedTotal },
     sequence,
     polledAt,
   };
@@ -117,6 +116,7 @@ export function useLiveRound(
 
     async function readSnapshot() {
       try {
+        const { SubRosaClient } = await import("@sub-rosa/sdk");
         const reader = new SubRosaClient({
           rpcUrl: RPC,
           networkPassphrase: NETWORK,

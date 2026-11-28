@@ -116,8 +116,6 @@ async function main() {
   const escrow = 50_000_000n;
   const nonce = generateNonce();
   const sealed = await sealBid({
-    contractId,
-    bidderId: bidderKp.publicKey(),
     value,
     nonce,
     round: revealRound,

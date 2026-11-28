@@ -1,14 +1,12 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { readFileSync } from "node:fs";
 import { Keypair, rpc, StrKey } from "@stellar/stellar-sdk";
 
 import { SubRosaClient } from "./client.js";
 import {
   SubRosaClientConfigError,
   SubRosaNetworkMismatchError,
-  SubRosaPaginationError,
   SubRosaSessionMismatchError,
   SubRosaSubmitError,
 } from "./errors.js";
@@ -248,7 +246,12 @@ describe("SubRosaClient source configuration", () => {
     await assert.rejects(
       client.commit({
         roundId: 1,
-        sealed,
+        sealed: {
+          commitment: new Uint8Array(32),
+          ciphertext: new Uint8Array([0x61, 0x67, 0x65]), // non-empty
+          auditorBlob: new Uint8Array(1), // non-empty
+          sealRound: 1,
+        },
         escrow: 1n,
         binding: fixtureBinding(),
       }),
@@ -320,7 +323,6 @@ describe("SubRosaClient passkey session binding", () => {
       commitment: new Uint8Array(32),
       ciphertext: new Uint8Array([0x61, 0x67, 0x65]),
       auditorBlob: new Uint8Array(1),
-      sealRound: 1,
     },
     escrow: 100_000n,
     bidder: PUBLIC_KEY,

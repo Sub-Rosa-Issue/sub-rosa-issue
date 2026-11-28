@@ -21,7 +21,6 @@ done
 
 ISSUER="$(stellar keys address lc-issuer)"
 ASSET="USDC:${ISSUER}"
-USDC_SAC="$(stellar contract id asset --asset "$ASSET" --network "$NET")"
 echo "→ [asset] ${ASSET}"
 
 echo "→ [trustlines+mint] establishing trustlines and minting USDC (via Horizon)…"
@@ -30,12 +29,12 @@ OPERATOR_SECRET="$(stellar keys show lc-op)" \
 BIDDER1_SECRET="$(stellar keys show lc-bid1)" \
 BIDDER2_SECRET="$(stellar keys show lc-bid2)" \
 ASSET_CODE="USDC" \
-USDC_SAC="$USDC_SAC" \
 NETWORK_PASSPHRASE="${NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}" \
 pnpm --filter @sub-rosa/keeper exec tsx scripts/usdc-setup.ts
 
 echo "→ [sac] deploying the USDC Stellar Asset Contract…"
 stellar contract asset deploy --asset "$ASSET" --source lc-issuer --network "$NET" >/dev/null 2>&1 || true
+USDC_SAC="$(stellar contract id asset --asset "$ASSET" --network "$NET")"
 echo "    USDC SAC: $USDC_SAC"
 
 echo "→ [upload] installing contract wasm…"

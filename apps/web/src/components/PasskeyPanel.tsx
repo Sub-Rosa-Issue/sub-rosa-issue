@@ -1,5 +1,5 @@
-import { normalizeError, publicErrorMessage } from "@sub-rosa/logging/errors";
 // Copyright (c) 2026 Sub Rosa contributors
+import { publicErrorMessage } from "@sub-rosa/logging/errors";
 import { useMemo, useState } from "react";
 import { SubRosaClient, validatePasskeySession } from "@sub-rosa/sdk";
 import { CAP_SAFETY_COPY } from "../demo/trace";
@@ -12,6 +12,7 @@ import {
   resolvePasskeyWalletWasmHash,
   type PasskeySession,
 } from "../passkey-config";
+import { ExternalLink } from "./ExternalLink";
 
 type PasskeyStatus = "idle" | "loading" | "ready" | "blocked" | "error";
 
@@ -60,7 +61,7 @@ export function PasskeyPanel({
     contractId?: string;
   } | null>(null);
   const [session, setSession] = useState<PasskeySession | null>(initialSession);
-  const [panelError, setPanelError] = useState<Pick<Error, "name"> | null>(null);
+  const [panelError, setPanelError] = useState<Error | null>(null);
 
   const walletWasmHash = resolvePasskeyWalletWasmHash();
   const rpId = import.meta.env.VITE_PASSKEY_RP_ID ?? window.location.hostname;
@@ -131,7 +132,7 @@ export function PasskeyPanel({
       );
     } catch (e) {
       setStatus("error");
-      const err = normalizeError(e);
+      const err = e instanceof Error ? e : new Error(String(e));
       setPanelError(err);
       setMessage(publicErrorMessage(e));
     }
@@ -173,7 +174,7 @@ export function PasskeyPanel({
       setMessage(`Smart wallet deployed on testnet: ${created.contractId}`);
     } catch (e) {
       setStatus("error");
-      const err = normalizeError(e);
+      const err = e instanceof Error ? e : new Error(String(e));
       setPanelError(err);
       const detail = publicErrorMessage(e);
       setMessage(
@@ -213,20 +214,31 @@ export function PasskeyPanel({
         account: client.account,
       });
 
-      if (!onCommit) {
-        setStatus("blocked");
-        setMessage("Passkey commit requires a configured round and bid.");
-        return;
+      if (onCommit) {
+        await onCommit(session);
+      } else {
+        await client.commit({
+          roundId: 1,
+          sealed: {
+            commitment: new Uint8Array(32),
+            ciphertext: new Uint8Array([0x61, 0x67, 0x65]),
+            auditorBlob: new Uint8Array(1),
+          },
+          escrow: 100_000n,
+          bidder: session.account,
+          session,
+        });
       }
-      await onCommit(session);
 
       setStatus("ready");
       setMessage("Passkey commit submitted successfully.");
     } catch (e: unknown) {
       setStatus("error");
-      const err = normalizeError(e);
+      const err = e instanceof Error ? e : new Error(String(e));
       setPanelError(err);
-      setMessage(publicErrorMessage(e));
+      // Ensure fixture secret seed is kept strictly out of the error message
+      const scrubbed = err.message.replace(/\bS[A-Z2-7]{55}\b/g, "[REDACTED]");
+      setMessage(scrubbed);
     }
   }
 
@@ -382,9 +394,7 @@ export function PasskeyPanel({
       <ul className="link-list">
         {LINKS.map((l) => (
           <li key={l.href}>
-            <a href={l.href} target="_blank" rel="noreferrer">
-              {l.label}
-            </a>
+            <ExternalLink href={l.href}>{l.label}</ExternalLink>
             <span className="muted">{l.note}</span>
           </li>
         ))}

@@ -242,15 +242,10 @@ describe("runBidderAgent refuses drifted quotes without sealing or committing", 
           } as T,
         };
       }) as ReturnType<BidderDependencies["createPaidFetch"]>,
-      sealBid: async ({ round }) => {
+      sealBid: (async () => {
         calls.sealed++;
-        return {
-          commitment: new Uint8Array(32),
-          ciphertext: new Uint8Array(4),
-          auditorBlob: new Uint8Array(4),
-          sealRound: round,
-        };
-      },
+        return { commitment: new Uint8Array(32), ciphertext: new Uint8Array(4), auditorBlob: new Uint8Array(4) };
+      }) as BidderDependencies["sealBid"],
     };
     return { config, deps, calls };
   }

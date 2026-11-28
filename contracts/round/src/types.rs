@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, contracttype, Address, Bytes, BytesN, String, Vec};
+use soroban_sdk::{contracterror, contracttype, String, Address, Bytes, BytesN, Vec};
 
 /// Contract error codes. Every failure state from the PRD has a defined code —
 /// there is no undefined behavior and no silent fallback.
@@ -37,11 +37,6 @@ pub enum Error {
     InvalidLimit = 39,
     // Escrow accounting
     EscrowNotConserved = 40,
-    // Seal-round and pagination validation
-    SealRoundTooLate = 41,
-    InvalidSealRoundZero = 42,
-    SealRoundTooEarly = 43,
-    InvalidCursor = 44,
 }
 
 /// Round lifecycle. Mirrors the state machine in PRD §6.

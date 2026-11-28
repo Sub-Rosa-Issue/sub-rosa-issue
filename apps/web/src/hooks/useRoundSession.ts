@@ -28,7 +28,6 @@ import {
   LIVE_REVEAL_IN_SECONDS,
   LIVE_REVEAL_WINDOW_AFTER_REVEAL_SECONDS,
   NETWORK,
-  PUBLIC_ENV,
   detectChainNetworkPassphrase,
   displayError,
   freighterError,
@@ -274,7 +273,6 @@ export function useRoundSession(active: UseCase) {
         commit_deadline: BigInt(commitDeadline),
         reveal_deadline: BigInt(revealDeadline),
         auditor_pubkey: Buffer.from(auditor.publicKey),
-        asset_config: { asset_type: "native", contract_id: "", code: "XLM", decimals: 7, issuer: "" },
       });
       const sent = await tx.signAndSend();
       const nextRoundId = sent.result.unwrap() as bigint;
@@ -377,14 +375,10 @@ export function useRoundSession(active: UseCase) {
       const roundAuditorPublicKey = new Uint8Array(round.auditor_pubkey);
       const value = toDemoEscrowAmount(entryValue);
       const drand = quicknet();
-      const revealRound = Number(round.reveal_round);
       const sealed = await sealBid({
-        contractId: contract.options.contractId,
-        bidderId: address,
         value,
         nonce: generateNonce(),
-        round: revealRound,
-        revealRound,
+        round: Number(round.reveal_round),
         client: drand,
         identity: new TextEncoder().encode(`${active.nav}:${address}`),
         auditorPublicKey: auditorPublicKey ?? roundAuditorPublicKey,
@@ -396,7 +390,6 @@ export function useRoundSession(active: UseCase) {
         ciphertext: Buffer.from(sealed.ciphertext),
         escrow: value,
         auditor_blob: Buffer.from(sealed.auditorBlob),
-        seal_round: BigInt(sealed.sealRound),
       });
       await tx.signAndSend();
       updateSession(id, {

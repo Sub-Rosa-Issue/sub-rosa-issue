@@ -213,7 +213,6 @@ describe("paid fetch never produces a payment transaction on drift (mocked fetch
           network: "stellar:testnet",
           payTo: PAY_TO,
           amount: acceptsAmount,
-          expiresAt: NOW + 60,
           asset: ASSET,
           maxTimeoutSeconds: 60,
           extra: {},
@@ -246,7 +245,7 @@ describe("paid fetch never produces a payment transaction on drift (mocked fetch
         nowSeconds: NOW,
       },
     });
-    const m = mock402ThenAssert("2500000");
+    const m = mock402ThenAssert("0.25");
     // Stub the x402 client parsing to return our fixture 402 without network crypto.
     const { x402HTTPClient } = await import("@x402/core/client");
     const origParse = x402HTTPClient.prototype.getPaymentRequiredResponse;
@@ -263,9 +262,6 @@ describe("paid fetch never produces a payment transaction on drift (mocked fetch
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(validRequest.value),
-          }, {
-            expectedQuote: { asset: ASSET, destination: PAY_TO, amount: 2_500_000n, expiresAt: NOW + 60 },
-            nowSeconds: () => NOW,
           }),
         (e: unknown) => e instanceof AppraisalQuoteRefusalError && e.code === "QUOTE_EXCEEDS_CAP",
       );

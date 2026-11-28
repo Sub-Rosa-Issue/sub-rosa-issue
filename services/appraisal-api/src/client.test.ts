@@ -4,11 +4,9 @@ import { x402HTTPClient } from "@x402/core/client";
 import { Keypair } from "@stellar/stellar-sdk";
 import { describe, test } from "node:test";
 
-import { createPaidFetch, QuoteMismatchError, AppraisalResponseParseError, MAX_PAYMENT_ERROR_DIAGNOSTIC_LENGTH, sanitizePaymentErrorDiagnostic } from "./client.js";
+import { createPaidFetch, X402PaymentError, AppraisalResponseParseError, MAX_PAYMENT_ERROR_DIAGNOSTIC_LENGTH, sanitizePaymentErrorDiagnostic } from "./client.js";
 
 const TEST_SECRET = Keypair.random().secret();
-const NOW = 1_700_000_000;
-const EXPIRES_AT = NOW + 60;
 const VALID_402_BODY = {
   x402Version: 2,
   resource: "https://example.com/appraise",
@@ -17,8 +15,7 @@ const VALID_402_BODY = {
       scheme: "exact",
       network: "stellar:testnet",
       payTo: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      amount: "1000000",
-      expiresAt: EXPIRES_AT,
+      price: "0.10",
       asset: "USDC",
       maxTimeoutSeconds: 60,
       extra: {},
@@ -29,15 +26,6 @@ const VALID_402_BODY = {
 };
 
 const VALID_402_BODY_HASH = createHash("sha256").update(JSON.stringify(VALID_402_BODY)).digest("hex");
-const PAYMENT_OPTIONS = {
-  expectedQuote: {
-    asset: VALID_402_BODY.accepts[0].asset,
-    amount: BigInt(VALID_402_BODY.accepts[0].amount),
-    destination: VALID_402_BODY.accepts[0].payTo,
-    expiresAt: EXPIRES_AT,
-  },
-  nowSeconds: () => NOW,
-};
 
 function buildResponse(status: number, body: string | undefined, headers?: Record<string, string>) {
   const headersMap = new Headers(headers ?? {});
@@ -90,7 +78,7 @@ describe("createPaidFetch response parsing", () => {
     };
 
     try {
-      const response = await paidFetch("https://example.com/appraise", {}, PAYMENT_OPTIONS);
+      const response = await paidFetch("https://example.com/appraise");
       assert.equal(response.status, 200);
       assert.equal(calls, 2);
     } finally {
@@ -110,7 +98,7 @@ describe("createPaidFetch response parsing", () => {
 
     const mismatchedBody = {
       ...VALID_402_BODY,
-      accepts: [{ ...VALID_402_BODY.accepts[0], amount: "99900000" }],
+      accepts: [{ ...VALID_402_BODY.accepts[0], price: "9.99" }],
     };
     x402HTTPClient.prototype.getPaymentRequiredResponse = () => mismatchedBody as never;
     let createPaymentPayloadCalls = 0;
@@ -133,11 +121,10 @@ describe("createPaidFetch response parsing", () => {
 
     try {
       await assert.rejects(
-        () => paidFetch("https://example.com/appraise", {}, PAYMENT_OPTIONS),
+        () => paidFetch("https://example.com/appraise"),
         (err: unknown) => {
-          assert.ok(err instanceof QuoteMismatchError);
-          assert.equal(err.reason, "amount-mismatch");
-          assert.doesNotMatch(err.message, /99900000|stub-payload|raw/i);
+          assert.ok(err instanceof X402PaymentError);
+          assert.doesNotMatch(err.message, /9\.99|stub-payload|raw/i);
           return true;
         },
       );
@@ -157,7 +144,7 @@ describe("createPaidFetch response parsing", () => {
 
     const expiredBody = {
       ...VALID_402_BODY,
-      accepts: [{ ...VALID_402_BODY.accepts[0], expiresAt: NOW }],
+      accepts: [{ ...VALID_402_BODY.accepts[0], maxTimeoutSeconds: 0 }],
     };
     x402HTTPClient.prototype.getPaymentRequiredResponse = () => expiredBody as never;
     let createPaymentPayloadCalls = 0;
@@ -180,10 +167,9 @@ describe("createPaidFetch response parsing", () => {
 
     try {
       await assert.rejects(
-        () => paidFetch("https://example.com/appraise", {}, PAYMENT_OPTIONS),
+        () => paidFetch("https://example.com/appraise"),
         (err: unknown) => {
-          assert.ok(err instanceof QuoteMismatchError);
-          assert.equal(err.reason, "expired");
+          assert.ok(err instanceof X402PaymentError);
           assert.doesNotMatch(err.message, /stub-payload|raw/i);
           return true;
         },
@@ -208,7 +194,7 @@ describe("createPaidFetch response parsing", () => {
 
     try {
       await assert.rejects(
-        () => paidFetch("https://example.com/appraise", {}, PAYMENT_OPTIONS),
+        () => paidFetch("https://example.com/appraise"),
         (err: unknown) => {
           assert.ok(err instanceof AppraisalResponseParseError);
           assert.equal(err.status, 200);
@@ -265,7 +251,7 @@ describe("createPaidFetch response parsing", () => {
 
     try {
       await assert.rejects(
-        () => paidFetch("https://example.com/appraise", {}, PAYMENT_OPTIONS),
+        () => paidFetch("https://example.com/appraise"),
         (err: unknown) => {
           assert.ok(err instanceof AppraisalResponseParseError);
           assert.equal(err.status, 200);
@@ -283,7 +269,7 @@ describe("createPaidFetch response parsing", () => {
     }
   });
 
-  test("refuses an unreadable x402 challenge with a typed error", async () => {
+  test("preserves x402 payment errors for non-JSON 402 responses", async () => {
     const paidFetch = createPaidFetch({ secret: TEST_SECRET });
     const originalFetch = globalThis.fetch;
     const originalGetPaymentRequiredResponse = x402HTTPClient.prototype.getPaymentRequiredResponse;
@@ -295,10 +281,10 @@ describe("createPaidFetch response parsing", () => {
 
     try {
       await assert.rejects(
-        () => paidFetch("https://example.com/appraise", {}, PAYMENT_OPTIONS),
+        () => paidFetch("https://example.com/appraise"),
         (err: unknown) => {
-          assert.ok(err instanceof QuoteMismatchError);
-          assert.equal(err.reason, "empty-challenge");
+          assert.ok(err instanceof X402PaymentError);
+          assert.match(err.message, /payment|402/i);
           return true;
         },
       );

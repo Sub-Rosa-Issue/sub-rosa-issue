@@ -169,8 +169,6 @@ describe("Watch Mode Queue / Store Integration", () => {
           reveal_round: 1n,
           reveal_deadline: 1_000_000n,
           winner: state.winner,
-          winning_bid: 10n,
-          bidders: state.winner ? [state.winner] : [],
         };
       },
       settle: async (id: bigint) => {
@@ -182,8 +180,7 @@ describe("Watch Mode Queue / Store Integration", () => {
       },
       bidders: async function* () {},
       getSeal: async () => null,
-      getBiddersPage: async () => ({ data: ["GWINNER"], total: 1, has_more: false, next_cursor: undefined }),
-      getBidState: async () => ({ escrow: 10n, revealed_value: 10n, settled: false }),
+      getBidState: async () => ({ revealed_value: null }),
       clear: async () => "GWINNER",
       void: async () => {},
       openReveal: async () => {},
@@ -291,8 +288,6 @@ describe("Watch Mode Queue / Store Integration", () => {
         reveal_round: 1n,
         reveal_deadline: 1_000_000n,
         winner: "GWINNER",
-        winning_bid: 10n,
-        bidders: ["GWINNER"],
       }),
       settle: async () => {
         settleStarted = true;
@@ -300,8 +295,7 @@ describe("Watch Mode Queue / Store Integration", () => {
       },
       bidders: async function* () {},
       getSeal: async () => null,
-      getBiddersPage: async () => ({ data: ["GWINNER"], total: 1, has_more: false, next_cursor: undefined }),
-      getBidState: async () => ({ escrow: 10n, revealed_value: 10n, settled: false }),
+      getBidState: async () => ({ revealed_value: null }),
       clear: async () => "GWINNER",
       void: async () => {},
       openReveal: async () => {},

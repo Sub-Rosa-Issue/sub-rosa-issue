@@ -23,8 +23,7 @@ import {
 } from "./keeper.js";
 import type { SettlementGuard } from "./settlement-guard.js";
 import type { KeeperLogger } from "./keeper.js";
-import { generateLeaseOwner, type KeeperStore } from "./store.js";
-import { KeeperQueue } from "./queue.js";
+import { KeeperStore } from "./store.js";
 import type {
   ResumableCheckpoint,
   TransactionHashVerifier,
@@ -48,8 +47,6 @@ export interface RunWatchLoopParams {
   time?: PartialTimeContext;
   queue?: KeeperQueue;
   shutdownTimeoutMs?: number;
-  owner?: string;
-  leaseMs?: number;
 }
 
 const bigintReplacer = (_k: string, v: unknown): unknown =>
@@ -74,88 +71,6 @@ async function resolveRoundIds(reader: SubRosaClient): Promise<bigint[]> {
     from: BigInt(process.env.WATCH_FROM ?? "1"),
     maxProbe: Number(process.env.WATCH_MAX_ROUNDS ?? "64"),
   });
-}
-
-/**
- * Transport failures leave the round exactly as it was, so the lease stays
- * with its owner until it expires. A contract that answered and rejected the
- * step is definitive: the attempt cannot succeed, so the round goes back to
- * the queue for whoever picks it up next.
- */
-const TRANSIENT_ERROR_MARKERS = [
-  "timeout",
-  "timed out",
-  "ETIMEDOUT",
-  "ECONNREFUSED",
-  "ECONNRESET",
-  "ENOTFOUND",
-  "EAI_AGAIN",
-  "EPIPE",
-  "fetch failed",
-  "socket hang up",
-  "aborted",
-];
-
-const CONTRACT_ERROR_MARKERS = [
-  "HostError",
-  "Error(Contract",
-  "Error(WasmVm",
-  "ended with status",
-];
-
-export function isDefinitiveContractFailure(error: unknown): boolean {
-  const normalized = normalizeError(error);
-  if (normalized.retryable) return false;
-  const message = normalized.message;
-  if (TRANSIENT_ERROR_MARKERS.some((marker) => message.toLowerCase().includes(marker.toLowerCase()))) {
-    return false;
-  }
-  return CONTRACT_ERROR_MARKERS.some((marker) => message.includes(marker));
-}
-
-export function validateStoredCheckpoint(
-  rounds: { contractId?: string; network?: string; roundId?: string }[],
-  config: { contractId: string; network: string }
-): void {
-  for (const r of rounds) {
-    if (r.contractId && r.contractId !== config.contractId) {
-      throw new Error(`checkpoint contractId mismatch: stored contract ${r.contractId} does not match config contract ${config.contractId}`);
-    }
-    if (r.network && r.network !== config.network) {
-      throw new Error(`checkpoint network mismatch: stored network ${r.network} does not match config network ${config.network}`);
-    }
-  }
-}
-
-/** Give an in-flight round time to finish after shutdown is requested. */
-async function waitForInFlight<T>(
-  work: Promise<T>,
-  { isStopping, scheduler, timeoutMs, roundId }: {
-    isStopping: () => boolean;
-    scheduler: Scheduler;
-    timeoutMs: number;
-    roundId: bigint;
-  },
-): Promise<T> {
-  let timer: ReturnType<Scheduler["setTimeout"]> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    const check = () => {
-      if (isStopping()) {
-        timer = scheduler.setTimeout(() => {
-          reject(new Error(`Shutdown timeout (${timeoutMs}ms) waiting for round ${roundId}`));
-        }, timeoutMs);
-        return;
-      }
-      timer = scheduler.setTimeout(check, 25);
-    };
-    check();
-  });
-
-  try {
-    return await Promise.race([work, timeout]);
-  } finally {
-    if (timer !== undefined) scheduler.clear(timer);
-  }
 }
 
 export interface ResumeCheckpointParams {
@@ -233,11 +148,7 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
 
   const resolvedTime = resolveTimeContext(systemTime, time);
   const { clock, scheduler } = resolvedTime;
-  const deps: KeeperDeps = { sdk, drand, log, time: resolvedTime, checkpoint, settlementGuard };
-  const owner = explicitOwner?.trim() || generateLeaseOwner();
-  const queue = params.queue ?? new KeeperQueue(store, { contractId, network });
-  const shutdownTimeoutMs = params.shutdownTimeoutMs ?? 30_000;
-  const shouldStop = () => isStopping() || queue.isStopping();
+  const deps: KeeperDeps = { sdk, drand, log, time: resolvedTime, checkpoint };
 
   await resumeCheckpoint({ checkpoint, sdk, log, verifyTransaction });
 
@@ -267,14 +178,12 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
       if (!storedRound) break;
 
       const roundId = BigInt(storedRound.roundId);
-      const claim = store.claimRound(roundId, { owner, contractId, network, leaseMs });
-      if (!claim.claimed) {
-        queue.release(roundId);
-        log(`[round ${roundId}] lease held by ${claim.lease.owner} — skipping tick`);
-        continue;
-      }
-
       try {
+        const canSettleCheck = settlementGuard.canSettle(roundId);
+        if (!canSettleCheck.allowed) {
+          // Settlement already in-flight or terminal; close phase handled by guard
+        }
+
         const tickPromise = watchRound(deps, roundId);
         const tick = await waitForInFlight(tickPromise, {
           isStopping: shouldStop,
