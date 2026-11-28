@@ -41,7 +41,7 @@ Host `dist/` on Vercel, Netlify, Cloudflare Pages, GitHub Pages, S3, etc.
 
 ### Production source maps
 
-Production builds omit source maps by default. Setting
+Vite build commands omit source maps by default in every mode. Setting
 `WEB_BUILD_SOURCEMAP=true` (or `hidden`) makes Vite write `.map` files into
 `apps/web/dist` without adding `sourceMappingURL` comments to the JavaScript.
 `hidden` does not make those files private: the generic deploy above publishes
