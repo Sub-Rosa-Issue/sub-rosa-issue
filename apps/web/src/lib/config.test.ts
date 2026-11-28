@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { productionConnectSrc } from "./csp";
 import { normalizeUrl, validatePublicConfig } from "./config";
 
 const VALID_ENV: Record<string, string> = {
@@ -11,6 +12,35 @@ const VALID_ENV: Record<string, string> = {
   VITE_ESCROW_TOKEN_LABEL: "USDC",
   VITE_ROUND_ID: "42",
 };
+
+test("production connect-src allowlists only configured endpoint origins", () => {
+  const connectSrc = productionConnectSrc({
+    VITE_RPC_URL: "https://rpc.example.com/soroban",
+    VITE_KEEPER_URL: "https://keeper.example.com/api",
+    VITE_APPRAISAL_URL: "https://appraisal.example.com/v1",
+    VITE_DRAND_URL: "https://drand.example.com/",
+    VITE_DASHBOARD_ENDPOINT: "https://keeper.example.com/dashboard",
+  });
+
+  assert.equal(
+    connectSrc,
+    "'self' https://rpc.example.com https://keeper.example.com https://appraisal.example.com https://drand.example.com",
+  );
+});
+
+test("production connect-src includes the configured RPC and Drand defaults", () => {
+  assert.equal(
+    productionConnectSrc({}),
+    "'self' https://soroban-testnet.stellar.org https://api.drand.sh",
+  );
+});
+
+test("production connect-src rejects wildcard hosts", () => {
+  assert.throws(
+    () => productionConnectSrc({ VITE_KEEPER_URL: "https://*.example.com" }),
+    /VITE_KEEPER_URL must not use a wildcard origin/,
+  );
+});
 
 test("valid config returns no issues", () => {
   const issues = validatePublicConfig(VALID_ENV);
@@ -272,4 +302,3 @@ test("VITE_RPC_URL with embedded credentials is rejected without echoing credent
     assert.doesNotMatch(credIssue.message, /webuser|websecret/);
   }
 });
-
