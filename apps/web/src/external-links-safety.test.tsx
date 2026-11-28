@@ -36,6 +36,18 @@ test("ExternalLink centralizes safe target and rel", () => {
   assert.equal(SAFE_EXTERNAL_REL, "noopener noreferrer");
 });
 
+test("ExternalLink enforces its safe target and rel over spread props", () => {
+  const overrides = { target: "_self", rel: "opener" };
+  const html = renderToStaticMarkup(
+    <ExternalLink href="https://example.com" {...overrides}>
+      Example
+    </ExternalLink>,
+  );
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener noreferrer"/);
+  assert.doesNotMatch(html, /target="_self"|rel="opener"/);
+});
+
 test("representative components render safe external explorer/evidence links", () => {
   const proof = renderToStaticMarkup(<MainnetProofCard />);
   assertSafeBlankTargets(proof, "MainnetProofCard");

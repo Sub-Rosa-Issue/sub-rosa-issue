@@ -13,7 +13,7 @@ type ExternalLinkProps = Omit<
 
 export function ExternalLink({ href, children, ...props }: ExternalLinkProps) {
   return (
-    <a href={href} target="_blank" rel={SAFE_EXTERNAL_REL} {...props}>
+    <a href={href} {...props} target="_blank" rel={SAFE_EXTERNAL_REL}>
       {children}
     </a>
   );
