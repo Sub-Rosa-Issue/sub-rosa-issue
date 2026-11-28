@@ -82,7 +82,7 @@ export function validateRustToolchainAlignment(repoRoot = root) {
       );
     }
   } catch (err) {
-    errors.push(err instanceof Error ? err.message : String(err));
+    errors.push(err instanceof Error ? err.message : "Unknown rust-toolchain.toml read failure");
   }
 
   const entries = findWorkflowRustToolchains(join(repoRoot, ".github/workflows"));
