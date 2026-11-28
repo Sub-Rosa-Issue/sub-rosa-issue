@@ -15,6 +15,7 @@ export const CHAIN_HASH_MISMATCH_ERROR = "drand chain hash mismatch";
 export interface DrandConfig {
   apiUrl: string;
   expectedChainHash: string;
+  allowLocalHttp?: boolean;
 }
 
 export class DrandChainHashMismatchError extends Error {
@@ -25,22 +26,37 @@ export class DrandChainHashMismatchError extends Error {
   }
 }
 
+export function assertDrandEndpointUrl(
+  rawUrl = DEFAULT_DRAND_API_URL,
+  options: { allowLocalHttp?: boolean } = {},
+): URL {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid DRAND_API_URL");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("DRAND_API_URL must not contain credentials, a query, or a fragment");
+  }
+  if (url.protocol === "https:") return url;
+  const host = url.hostname.toLowerCase();
+  const loopback = host === "localhost" || host === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(host);
+  if (url.protocol === "http:" && loopback && options.allowLocalHttp) return url;
+  throw new Error("DRAND_API_URL requires HTTPS unless loopback HTTP is explicitly enabled");
+}
+
 function checkedDrandConfig(config: DrandConfig): DrandConfig {
   const expectedChainHash = config.expectedChainHash.trim().toLowerCase();
   if (!expectedChainHash) throw new Error(CHAIN_HASH_REQUIRED_ERROR);
   if (!/^[0-9a-f]{64}$/.test(expectedChainHash)) throw new Error(CHAIN_HASH_INVALID_ERROR);
 
-  let url: URL;
-  try {
-    url = new URL(config.apiUrl);
-  } catch {
-    throw new Error("Invalid DRAND_API_URL");
-  }
-  if (!["https:", "http:"].includes(url.protocol) ||
-      url.username || url.password || url.search || url.hash) {
-    throw new Error("Invalid DRAND_API_URL");
-  }
-  return { apiUrl: url.href.replace(/\/+$/, ""), expectedChainHash };
+  const url = assertDrandEndpointUrl(config.apiUrl, { allowLocalHttp: config.allowLocalHttp });
+  return {
+    apiUrl: url.href.replace(/\/+$/, ""),
+    expectedChainHash,
+    ...(config.allowLocalHttp ? { allowLocalHttp: true } : {}),
+  };
 }
 
 export function loadDrandConfig(
@@ -49,6 +65,7 @@ export function loadDrandConfig(
   return checkedDrandConfig({
     apiUrl: env[DRAND_API_URL_ENV]?.trim() || DEFAULT_DRAND_API_URL,
     expectedChainHash: env[DRAND_CHAIN_HASH_ENV] ?? "",
+    allowLocalHttp: env.DRAND_ALLOW_LOCAL_HTTP?.trim().toLowerCase() === "true",
   });
 }
 
