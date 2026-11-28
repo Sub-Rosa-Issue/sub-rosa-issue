@@ -47,6 +47,12 @@ export {
 } from "./auditor.js";
 
 export {
+  MAX_DRAND_RESPONSE_BYTES,
+  DrandResponseTooLargeError,
+  type FetchLike,
+} from "./http.js";
+
+export {
   quicknet,
   chainInfo,
   currentRound,

@@ -40,6 +40,7 @@ Round receipts (`docs/RECEIPTS.md`) are **offline only** — the verifier checks
 ## Operational
 
 - Drand quicknet must publish round R for reveal to open; keeper can void after grace if R never arrives.
+- Quicknet HTTP responses are capped at 64 KiB (`MAX_DRAND_RESPONSE_BYTES`); an oversized response is aborted before JSON parsing.
 - Temporary storage expires after the reveal window — seals are not kept forever by design.
 - Mainnet wasm upload requires substantial XLM for resource fees (~30+ XLM observed).
 
