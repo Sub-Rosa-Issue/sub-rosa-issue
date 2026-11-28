@@ -178,8 +178,8 @@ describe("KeeperStatusClient readiness", () => {
 
   it("errors never include keeper URL userinfo", async () => {
     const { c } = client([LIVE], {
-      baseURL: "http://keeper.test",
-      fetchImpl: async (url) => { throw new TypeError(`Request cannot be constructed from a URL that includes credentials: http://operator:hunter2@keeper.test/status`); },
+      baseURL: "http://operator:hunter2@keeper.test",
+      fetchImpl: async (url) => { throw new TypeError(`Request cannot be constructed from a URL that includes credentials: ${String(url)}`); },
     });
     const verdict = await c.readiness();
     assert.equal(verdict.ready === false && verdict.reason, "unavailable");

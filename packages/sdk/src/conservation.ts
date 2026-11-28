@@ -134,7 +134,7 @@ export function evaluateEscrowConservation(
 
 /** The subset of client reads a conservation walk needs. */
 export interface EscrowConservationSource {
-  getBiddersPage(cursor: Uint8Array | undefined, limit: number): Promise<BiddersPage>;
+  getBiddersPage(cursor: number, limit: number): Promise<BiddersPage>;
   getBidState(bidder: string): Promise<BidState | undefined>;
 }
 
@@ -208,7 +208,7 @@ export async function proveEscrowConservationFromPages(
   let refundable = 0n;
   let winnerEscrow = 0n;
   let declaredTotal: number | undefined;
-  let cursor: Uint8Array | undefined;
+  let cursor = 0;
   let pages = 0;
 
   for (;;) {
@@ -287,41 +287,36 @@ export async function proveEscrowConservationFromPages(
       );
       break;
     }
-if (page.next_cursor === null || page.next_cursor === undefined) break;
-    const nextCursorBuffer = page.next_cursor as Uint8Array;
-    if (cursor !== undefined) {
-      const currentCursorBuffer = cursor as Uint8Array;
-      if (nextCursorBuffer.length <= currentCursorBuffer.length &&
-          nextCursorBuffer.every((byte, index) => byte === currentCursorBuffer[index])) {
-        issues.push(
-          issue(
-            "cursor_stalled",
-            `next_cursor did not advance past ${cursor.length} bytes`,
-          ),
-        );
-        break;
-      }
+    if (page.next_cursor === 0) break;
+    if (page.next_cursor <= cursor) {
+      issues.push(
+        issue(
+          "cursor_stalled",
+          `next_cursor ${page.next_cursor} did not advance past ${cursor}`,
+        ),
+      );
+      break;
     }
     if (pages >= maxPages) {
       issues.push(
         issue(
           "cursor_stalled",
-          `index walk exceeded ${maxPages} pages before the cursor reached end`,
+          `index walk exceeded ${maxPages} pages before the cursor reached 0`,
         ),
       );
       break;
     }
-    if (nextCursorBuffer.length > 0 && nextCursorBuffer[0] > ESCROW_MAX_BIDDERS) {
+    if (page.next_cursor > ESCROW_MAX_BIDDERS) {
       issues.push(
         issue(
           "cursor_stalled",
-          `next_cursor ${nextCursorBuffer[0]} points past the contract maximum of ` +
+          `next_cursor ${page.next_cursor} points past the contract maximum of ` +
             `${ESCROW_MAX_BIDDERS} bidders`,
         ),
       );
       break;
     }
-    cursor = nextCursorBuffer;
+    cursor = page.next_cursor;
   }
 
   if (winner !== undefined && !seen.has(winner)) {

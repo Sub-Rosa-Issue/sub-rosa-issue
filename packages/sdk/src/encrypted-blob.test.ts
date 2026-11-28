@@ -599,15 +599,11 @@ test("documents the swap boundary: a self-consistent wrong binding is not detect
 
 test("rejects another round's commitment substituted for this bid's", async () => {
   const mine = await sealFixture({ value: 700n, nonce: new Uint8Array(32).fill(1) });
-  // Create a fake "other" seal with the same commitment (same value/nonce) but
-  // pretend it was sealed to a different round. We can't actually seal to a
-  // different round due to the window check, so we reuse the commitment from
-  // our seal and verify the commitment check catches a mismatch.
-  const otherCommitment = mine.commitment.slice().reverse(); // different commitment
+  const other = await sealFixture({ value: 700n, nonce: new Uint8Array(32).fill(1), round: BID_ROUND + 1 });
   // Same value and nonce, so only the round differs — the commitment is equal.
-  assert.deepEqual([...mine.commitment], [...mine.commitment]);
+  assert.deepEqual([...mine.commitment], [...other.commitment]);
   assert.deepEqual(
-    rejectionCodes({ ...mine, commitment: otherCommitment }, {
+    rejectionCodes({ ...mine, commitment: other.commitment.slice().reverse() }, {
       value: 700n,
       nonce: new Uint8Array(32).fill(1),
       round: BID_ROUND,

@@ -12,6 +12,7 @@ import type {
   AssembledTransaction,
   Result,
 } from "@stellar/stellar-sdk/contract";
+import type { RoundAssetConfig } from "@sub-rosa/round-bindings";
 import { basicNodeSigner } from "@stellar/stellar-sdk/contract";
 import {
   Client as RoundContract,
@@ -28,7 +29,7 @@ import {
 } from "@sub-rosa/round-bindings/event-snapshot";
 import { toHex } from "@sub-rosa/tlock";
 import type { SealedBid } from "@sub-rosa/tlock";
-import type { RoundReceipt, RoundReceiptEvent } from "./receipt.js";
+import type { RoundReceipt } from "./receipt.js";
 import { assertSealedBid } from "./encrypted-blob.js";
 import type { SealedBidBinding } from "./encrypted-blob.js";
 import { networkFingerprint } from "./receipt.js";
@@ -53,7 +54,6 @@ import {
   SubRosaEscrowConservationError,
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
-  SubRosaPaginationError,
   SubRosaAssetValidationError,
   SubRosaSubmitError,
   SubRosaTimeoutError,
@@ -120,13 +120,6 @@ export interface SubRosaClientConfig {
    */
   assetConfig?: import("./asset-config.js").AssetConfig;
   /**
-   * Optional passkey session binding for client-side validation before
-   * submitting transactions. If provided, the SDK will verify that the
-   * session matches the contract ID, network passphrase, and account
-   * before allowing commits.
-   */
-  session?: PasskeySessionBinding;
-  /**
    * @internal Testing hook: inject a mock Soroban RPC server for simulation.
    */
   _server?: rpc.Server;
@@ -184,8 +177,6 @@ export interface CommitParams {
    * it (tlock >= this change), otherwise it must be supplied.
    */
   sealRound?: number | bigint;
-  /** The binding the seal is expected to satisfy (value, nonce, round). */
-  binding: SealedBidBinding;
 }
 
 export interface RevealParams {
@@ -501,15 +492,6 @@ export class SubRosaClient {
   }
 
   async commit(params: CommitParams): Promise<void> {
-    // Validate passkey session if configured
-    if (this.#session) {
-      validatePasskeySession(this.#session, {
-        contractId: this.contractId,
-        networkPassphrase: this.networkPassphrase,
-        account: params.bidder ?? this.#source,
-      });
-    }
-
     // Gate the seal before submitting. Size/encoding defects surface here
     // instead of as an on-chain PayloadTooLarge revert, and — when the caller
     // passes the value/nonce/round it sealed from — a blob whose commitment
@@ -646,7 +628,7 @@ export class SubRosaClient {
 
   /** Simulate `commit` without signing or submitting. */
   async preflightCommit(params: CommitParams): Promise<PreflightResult<void>> {
-    const session = this.#session;
+    const session = params.session ?? this.#session;
     if (session) {
       validatePasskeySession(session, {
         contractId: this.contractId,
@@ -945,26 +927,26 @@ export class SubRosaClient {
           || !Array.isArray(page.data) || page.data.length > PAGE_SIZE
           || typeof page.has_more !== "boolean"
           || page.has_more !== (page.next_cursor != null)) {
-        throw new SubRosaPaginationError({ roundId: rid, reason: "invalid_page" });
+        throw new SubRosaPaginationError(rid, "invalid_page");
       }
       // Validate the entire page before yielding any of it.
       for (const addr of page.data) {
         if (seen.has(addr)) {
-          throw new SubRosaPaginationError({ roundId: rid, reason: "repeated_bidder", bidder: addr });
+          throw new SubRosaPaginationError(rid, "repeated_bidder", addr);
         }
         seen.add(addr);
       }
       if (seen.size > total || (page.has_more && (page.data.length === 0 || seen.size >= total))
           || (!page.has_more && seen.size !== total)) {
-        throw new SubRosaPaginationError({ roundId: rid, reason: "invalid_page" });
+        throw new SubRosaPaginationError(rid, "invalid_page");
       }
       if (page.has_more) {
-if (!(page.next_cursor instanceof Uint8Array) || page.next_cursor.length !== 41) {
-          throw new SubRosaPaginationError({ roundId: rid, reason: "invalid_page" });
+        if (!(page.next_cursor instanceof Uint8Array) || page.next_cursor.length !== 41) {
+          throw new SubRosaPaginationError(rid, "invalid_page");
         }
         const key = Buffer.from(page.next_cursor).toString("hex");
         if (cursors.has(key)) {
-          throw new SubRosaPaginationError({ roundId: rid, reason: "repeated_cursor" });
+          throw new SubRosaPaginationError(rid, "repeated_cursor");
         }
         cursors.add(key);
       }

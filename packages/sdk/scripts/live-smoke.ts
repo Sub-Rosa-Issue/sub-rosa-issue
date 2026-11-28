@@ -143,7 +143,7 @@ async function main() {
     contractId,
     secretKey: bidderSecret,
   });
-  await bidder.commit({ roundId, sealed, escrow, binding: { value, nonce, round: revealRound } });
+  await bidder.commit({ roundId, sealed, escrow });
   diagnostics.info("committed-escrow-locked", "    ✔ committed, escrow locked:", { "value1_0": escrow.toString(), "value2_1": "stroops" });
 
   // ── 4. Read everything back (read-only simulation) ─────────────────────

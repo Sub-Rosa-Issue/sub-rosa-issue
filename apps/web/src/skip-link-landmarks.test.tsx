@@ -87,7 +87,7 @@ test("every page component exposes exactly one unambiguous main#main-content lan
     { file: "pages/LandingPage.tsx", navPattern: /<motion\.nav\b/, outerClass: "landing-page" },
     { file: "pages/DashboardPage.tsx", navPattern: /<motion\.nav\b/, outerClass: "dashboard-page" },
     { file: "pages/ArchitecturePage.tsx", navPattern: /<nav\b/, outerClass: "architecture-page" },
-    { file: "pages/DemoPage.tsx", navPattern: /<aside\s+className="case-nav"/, outerClass: "app-page" },
+    { file: "pages/DemoPage.tsx", navPattern: /<aside\s+className="case-nav">/, outerClass: "app-page" },
   ];
 
   for (const { file, navPattern, outerClass } of pages) {

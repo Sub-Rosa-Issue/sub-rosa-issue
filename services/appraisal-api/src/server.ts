@@ -47,7 +47,6 @@ import {
   type QuoteRateLimitDecision,
   type QuoteRateLimiter,
 } from "./quote-rate-limit.js";
-import { systemClock } from "@sub-rosa/time";
 
 const APPRAISE_ROUTE = "POST /appraise";
 
@@ -260,7 +259,7 @@ export async function buildAppraisalServer(
       // built and the authorized payment is not settled.
       const nowMs = options.nowSeconds
         ? options.nowSeconds() * 1000
-        : systemClock.nowMs();
+        : globalThis.Date.now();
       let quoteDecision: QuoteRateLimitDecision;
       try {
         quoteDecision = quoteLimiter.take(quoteRateKey(req), nowMs);
@@ -281,7 +280,7 @@ export async function buildAppraisalServer(
       try {
         const nowSeconds = options.nowSeconds
           ? options.nowSeconds()
-          : systemClock.nowSeconds();
+          : Math.floor(globalThis.Date.now() / 1000);
         body = {
           appraisal: appraise(parseAppraisalRequest(parsedBody)),
           quote: buildAppraisalQuote({

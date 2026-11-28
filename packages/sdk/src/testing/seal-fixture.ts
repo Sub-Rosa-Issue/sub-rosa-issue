@@ -1,4 +1,15 @@
 // Offline sealed-bid fixtures for the SDK tests.
+//
+// A real seal, produced without a network. `timelockEncrypt` reads exactly one
+// thing from the Drand client — `chain().info()` — and only to learn the
+// chain's static public key, which is a constant of quicknet. Stubbing that
+// call therefore yields genuine tlock ciphertext, so the pre-commit gate is
+// tested against the real sealer instead of a hand-written stand-in that could
+// drift from it.
+//
+// This is test-only scaffolding: it is not exported from the package index, and
+// nothing in `src` outside `*.test.ts` imports it.
+
 import {
   QUICKNET_HASH,
   NONCE_BYTES,
@@ -11,11 +22,6 @@ import type { SealedBidBinding } from "../encrypted-blob.js";
 /** quicknet's real chain public key. */
 const QUICKNET_PUBLIC_KEY =
   "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
-
-/** Valid Soroban contract ID for test fixtures. */
-const TEST_CONTRACT_ID = "CAWER53KEJWJS2VYMMVVL2ECX6RNO5UHV5NRNGLBRTMK3BYUTRQZNXA7";
-/** Valid Soroban account ID for test fixtures. */
-const TEST_BIDDER_ID = "GD2FIIROWULVA743QQDHOZXLEDYTIV23CMMNCMPQELYEWHZMF743H6EM";
 
 const offlineClient = {
   chain: () => ({
@@ -41,12 +47,9 @@ export function sealFixture(overrides?: {
   auditorPublicKey?: Uint8Array;
 }): Promise<SealedBid> {
   return sealBid({
-    contractId: TEST_CONTRACT_ID,
-    bidderId: TEST_BIDDER_ID,
     value: overrides?.value ?? BID_VALUE,
     nonce: overrides?.nonce ?? BID_NONCE,
     round: overrides?.round ?? BID_ROUND,
-    revealRound: BID_ROUND,
     client: offlineClient,
     ...(overrides?.identity ? { identity: overrides.identity } : {}),
     ...(overrides?.auditorPublicKey

@@ -332,9 +332,8 @@ describe("ROUND_CONTRACT_ERRORS mapping coverage", () => {
     const docErrors = parseErrorsMdContent(content);
 
     assert.ok(docErrors.length >= 27, "ERRORS.md must contain at least 27 error rows");
-    // NOTE: ERRORS.md has a known bug (duplicate code 40 assignment) so we only
-    // verify the minimum count here. The authoritative mapping is checked against
-    // types.rs and the generated round-bindings below.
+    const failures = diffContractErrorMapping(docErrors);
+    assert.deepEqual(failures, [], "Every documented contract error must match ROUND_CONTRACT_ERRORS");
   });
 
   it("covers every error variant in contracts/round/src/types.rs", () => {

@@ -41,11 +41,9 @@ describe("Passkey session binding fixture test", () => {
       commitment: new Uint8Array(32),
       ciphertext: new Uint8Array([0x61, 0x67, 0x65]),
       auditorBlob: new Uint8Array(1),
-      sealRound: 1,
     },
     escrow: 100_000n,
     bidder: FIXTURE_PUBLIC,
-    binding: { value: 0n, nonce: new Uint8Array(32), round: 1 },
   };
 
   function createFixtureClient(options: {
@@ -73,12 +71,16 @@ describe("Passkey session binding fixture test", () => {
       } as never,
     });
 
-    // Mock client.commit to detect submission (bypasses assertSealedBid gate
-    // which requires a valid age-armored ciphertext that fixtures can't produce)
-    Object.defineProperty(client, "commit", {
+    // Mock contract commit to detect submission
+    Object.defineProperty(client.contract, "commit", {
       configurable: true,
       value: async () => {
         submitted = true;
+        return {
+          signAndSend: async () => ({
+            result: { unwrap: () => ({}) },
+          }),
+        };
       },
     });
 

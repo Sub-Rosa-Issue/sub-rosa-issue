@@ -23,8 +23,7 @@ import {
 } from "./keeper.js";
 import type { SettlementGuard } from "./settlement-guard.js";
 import type { KeeperLogger } from "./keeper.js";
-import { KeeperStore, generateLeaseOwner, parseLeaseMs } from "./store.js";
-import { KeeperQueue } from "./queue.js";
+import { KeeperStore } from "./store.js";
 import type {
   ResumableCheckpoint,
   TransactionHashVerifier,
@@ -48,10 +47,6 @@ export interface RunWatchLoopParams {
   time?: PartialTimeContext;
   queue?: KeeperQueue;
   shutdownTimeoutMs?: number;
-  /** Identifier of the watcher process that owns leases. */
-  owner?: string;
-  /** Lease duration in ms for rounds claimed by this watcher. */
-  leaseMs?: number;
 }
 
 const bigintReplacer = (_k: string, v: unknown): unknown =>
@@ -129,87 +124,6 @@ export async function resumeCheckpoint(
   }
 }
 
-/**
- * Validate that every round stored in the KeeperStore matches the process's
- * contract and network. Throws on mismatch so the keeper never replays a
- * cursor recorded against a different deployment.
- */
-export function validateStoredCheckpoint(
-  rounds: { contractId?: string; network?: string }[],
-  config: { contractId: string; network: string },
-): void {
-  for (const round of rounds) {
-    if (round.contractId && round.contractId !== config.contractId) {
-      throw new Error(
-        `checkpoint contractId mismatch: stored ${round.contractId}, expected ${config.contractId}`,
-      );
-    }
-    if (round.network && round.network !== config.network) {
-      throw new Error(
-        `checkpoint network mismatch: stored ${round.network}, expected ${config.network}`,
-      );
-    }
-  }
-}
-
-/**
- * Classify a contract call failure as definitive (the contract answered and
- * refused) vs. retryable (transport failure, timeout, unclassified).
- * Definitive failures release the lease; retryable ones keep it.
- */
-export function isDefinitiveContractFailure(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const msg = error.message;
-  return (
-    msg.includes("WrongStatus") ||
-    msg.includes("RoundNotFound") ||
-    msg.includes("already_settled") ||
-    msg.includes("round_voided") ||
-    msg.includes("ended with status FAILED")
-  );
-}
-
-/**
- * Await a promise with optional timeout and cancellation via `isStopping`.
- * Resolves with the promise's result, or rejects with a timeout/abort error.
- */
-export async function waitForInFlight<T>(
-  promise: Promise<T>,
-  opts: {
-    isStopping: () => boolean;
-    scheduler: Scheduler;
-    timeoutMs?: number;
-    roundId: bigint;
-  },
-): Promise<T> {
-  const { isStopping, scheduler, timeoutMs, roundId } = opts;
-
-  if (timeoutMs && timeoutMs > 0) {
-    const timeout = new Promise<never>((_, reject) => {
-      const handle = scheduler.setTimeout(() => {
-        reject(
-          new Error(
-            `Shutdown timeout: round ${roundId} tick did not complete within ${timeoutMs}ms`,
-          ),
-        );
-      }, timeoutMs);
-      promise.then(() => scheduler.clear(handle), () => scheduler.clear(handle));
-    });
-    return Promise.race([promise, timeout]);
-  }
-
-  return promise;
-}
-
-/**
- * Startup resume gate for the watch cursor.
- *
- * 1. Re-check every recorded transaction hash. A hash that is not `confirmed`
- *    is rolled back so the step is retried.
- * 2. Reconcile the remaining (hashless) cursor entries against the on-chain
- *    status. If the chain cannot prove a step happened, drop it rather than
- *    stranding the round.
- */
 export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
   const {
     sdk,
@@ -224,16 +138,9 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
     checkpoint,
     verifyTransaction,
     time,
-    queue: queueOpt,
-    shutdownTimeoutMs,
     owner: explicitOwner,
-    leaseMs: explicitLeaseMs,
+    leaseMs,
   } = params;
-
-  const shouldStop = isStopping;
-  const owner = explicitOwner ?? generateLeaseOwner();
-  const effectiveLeaseMs = explicitLeaseMs;
-  const queue = queueOpt ?? new KeeperQueue(store, { contractId, network });
 
   // Load the checkpoint / stored rounds and validate before claiming work
   const storedRounds = store.listRounds();
@@ -241,7 +148,7 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
 
   const resolvedTime = resolveTimeContext(systemTime, time);
   const { clock, scheduler } = resolvedTime;
-  const deps: KeeperDeps = { sdk, drand, log, time: resolvedTime, checkpoint, settlementGuard };
+  const deps: KeeperDeps = { sdk, drand, log, time: resolvedTime, checkpoint };
 
   await resumeCheckpoint({ checkpoint, sdk, log, verifyTransaction });
 
@@ -335,7 +242,8 @@ export async function runWatchLoop(params: RunWatchLoopParams): Promise<void> {
           log(`[round ${roundId}] lease released after definitive contract failure`);
         } else {
           log(
-            `[round ${roundId}] lease kept until next cycle — ${normalizeError(e).message}`,
+            `[round ${roundId}] lease kept until ` +
+              `${clock.toISOString(claim.lease.expiresAtMs)} — ${normalizeError(e).message}`,
           );
         }
       }

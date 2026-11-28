@@ -168,7 +168,7 @@ const requestBody = JSON.stringify(req);
   const expectedAsset = config.appraisalAsset ?? config.mandate.appraisalAsset;
   const expectedDestination = config.appraisalPayTo ?? config.mandate.appraisalPayTo;
 
-  log(`paying appraisal (${stroopsToUsdc(quotedPrice)} USDC…)`);
+  log(`paying appraisal (${stroopsToUsdc(quotedPrice)} USDC…);
   const paidFetch = dependencies.createPaidFetch({
     secret: config.sessionSecret,
     network: config.x402Network ?? "stellar:testnet",
@@ -236,7 +236,7 @@ const requestBody = JSON.stringify(req);
   const report = config.onCommitStatus ?? (() => {});
   report({ status: "pending", bidder: bidderAddress });
   try {
-    await bidder.commit({ roundId, sealed, escrow, binding: { value: bidValue, nonce, round: revealRound } });
+    await bidder.commit({ roundId, sealed, escrow });
   } catch (error) {
     report({ status: "failed", bidder: bidderAddress, code: commitErrorCode(error) });
     throw error;

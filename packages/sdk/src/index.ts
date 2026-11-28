@@ -37,7 +37,6 @@ export {
   SubRosaManifestError,
   SubRosaMissingReturnValueError,
   SubRosaNetworkMismatchError,
-  SubRosaPaginationError,
   SubRosaPreflightError,
   SubRosaSessionMismatchError,
   SubRosaSubmitError,
@@ -50,10 +49,8 @@ export type {
   ManifestErrorParams,
   NetworkMismatchErrorParams,
   NetworkMismatchReason,
-  PaginationErrorReason,
   PreflightFailureKind,
   SubRosaPreflightErrorParams,
-  SubRosaPaginationErrorParams,
   TimeoutErrorParams,
 } from "./errors.js";
 
@@ -141,7 +138,6 @@ export {
   hasBlockingFailures,
   nativeXlmSacId,
   parseMainnetReadinessFixture,
-  parseMicroStroops,
   readLiveDeployment,
   runMainnetReadiness,
   summarizeDeploymentValue,
