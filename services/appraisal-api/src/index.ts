@@ -27,6 +27,13 @@ export {
   type AppraisalServerOptions,
 } from "./server.js";
 export {
+  APPRAISAL_REQUEST_ID_HEADER,
+  MAX_APPRAISAL_REQUEST_ID_LENGTH,
+  isValidAppraisalRequestId,
+  readInboundAppraisalRequestId,
+  resolveAppraisalRequestId,
+} from "./request-id.js";
+export {
   AppraisalConfigError,
   configFromEnv,
   type AppraisalServerConfig,
