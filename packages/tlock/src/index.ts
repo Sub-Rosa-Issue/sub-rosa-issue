@@ -61,6 +61,13 @@ export {
   type DrandClient,
 } from "./quicknet.js";
 
+export {
+  createValidatingQuicknetClient,
+  ValidatingHttpChainClient,
+  validateContentType,
+  type ValidatingHttpOptions,
+} from "./http-client.js";
+
 export { drandSignatureToSoroban, encodeG1Soroban } from "./bls.js";
 
 export {

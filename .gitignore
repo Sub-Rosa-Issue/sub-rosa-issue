@@ -44,3 +44,6 @@ coverage/
 *.lcov.info
 lcov.info
 .nyc_output/
+
+# Keeper test store (written by keeper tests into cwd)
+.test-keeper-watch-store.json

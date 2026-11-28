@@ -5,22 +5,26 @@ import { createLogger, writeData } from '@sub-rosa/logging';
 const diagnostics = createLogger("services.receipt-cli.src.index");
 // receipt-cli — export a round receipt from RPC or verify a local file.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { SubRosaClient, parseReceipt, serializeReceipt, verifyReceipt, redactReceipt } from "@sub-rosa/sdk";
 import { buildJsonOutput } from "./json-output.js";
+import { writeOutputFile } from "./output-file.js";
 
 function usage(): never {
   diagnostics.error("usage-receipt-cli-export-roundid-fetch-receipt-from-rpc", `
 Usage:
-  receipt-cli export <roundId>             Fetch receipt from RPC (uses env config)
+  receipt-cli export <roundId> [--force]     Fetch receipt from RPC (uses env config)
   receipt-cli verify <receipt.json> [--json] [--verify-artifact-checksum <artifact-file>]
-  receipt-cli redact <receipt.json> [out]  Redact sensitive fields for public demo
+  receipt-cli redact <receipt.json> [out] [--force]  Redact sensitive fields for public demo
 
 Options for "verify":
   --json                                  Print machine-readable verification output
   --verify-artifact-checksum <artifact-file>
                                           Verify the checksum of the required artifact file
+
+Options for "export" and "redact":
+  --force                                 Overwrite existing non-empty output file
 
 Environment for "export":
   RPC_URL                  Soroban RPC endpoint (default: https://soroban-testnet.stellar.org)
@@ -30,7 +34,7 @@ Environment for "export":
   process.exit(1);
 }
 
-async function cmdExport(roundIdStr: string) {
+async function cmdExport(roundIdStr: string, force: boolean) {
   const roundId = BigInt(roundIdStr);
   const rpcUrl = process.env.RPC_URL ?? "https://soroban-testnet.stellar.org";
   const networkPassphrase =
@@ -45,7 +49,7 @@ async function cmdExport(roundIdStr: string) {
   const receipt = await client.exportReceipt(roundId);
   const json = serializeReceipt(receipt);
   const filename = `round-${roundId}-receipt.json`;
-  writeFileSync(filename, json, "utf-8");
+  writeOutputFile(filename, json, { force });
   diagnostics.info("wrote", `Wrote ${filename}`);
 }
 
@@ -158,7 +162,7 @@ async function cmdVerify(path: string, jsonMode: boolean, artifactPath?: string)
   process.exit(result.valid ? 0 : 1);
 }
 
-async function cmdRedact(inputPath: string, outputPath?: string) {
+async function cmdRedact(inputPath: string, outputPath?: string, force: boolean = false) {
   let json: string;
   try {
     json = readFileSync(inputPath, "utf-8");
@@ -178,7 +182,7 @@ async function cmdRedact(inputPath: string, outputPath?: string) {
   const redacted = redactReceipt(receipt);
   const out = serializeReceipt(redacted);
   const outPath = outputPath ?? inputPath.replace(/\.json$/, ".redacted.json");
-  writeFileSync(outPath, out, "utf-8");
+  writeOutputFile(outPath, out, { force });
   diagnostics.info("wrote-redacted-receipt-to", `Wrote redacted receipt to ${outPath}`);
 }
 
@@ -188,9 +192,12 @@ async function main() {
 
   switch (cmd) {
     case "export": {
-      const arg = process.argv[3];
+      const args = process.argv.slice(3);
+      const force = args.includes("--force");
+      const filteredArgs = args.filter(a => a !== "--force");
+      const arg = filteredArgs[0];
       if (!arg) usage();
-      await cmdExport(arg);
+      await cmdExport(arg, force);
       break;
     }
     case "verify": {
@@ -214,9 +221,12 @@ async function main() {
       break;
     }
     case "redact": {
-      const arg = process.argv[3];
+      const args = process.argv.slice(3);
+      const force = args.includes("--force");
+      const filteredArgs = args.filter(a => a !== "--force");
+      const arg = filteredArgs[0];
       if (!arg) usage();
-      await cmdRedact(arg, process.argv[4]);
+      await cmdRedact(arg, filteredArgs[1], force);
       break;
     }
     default:
