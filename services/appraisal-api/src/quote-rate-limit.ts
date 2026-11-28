@@ -79,7 +79,7 @@ export const DEVELOPMENT_QUOTE_RATE_LIMIT: MemoryQuoteRateLimitOptions = {
 
 export interface AppraisalQuoteRateKeyOptions {
   /** Trust `X-Forwarded-For` header. Defaults to false (use socket address only). */
-  trustProxy?: boolean;
+  trustedProxyIps?: readonly string[];
 }
 
 /**
@@ -88,52 +88,33 @@ export interface AppraisalQuoteRateKeyOptions {
  */
 export function normalizeClientIp(raw: string | undefined): string {
   if (!raw) return "";
-  let candidate = raw.trim();
-  if (!candidate) return "";
-
-  if (candidate.startsWith("[")) {
-    const closeIdx = candidate.indexOf("]");
-    if (closeIdx === -1) return "";
-    candidate = candidate.slice(1, closeIdx);
-  } else {
-    const colonCount = (candidate.match(/:/g) ?? []).length;
-    if (colonCount === 1) {
-      const host = candidate.slice(0, candidate.indexOf(":"));
-      if (isIP(host) === 4) {
-        candidate = host;
-      }
-    }
-  }
-
-  if (candidate.toLowerCase().startsWith("::ffff:")) {
-    const v4 = candidate.slice(7);
-    if (isIP(v4) === 4) {
-      candidate = v4;
-    }
-  }
-
-  const family = isIP(candidate);
-  if (family === 4) return candidate;
-  if (family === 6) return candidate.toLowerCase();
-  return "";
+  const value = raw.trim();
+  const bracketed = /^\[([^\]]+)\](?::\d{1,5})?$/.exec(value);
+  const ipv4Port = /^(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}$/.exec(value);
+  const address = bracketed?.[1] ?? ipv4Port?.[1] ?? value;
+  const family = isIP(address);
+  if (family === 4) return address;
+  if (family !== 6 || address.includes("%")) return "";
+  const ipv6 = new URL(`http://[${address}]`).hostname.slice(1, -1);
+  const mapped = /^::ffff:([0-9a-f]+):([0-9a-f]+)$/.exec(ipv6);
+  if (!mapped) return ipv6;
+  const high = Number.parseInt(mapped[1], 16);
+  const low = Number.parseInt(mapped[2], 16);
+  return [high >> 8, high & 255, low >> 8, low & 255].join(".");
 }
 
-/**
- * Client identity for the development limiter.
- * Ignores `X-Forwarded-For` by default; honors it only when `trustProxy: true`.
- */
 export function appraisalQuoteRateKey(
   req: http.IncomingMessage,
   options: AppraisalQuoteRateKeyOptions = {},
 ): string {
-  if (options.trustProxy === true) {
-    const forwarded = req.headers["x-forwarded-for"];
-    const rawForwarded = Array.isArray(forwarded) ? forwarded.join(",") : forwarded;
-    if (rawForwarded) {
-      const first = rawForwarded.split(",")[0];
-      const normalized = normalizeClientIp(first);
-      if (normalized) return normalized;
-    }
+  const peer = normalizeClientIp(req.socket?.remoteAddress);
+  if (!peer || !options.trustedProxyIps?.some((ip) => normalizeClientIp(ip) === peer)) {
+    return peer || "unknown";
   }
-  return normalizeClientIp(req.socket?.remoteAddress) || "unknown";
+
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded !== "string") return peer;
+  // The trusted gateway appends or replaces the actual client's address.
+  const client = forwarded.slice(forwarded.lastIndexOf(",") + 1);
+  return normalizeClientIp(client) || peer;
 }

@@ -5,7 +5,7 @@
 // and return stable typed JSON (see ../status.ts).
 
 import { normalizeError } from "@sub-rosa/logging/errors";
-import { systemScheduler, type Scheduler } from "@sub-rosa/time";
+import { DEFAULT_REQUEST_TIMEOUT_MS, systemScheduler, type Scheduler } from "@sub-rosa/time";
 import { assertNoUrlCredentials } from "./network.js";
 import type {
   KeeperHealthResponse,
@@ -95,6 +95,52 @@ export class StatusResponseTooLargeError extends Error {
   }
 }
 
+/** True for HTTP 3xx statuses that would otherwise trigger a redirect. */
+export function isHttpRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400;
+}
+
+/**
+ * Raised when the status client receives a redirect (or an opaque redirect)
+ * instead of following it. The `Location` header value is never included in
+ * the message or on the error object.
+ */
+export class StatusRedirectError extends Error {
+  readonly name = "StatusRedirectError";
+  readonly status: number;
+  /**
+   * Whether `Location` targets the same origin as the request URL.
+   * `null` when Location is missing or unparseable; `false` for opaque redirects.
+   */
+  readonly sameOrigin: boolean | null;
+
+  constructor(status: number, sameOrigin: boolean | null = null) {
+    const label = status === 0 ? "opaque" : String(status);
+    super(`status api refused redirect (${label})`);
+    this.status = status;
+    this.sameOrigin = sameOrigin;
+  }
+
+  /** Build an error from a redirect response without echoing Location. */
+  static fromResponse(requestUrl: string, res: Response): StatusRedirectError {
+    if (res.type === "opaqueredirect") {
+      return new StatusRedirectError(res.status === 0 ? 0 : res.status, false);
+    }
+    const location = res.headers.get("Location") ?? res.headers.get("location");
+    let sameOrigin: boolean | null = null;
+    if (location) {
+      try {
+        const request = new URL(requestUrl);
+        const destination = new URL(location, requestUrl);
+        sameOrigin = request.origin === destination.origin;
+      } catch {
+        sameOrigin = null;
+      }
+    }
+    return new StatusRedirectError(res.status, sameOrigin);
+  }
+}
+
 function fullURL(base: string, path: string): string {
   const trimmed = base.replace(/\/+$/, "");
   const clean = path.startsWith("/") ? path : `/${path}`;
@@ -106,7 +152,7 @@ async function readCappedResponseText(res: Response, maxBytes: number): Promise<
   if (contentLength !== null && contentLength !== undefined) {
     const declared = Number(contentLength);
     if (Number.isFinite(declared) && declared > maxBytes) {
-      await res.body?.cancel().catch(() => {});
+      void res.body?.cancel().catch(() => {});
       throw new StatusResponseTooLargeError(res.status, maxBytes);
     }
   }
@@ -122,7 +168,7 @@ async function readCappedResponseText(res: Response, maxBytes: number): Promise<
         if (!value) continue;
         total += value.byteLength;
         if (total > maxBytes) {
-          await reader.cancel().catch(() => {});
+          void reader.cancel().catch(() => {});
           throw new StatusResponseTooLargeError(res.status, maxBytes);
         }
         chunks.push(value);
@@ -184,7 +230,7 @@ export class KeeperStatusClient {
     this.baseURL = opts.baseURL;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
     this.headers = opts.headers ?? {};
-    this.timeoutMs = opts.timeoutMs ?? 10_000;
+    this.timeoutMs = opts.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.maxResponseBytes = opts.maxResponseBytes ?? MAX_STATUS_RESPONSE_BYTES;
     if (!Number.isInteger(this.maxResponseBytes) || this.maxResponseBytes < 1) {
       throw new Error("maxResponseBytes must be a positive integer");
@@ -267,12 +313,22 @@ export class KeeperStatusClient {
     const forwardAbort = () => controller.abort(callerSignal?.reason);
     callerSignal?.addEventListener("abort", forwardAbort, { once: true });
     const request = (async () => {
-      const res = await this.fetchImpl(url, { method: "GET", headers: { Accept: "application/json", ...this.headers }, signal: controller.signal });
+      // Never follow redirects: a 3xx would otherwise resend the request (and
+      // any future auth headers) to an unreviewed Location origin.
+      const res = await this.fetchImpl(url, {
+        method: "GET",
+        headers: { Accept: "application/json", ...this.headers },
+        signal: controller.signal,
+        redirect: "manual",
+      });
+      if (res.type === "opaqueredirect" || isHttpRedirectStatus(res.status)) {
+        throw StatusRedirectError.fromResponse(url, res);
+      }
       if (!res.ok) {
         const body = await parseErrorBody(res, this.maxResponseBytes);
         throw new StatusApiError(res.status, body);
       }
-      return parseSuccessBody<T>(res, this.maxResponseBytes);
+      return await parseSuccessBody<T>(res, this.maxResponseBytes);
     })();
     try {
       return await Promise.race([request, timedOut]);

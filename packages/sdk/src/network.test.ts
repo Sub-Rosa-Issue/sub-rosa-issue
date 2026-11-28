@@ -9,9 +9,13 @@ import {
 import { SubRosaClient } from "./client.js";
 import { KeeperStatusClient } from "./status-client.js";
 import {
+  MAINNET_NETWORK_PASSPHRASE,
+  assertEndpointTransportSecurity,
   assertNoUrlCredentials,
   describeNetworkPassphraseMismatch,
   hasUrlCredentials,
+  isLoopbackHost,
+  isMainnetPassphrase,
   networkDisplayName,
   networkPassphrasesMatch,
   SubRosaNetworkPassphraseMismatchError,
@@ -45,6 +49,90 @@ const config = (networkPassphrase: string) => ({
   networkPassphrase,
   contractId: CONTRACT_ID,
   rpcUrl: RPC_URL,
+});
+
+describe("endpoint transport security", () => {
+  it("recognises the mainnet passphrase", () => {
+    assert.equal(MAINNET_NETWORK_PASSPHRASE, PUBLIC);
+    assert.equal(isMainnetPassphrase(PUBLIC), true);
+    assert.equal(isMainnetPassphrase(` ${PUBLIC} `), true);
+    assert.equal(isMainnetPassphrase(TESTNET), false);
+    assert.equal(isMainnetPassphrase(""), false);
+  });
+
+  it("recognises loopback hosts", () => {
+    for (const url of [
+      "http://localhost:8000",
+      "http://127.0.0.1:8000",
+      "http://127.12.0.9",
+      "http://[::1]:8000",
+      "http://0.0.0.0:8000",
+      "http://node.localhost:8000",
+    ]) {
+      assert.equal(isLoopbackHost(url), true, url);
+    }
+    for (const url of ["https://rpc.example.test", "http://192.168.0.10", "not a url"]) {
+      assert.equal(isLoopbackHost(url), false, url);
+    }
+  });
+
+  it("accepts HTTPS on any network", () => {
+    assert.doesNotThrow(() =>
+      assertEndpointTransportSecurity("https://rpc.example.test", {
+        networkPassphrase: PUBLIC,
+      }),
+    );
+    assert.doesNotThrow(() =>
+      assertEndpointTransportSecurity("https://soroban-testnet.stellar.org", {
+        networkPassphrase: TESTNET,
+      }),
+    );
+  });
+
+  it("rejects HTTP on mainnet even with allowHttp and a loopback host", () => {
+    for (const rpcUrl of ["http://rpc.example.test", "http://localhost:8000"]) {
+      assert.throws(
+        () =>
+          assertEndpointTransportSecurity(rpcUrl, {
+            networkPassphrase: PUBLIC,
+            allowHttp: true,
+          }),
+        (error: unknown) => {
+          assert.ok(error instanceof SubRosaClientConfigError);
+          assert.match(error.message, /must use https on mainnet/);
+          return true;
+        },
+        rpcUrl,
+      );
+    }
+  });
+
+  it("keeps HTTP behind an explicit allowHttp off mainnet", () => {
+    assert.throws(
+      () =>
+        assertEndpointTransportSecurity("http://localhost:8000", {
+          networkPassphrase: TESTNET,
+        }),
+      /must use https unless allowHttp is explicitly enabled/,
+    );
+    assert.equal(
+      assertEndpointTransportSecurity("http://localhost:8000", {
+        networkPassphrase: TESTNET,
+        allowHttp: true,
+      }).protocol,
+      "http:",
+    );
+  });
+
+  it("rejects URL credentials before any transport decision", () => {
+    assert.throws(
+      () =>
+        assertEndpointTransportSecurity("https://user:pass@rpc.example.test", {
+          networkPassphrase: PUBLIC,
+        }),
+      /rpcUrl: must not contain credentials/,
+    );
+  });
 });
 
 describe("validateContractNetwork", () => {

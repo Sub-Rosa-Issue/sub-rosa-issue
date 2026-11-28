@@ -132,7 +132,7 @@ pnpm appraisal:e2e     # x402 handshake + on-chain settlement
 
 `POST /appraise` checks a quote-creation limiter after payment is verified and before `buildAppraisalQuote`. When the limiter refuses, the response is HTTP 429 `{ "error": "appraisal quote rate limit exceeded" }` with a standards-compliant `Retry-After` header (remaining window in whole seconds, rounded up, minimum `1`). No quote is returned and the authorized payment is not settled.
 
-`X-Forwarded-For` is ignored by default so callers cannot spoof client IPs to bypass rate limits. Set `TRUST_PROXY=true` (or `trustProxy: true` on `buildAppraisalServer`) only behind a trusted reverse proxy; selected addresses are normalized before rate-limit lookup.
+`X-Forwarded-For` is ignored by default so callers cannot spoof client IPs to bypass rate limits. Set `TRUSTED_PROXY_IPS` to the comma-separated socket addresses of trusted reverse proxies (or supply `trustedProxyIps` to `buildAppraisalServer`). The trusted gateway must replace `X-Forwarded-For` or append the real client address. The service uses only the address appended by the trusted gateway, then normalizes it.
 
 The default adapter is `createMemoryQuoteRateLimiter`: a fixed window of 30 quotes per 60 seconds per client address, retaining at most 1,000 keys. It is for a single development process. Production should pass `quoteRateLimiter` on `buildAppraisalServer` with an implementation of `QuoteRateLimiter` backed by a shared store. The interface is `take(key, nowMs) -> { allowed, retryAfterMs }`.
 

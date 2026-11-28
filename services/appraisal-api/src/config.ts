@@ -1,3 +1,4 @@
+import { normalizeClientIp } from "./quote-rate-limit.js";
 // Copyright (c) 2026 Sub Rosa contributors
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import {
@@ -39,7 +40,7 @@ export interface AppraisalServerConfig {
   /** HTTP port. */
   port: number;
   /** Trust `X-Forwarded-For` when identifying clients for rate limiting. Defaults to false. */
-  trustProxy?: boolean;
+  trustedProxyIps?: string[];
 }
 
 type AppraisalNetwork =
@@ -104,19 +105,13 @@ function parsePort(value: string | undefined): number {
   return port;
 }
 
-function parseBoolean(
-  value: string | undefined,
-  name: string,
-  defaultValue: boolean,
-): boolean {
-  if (value == null) return defaultValue;
-  const normalized = value.toLowerCase();
-  if (normalized === "true" || normalized === "1") return true;
-  if (normalized === "false" || normalized === "0") return false;
-  throw new AppraisalConfigError(
-    name,
-    `must be a boolean ("true", "false", "1", or "0"), got ${JSON.stringify(value)}`,
-  );
+function parseTrustedProxyIps(value: string | undefined): string[] {
+  if (!value) return [];
+  const peers = value.split(",").map(normalizeClientIp);
+  if (peers.some((peer) => !peer)) {
+    throw new AppraisalConfigError("TRUSTED_PROXY_IPS", "must contain only comma-separated IP addresses");
+  }
+  return [...new Set(peers)];
 }
 
 function parseRpcUrl(
@@ -216,6 +211,6 @@ export function configFromEnv(
     networkPassphrase: expectedPassphrase,
     rpcUrl: parseRpcUrl(optionalEnv(env, "RPC_URL"), network),
     port: parsePort(optionalEnv(env, "PORT")),
-    trustProxy: parseBoolean(optionalEnv(env, "TRUST_PROXY"), "TRUST_PROXY", false),
+    trustedProxyIps: parseTrustedProxyIps(optionalEnv(env, "TRUSTED_PROXY_IPS")),
   };
 }

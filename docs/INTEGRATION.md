@@ -112,6 +112,27 @@ Preflight results include:
 Existing submit methods are unchanged; preflight is optional and does not
 require live signing credentials beyond a source `publicKey` (or `secretKey`).
 
+## External request timeouts
+
+Every external request the SDK, keeper, appraisal client and Drand tooling
+make is bounded by one shared default, `DEFAULT_REQUEST_TIMEOUT_MS`
+(**10 000 ms**, exported from `@sub-rosa/time`), so a hung peer cannot stall a
+component indefinitely. A per-call override must be an integer between
+**100 and 300 000 ms**; `0`, `NaN` and out-of-range values are rejected
+rather than silently disabling the bound.
+
+| Client | Where the bound applies | Override |
+| ------ | ----------------------- | -------- |
+| `SubRosaClient` (Soroban RPC, also used by the keeper) | each RPC request | `rpcTimeoutMs` |
+| `StatusClient` (keeper status API) | each status request | `timeoutMs` |
+| `createPaidFetch` (appraisal API) | the probe and the paid retry | `requestTimeoutMs` |
+| `drand-tools` quicknet helpers | each Drand HTTP request | none (default) |
+
+`fetchWithTimeout` aborts the request and rejects with `RequestTimeoutError`
+(never including the URL, which may carry credentials). The timer covers
+connecting and receiving response headers; `confirmTimeout` is a separate,
+longer bound on transaction finality polling.
+
 ## Auditor identity recovery CLI
 
 For pilots that need machine-readable selective-disclosure evidence, recover

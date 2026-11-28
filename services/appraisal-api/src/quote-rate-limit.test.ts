@@ -106,15 +106,15 @@ test("appraisalQuoteRateKey ignores X-Forwarded-For by default (anti-spoofing)",
   assert.equal(appraisalQuoteRateKey(req2), "10.0.0.5");
 });
 
-test("appraisalQuoteRateKey honors and normalizes X-Forwarded-For only when trustProxy is true", () => {
-  const req = fakeReq("127.0.0.1", "::ffff:198.51.100.7, 10.0.0.1");
-  assert.equal(appraisalQuoteRateKey(req, { trustProxy: true }), "198.51.100.7");
+test("appraisalQuoteRateKey honors and normalizes X-Forwarded-For only when the actual peer is trusted", () => {
+  const req = fakeReq("127.0.0.1", "10.0.0.1, ::ffff:198.51.100.7");
+  assert.equal(appraisalQuoteRateKey(req, { trustedProxyIps: ["127.0.0.1"] }), "198.51.100.7");
 
-  const ipv6Req = fakeReq("127.0.0.1", "[2001:DB8::42]:443, 10.0.0.1");
-  assert.equal(appraisalQuoteRateKey(ipv6Req, { trustProxy: true }), "2001:db8::42");
+  const ipv6Req = fakeReq("127.0.0.1", "10.0.0.1, [2001:DB8::42]:443");
+  assert.equal(appraisalQuoteRateKey(ipv6Req, { trustedProxyIps: ["127.0.0.1"] }), "2001:db8::42");
 
-  const spoofedInvalid = fakeReq("::ffff:10.0.0.9", "evil-spoofed-value");
-  assert.equal(appraisalQuoteRateKey(spoofedInvalid, { trustProxy: true }), "10.0.0.9");
+  const spoofedInvalid = fakeReq("::ffff:10.0.0.9", "192.0.2.99");
+  assert.equal(appraisalQuoteRateKey(spoofedInvalid, { trustedProxyIps: ["127.0.0.1"] }), "10.0.0.9");
 });
 
 test("HTTP 429 includes Retry-After from remaining window, keeps JSON shape, resets at boundary, and ignores untrusted X-Forwarded-For", async () => {
@@ -147,7 +147,7 @@ test("HTTP 429 includes Retry-After from remaining window, keeps JSON shape, res
       network: STELLAR_TESTNET_CAIP2,
       rpcUrl: "http://localhost:8000/rpc",
       port: 0,
-      trustProxy: false,
+      trustedProxyIps: [],
     },
     {
       nowSeconds: () => nowSec,
@@ -179,7 +179,7 @@ test("HTTP 429 includes Retry-After from remaining window, keeps JSON shape, res
     const first = await postAppraise("203.0.113.1");
     assert.equal(first.status, 200);
 
-    // Rotating X-Forwarded-For while trustProxy is false still hits the same limit.
+    // Rotating X-Forwarded-For without trusted proxies still hits the same limit.
     nowSec += 3;
     const limited = await postAppraise("203.0.113.99");
     assert.equal(limited.status, 429);

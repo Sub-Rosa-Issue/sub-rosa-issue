@@ -24,6 +24,11 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+Toast keyboard behavior: when a toast is dismissed by keyboard (close button or
+`Escape` while focus is inside the toast), focus returns to the action that
+opened the toast; programmatic/auto-dismiss does not move focus when the user
+has moved elsewhere.
+
 The same job runs `pnpm snapshot:check` to require the committed contract
 snapshot categories, while `web:test` checks the generated demo trace and its
 agreement with the dashboard fixture. The contract job regenerates Rust test
@@ -56,6 +61,21 @@ dependencies without lifecycle scripts, then runs `pnpm agent:test` and
 `services/agent`; `node --test scripts/agent-ci.test.mjs` verifies the CI job
 configuration.
 
+## Drand tools checks
+
+The `Drand tools checks` workflow (`.github/workflows/drand-tools.yml`) runs on
+pushes to `main` and on every pull request. Its single blocking job installs
+locked JS dependencies without lifecycle scripts, then runs
+`pnpm drand-tools:test` and `pnpm drand-tools:typecheck` in order. Run the same
+two commands locally to check `services/drand-tools`;
+`node --test scripts/drand-tools-ci.test.mjs` verifies the CI job
+configuration.
+
+The typecheck step covers more than this service: `@sub-rosa/drand-tools`
+imports `@sub-rosa/tlock`, so the gate also type-checks the tlock sources it
+uses. That is deliberate — the parity test these tools exist for is only
+meaningful while both sides still compile against each other.
+
 ## Keeper checks
 
 The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
@@ -63,6 +83,15 @@ The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
 dependencies with `--frozen-lockfile --ignore-scripts` and runs
 `pnpm keeper:test` and `pnpm keeper:typecheck` in order
 (`node --test scripts/keeper-ci.test.mjs` verifies the workflow configuration).
+
+## Tlock checks
+
+The `Tlock checks` workflow (`.github/workflows/tlock.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm tlock:test` and
+`pnpm tlock:typecheck` in order. Run the same two commands locally to check
+`packages/tlock`; `node --test scripts/tlock-ci.test.mjs` verifies the CI job
+configuration.
 
 Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
@@ -228,3 +257,7 @@ pnpm ci:rust-toolchain:check
 
 Checker source: `scripts/check-rust-toolchain.mjs` (tests in
 `scripts/check-rust-toolchain.test.mjs`).
+
+## Web test discovery
+
+`pnpm --filter @sub-rosa/web test` discovers `*.test.ts` and `*.test.tsx` files in the web workspace in path order. Files that use `mock.module()` run in separate Node processes with module mocking enabled. New web tests do not require a package script change.
