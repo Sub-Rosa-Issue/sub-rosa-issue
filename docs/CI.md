@@ -24,6 +24,11 @@ dependencies without lifecycle scripts, then runs `pnpm web:test`,
 locally to check `apps/web`; `node --test scripts/web-ci.test.mjs` verifies the
 CI job configuration.
 
+Toast keyboard behavior: when a toast is dismissed by keyboard (close button or
+`Escape` while focus is inside the toast), focus returns to the action that
+opened the toast; programmatic/auto-dismiss does not move focus when the user
+has moved elsewhere.
+
 The same job runs `pnpm snapshot:check` to require the committed contract
 snapshot categories, while `web:test` checks the generated demo trace and its
 agreement with the dashboard fixture. The contract job regenerates Rust test
@@ -78,6 +83,15 @@ The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
 dependencies with `--frozen-lockfile --ignore-scripts` and runs
 `pnpm keeper:test` and `pnpm keeper:typecheck` in order
 (`node --test scripts/keeper-ci.test.mjs` verifies the workflow configuration).
+
+## Tlock checks
+
+The `Tlock checks` workflow (`.github/workflows/tlock.yml`) runs on pushes to
+`main` and on pull requests. Its single blocking job installs locked JS
+dependencies without lifecycle scripts, then runs `pnpm tlock:test` and
+`pnpm tlock:typecheck` in order. Run the same two commands locally to check
+`packages/tlock`; `node --test scripts/tlock-ci.test.mjs` verifies the CI job
+configuration.
 
 Repository-level GitHub Actions settings, including the approval policy for fork
 pull request workflows, are recorded in
