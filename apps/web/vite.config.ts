@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import inject from "@rollup/plugin-inject";
 import { createRequire } from "node:module";
 import { defineConfig } from "vite";
+import { WEB_SECURITY_HEADERS } from "./src/lib/security-headers";
 
 const require = createRequire(import.meta.url);
 
@@ -48,7 +49,9 @@ export default defineConfig(({ command, mode }) => ({
   build: {
     sourcemap: resolveBuildSourcemap(command, mode),
   },
+  preview: { headers: WEB_SECURITY_HEADERS },
   server: {
+    headers: WEB_SECURITY_HEADERS,
     port: 5173,
     fs: {
       allow: ["..", "../..", "../../..", "../../../.."],

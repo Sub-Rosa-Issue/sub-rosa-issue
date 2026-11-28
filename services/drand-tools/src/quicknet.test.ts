@@ -50,7 +50,9 @@ function getBeacon(round: number | "latest", fetchImpl: typeof fetch) {
   return fetchBeacon(round, (url, init) => {
     if (String(url).endsWith("/info")) {
       assert.equal(init?.redirect, "manual");
-      return Promise.resolve(new Response(JSON.stringify({ hash: QUICKNET_HASH }), { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ hash: QUICKNET_HASH }), {
+        status: 200, headers: { "content-type": "application/json" },
+      }));
     }
     return fetchImpl(url, init);
   }, config);

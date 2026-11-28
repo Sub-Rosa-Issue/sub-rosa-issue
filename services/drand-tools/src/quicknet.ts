@@ -135,6 +135,22 @@ async function fetchDrand(
   return res;
 }
 
+export class DrandMediaTypeError extends Error {
+  readonly name = "DrandMediaTypeError";
+  readonly code = "DRAND_UNEXPECTED_MEDIA_TYPE";
+  constructor() {
+    super("Unexpected Drand response content type");
+  }
+}
+
+function assertDrandJsonResponse(response: Response): void {
+  const contentType = response.headers.get("content-type")?.trim() ?? "";
+  if (!/^application\/json(?:\s*;\s*charset\s*=\s*(?:"[a-z0-9._-]+"|[a-z0-9._-]+))?$/i.test(contentType)) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new DrandMediaTypeError();
+  }
+}
+
 export async function getChainInfo(
   fetchImpl?: FetchImpl,
   config: DrandConfig = loadDrandConfig(),
@@ -142,6 +158,7 @@ export async function getChainInfo(
   const { apiUrl, expectedChainHash } = checkedDrandConfig(config);
   const res = await fetchDrand(`${apiUrl}/${expectedChainHash}/info`, "chain-info", fetchImpl);
   if (!res.ok) throw new Error(`info HTTP ${res.status}`);
+  assertDrandJsonResponse(res);
   const info = (await res.json()) as ChainInfo;
   if (typeof info?.hash !== "string" || info.hash.trim().toLowerCase() !== expectedChainHash) {
     throw new DrandChainHashMismatchError();
@@ -162,6 +179,7 @@ export async function getBeacon(
     fetchImpl,
   );
   if (!res.ok) throw new Error(`beacon ${round} HTTP ${res.status}`);
+  assertDrandJsonResponse(res);
   return (await res.json()) as Beacon;
 }
 
