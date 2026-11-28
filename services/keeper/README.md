@@ -114,6 +114,12 @@ Response shape (typed in `@sub-rosa/sdk` as `KeeperStatusResponse`):
 - `/healthz` returns `200` only when both RPC and Drand respond. Any error → `503`. Cheap enough for a liveness probe.
 - `/status/health` returns the same health shape plus a timestamp, but runs the full round-building pass (more RPC load — use for readiness, not liveness).
 
+## Request timeouts
+
+The keeper reaches Soroban RPC through `SubRosaClient`, so each RPC request is
+bounded by the shared default of 10 000 ms (`rpcTimeoutMs` overrides it, 100 to
+300 000 ms). See [External request timeouts](../../docs/INTEGRATION.md#external-request-timeouts).
+
 ## Pilot deployment notes
 
 1. **Run `serve`, not `watch`, in production.** The combined process gives you the status API alongside the keeper loop. Both share the same RPC budget and the same persisted store.
