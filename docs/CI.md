@@ -61,6 +61,21 @@ dependencies without lifecycle scripts, then runs `pnpm agent:test` and
 `services/agent`; `node --test scripts/agent-ci.test.mjs` verifies the CI job
 configuration.
 
+## Drand tools checks
+
+The `Drand tools checks` workflow (`.github/workflows/drand-tools.yml`) runs on
+pushes to `main` and on every pull request. Its single blocking job installs
+locked JS dependencies without lifecycle scripts, then runs
+`pnpm drand-tools:test` and `pnpm drand-tools:typecheck` in order. Run the same
+two commands locally to check `services/drand-tools`;
+`node --test scripts/drand-tools-ci.test.mjs` verifies the CI job
+configuration.
+
+The typecheck step covers more than this service: `@sub-rosa/drand-tools`
+imports `@sub-rosa/tlock`, so the gate also type-checks the tlock sources it
+uses. That is deliberate — the parity test these tools exist for is only
+meaningful while both sides still compile against each other.
+
 ## Keeper checks
 
 The `Keeper checks` workflow (`.github/workflows/keeper.yml`) runs on pushes to
