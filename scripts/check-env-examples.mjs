@@ -61,7 +61,7 @@ export function checkTemplates(templates = TEMPLATES) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const errors = checkTemplates();
-  for (const error of errors) console.error(error);
+  for (const error of errors) process.stderr.write(`${error}\n`);
   if (errors.length) process.exitCode = 1;
-  else console.log('Environment templates are valid.');
+  else process.stdout.write('Environment templates are valid.\n');
 }
