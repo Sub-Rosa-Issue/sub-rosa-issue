@@ -232,32 +232,3 @@ export async function runSealAttackDemo(): Promise<{
 
   return { sealOff, sealOn, revealRound };
 }
-
-export class DemoActionBlockedError extends Error {
-  readonly action: DemoAction;
-  constructor(action: DemoAction) {
-    super(`Demo action "${action}" is disabled until public configuration issues are resolved.`);
-    this.name = "DemoActionBlockedError";
-    this.action = action;
-  }
-}
-
-export function demoActionAvailability(
-  gate: DemoActionGate,
-): Record<DemoAction, boolean> {
-  return {
-    commit: gate.enabled,
-    reveal: gate.enabled,
-    settle: gate.enabled,
-  };
-}
-
-export function assertDemoActionAllowed(
-  action: DemoAction,
-  gate: DemoActionGate,
-): void {
-  if (!DEMO_ACTIONS.includes(action) || !gate.enabled) {
-    throw new DemoActionBlockedError(action);
-  }
-}
-

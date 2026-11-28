@@ -73,13 +73,13 @@ test("adding a new *.test.ts or *.test.tsx file is discovered without editing pa
 
     assert.equal(outcome.status, 0);
     assert.equal(invocations.length, 2);
-    assert.deepEqual(invocations[0]?.args, ["--import", "tsx", "--test", "src/alpha.test.ts"]);
+    assert.deepEqual(invocations[0]?.args, ["--import", "tsx", "--test", "./src/alpha.test.ts"]);
     assert.deepEqual(invocations[1]?.args, [
       "--experimental-test-module-mocks",
       "--import",
       "tsx",
       "--test",
-      "src/components/beta.test.tsx",
+      "./src/components/beta.test.tsx",
     ]);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

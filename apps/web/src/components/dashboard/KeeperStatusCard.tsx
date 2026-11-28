@@ -1,6 +1,5 @@
 // Copyright (c) 2026 Sub Rosa contributors
 import { shortHash } from "../../lib/format";
-import { redactKeeperError } from "../../dashboard/snapshot";
 import type { DashboardData, KeeperDryRunPhase } from "../../dashboard/types";
 import type { DashboardSnapshot } from "@sub-rosa/sdk";
 
@@ -31,24 +30,23 @@ export function KeeperStatusCard({
   // phase slug.  When a keeper error is present, show the last verified phase
   // as stale rather than hiding it.
   const cursor = snapshot.keeperCursor as KeeperDryRunPhase;
-  const keeperError = redactKeeperError(snapshot.keeperError);
 
   return (
     <section className="dashboard-card keeper-status-card">
       <header className="dashboard-card-header">
         <h2>Keeper Status</h2>
         <PhaseBadge phase={cursor} />
-        {keeperError && (
-          <span className="dashboard-status-pill error" title={keeperError}>
+        {snapshot.keeperError && (
+          <span className="dashboard-status-pill error" title={snapshot.keeperError}>
             error (stale)
           </span>
         )}
       </header>
 
       <div className="dashboard-card-body">
-        {keeperError && (
+        {snapshot.keeperError && (
           <div className="dashboard-keeper-error" role="alert">
-            <strong>Keeper error:</strong> {keeperError}
+            <strong>Keeper error:</strong> {snapshot.keeperError}
           </div>
         )}
 

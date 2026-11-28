@@ -85,7 +85,7 @@ export function runWebTests(rootDir = DEFAULT_WEB_ROOT, options = {}) {
   const { standardTests, moduleMockTests } = partitionWebTestFiles(files, rootDir);
 
   if (standardTests.length > 0) {
-    const res = spawn(process.execPath, ["--import", "tsx", "--test", ...standardTests], {
+    const res = spawn(process.execPath, ["--import", "tsx", "--test", ...standardTests.map((file) => `./${file}`)], {
       cwd: rootDir,
       stdio: "inherit",
       env: process.env,
@@ -98,7 +98,7 @@ export function runWebTests(rootDir = DEFAULT_WEB_ROOT, options = {}) {
   for (const mockTestFile of moduleMockTests) {
     const res = spawn(
       process.execPath,
-      ["--experimental-test-module-mocks", "--import", "tsx", "--test", mockTestFile],
+      ["--experimental-test-module-mocks", "--import", "tsx", "--test", `./${mockTestFile}`],
       { cwd: rootDir, stdio: "inherit", env: process.env },
     );
     if ((res.status ?? 1) !== 0) {

@@ -156,6 +156,41 @@ export function assertNoCredentialFields(value: unknown): void {
   assertNoCredentialFieldsDeep(value);
 }
 
+/** Documented top-level request keys — anything else is rejected. */
+export const APPRAISAL_REQUEST_KEYS = Object.freeze([
+  "itemRef",
+  "basePrice",
+  "category",
+  "attributes",
+] as const);
+
+/** Documented attribute score keys — anything else is rejected. */
+export const APPRAISAL_ATTRIBUTE_KEYS = Object.freeze([
+  "quality",
+  "demand",
+  "scarcity",
+  "risk",
+] as const);
+
+const ALLOWED_REQUEST_KEYS: ReadonlySet<string> = new Set(APPRAISAL_REQUEST_KEYS);
+const ALLOWED_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set(APPRAISAL_ATTRIBUTE_KEYS);
+
+/**
+ * Closed-schema guard: unknown keys fail closed with a stable message that
+ * never echoes submitted field names or values (callers may have mistyped a
+ * payment/secret field into the body).
+ */
+function assertOnlyAllowedKeys(
+  obj: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+): void {
+  for (const key of Object.keys(obj)) {
+    if (!allowed.has(key)) {
+      throw new AppraisalInputError("request contains unknown fields");
+    }
+  }
+}
+
 /** Mint a payment quote for one appraisal call. Pure except for `nowSeconds`. */
 export function buildAppraisalQuote(params: {
   asset: string;
@@ -200,6 +235,8 @@ export function parseAppraisalRequest(raw: unknown): AppraisalRequest {
   // before any payment is offered or settled.
   assertNoCredentialFieldsDeep(raw);
   const o = raw as Record<string, unknown>;
+  // Closed schema: misspelled payment/appraisal fields must not be silently ignored.
+  assertOnlyAllowedKeys(o, ALLOWED_REQUEST_KEYS);
   if (typeof o.itemRef !== "string" || o.itemRef.trim() === "") {
     throw new AppraisalInputError("itemRef must be a non-empty string");
   }
@@ -221,11 +258,12 @@ export function parseAppraisalRequest(raw: unknown): AppraisalRequest {
   }
   const attrs: AppraisalAttributes = {};
   if (o.attributes !== undefined) {
-    if (typeof o.attributes !== "object" || o.attributes === null) {
+    if (typeof o.attributes !== "object" || o.attributes === null || Array.isArray(o.attributes)) {
       throw new AppraisalInputError("attributes must be an object");
     }
     const a = o.attributes as Record<string, unknown>;
-    for (const key of ["quality", "demand", "scarcity", "risk"] as const) {
+    assertOnlyAllowedKeys(a, ALLOWED_ATTRIBUTE_KEYS);
+    for (const key of APPRAISAL_ATTRIBUTE_KEYS) {
       if (a[key] !== undefined) {
         const v = a[key];
         if (typeof v !== "number" || !Number.isFinite(v)) {

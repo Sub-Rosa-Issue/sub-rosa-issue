@@ -1,0 +1,9 @@
+{
+  "description": "Cross-origin HTTP redirect that must not be followed",
+  "requestUrl": "http://keeper.test/status",
+  "status": 307,
+  "headers": {
+    "Location": "https://attacker.example/exfiltrate?token=secret"
+  },
+  "sameOrigin": false
+}

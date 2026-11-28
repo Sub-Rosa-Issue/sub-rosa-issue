@@ -15,8 +15,8 @@ test("web CI blocks on snapshot inventory and dashboard evidence checks", () => 
   assert.doesNotMatch(web, /\bcontinue-on-error\s*:/);
   assert.ok(web.indexOf("pnpm install --frozen-lockfile --ignore-scripts") < web.indexOf("pnpm snapshot:check"));
   assert.ok(web.indexOf("pnpm snapshot:check") < web.indexOf("pnpm web:test"));
-  assert.equal(webScripts.test, "node scripts/run-tests.mjs");
-  assert.doesNotMatch(webScripts.test, /\.test\.tsx?/);
+  assert.match(webScripts.test, /src\/dashboard\/fixture-health-check\.test\.ts/);
+  assert.match(webScripts.test, /src\/demo\/trace-health-check\.test\.ts/);
 });
 
 test("contract CI rejects regenerated or newly created snapshots", () => {
