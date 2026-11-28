@@ -12,7 +12,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "node --import tsx src/run.ts",
-    "test": "node --import tsx --test src/appraisal.test.ts src/appraisal-fixtures.test.ts src/config.test.ts src/client.test.ts src/quote-guard.test.ts src/quote-rate-limit.test.ts src/body-limit.test.ts src/request-id.test.ts",
+    "test": "node --import tsx --test src/appraisal.test.ts src/appraisal-fixtures.test.ts src/config.test.ts src/client.test.ts src/quote-guard.test.ts src/quote-rate-limit.test.ts src/body-limit.test.ts src/content-type.test.ts src/request-id.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

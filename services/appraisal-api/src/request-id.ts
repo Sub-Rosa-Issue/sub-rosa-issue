@@ -35,13 +35,12 @@ export function isValidAppraisalRequestId(value: unknown): value is string {
   );
 }
 
-/** Read the first inbound `x-request-id` value from Node headers. */
+/** Read a single inbound `x-request-id`; ambiguous values are discarded. */
 export function readInboundAppraisalRequestId(
   headers: IncomingHttpHeaders,
 ): string | undefined {
   const raw = headers[APPRAISAL_REQUEST_ID_HEADER];
-  if (Array.isArray(raw)) return raw[0];
-  return raw;
+  return typeof raw === "string" ? raw : undefined;
 }
 
 /**

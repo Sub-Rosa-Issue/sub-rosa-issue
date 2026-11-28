@@ -87,14 +87,14 @@ describe("appraisal request id sanitization", () => {
     }
   });
 
-  test("reads the first inbound x-request-id header value", () => {
+  test("reads a single inbound x-request-id and rejects duplicate values", () => {
     assert.equal(
       readInboundAppraisalRequestId({ [APPRAISAL_REQUEST_ID_HEADER]: "abc-123" }),
       "abc-123",
     );
     assert.equal(
       readInboundAppraisalRequestId({ [APPRAISAL_REQUEST_ID_HEADER]: ["first", "second"] }),
-      "first",
+      undefined,
     );
     assert.equal(readInboundAppraisalRequestId({}), undefined);
   });
